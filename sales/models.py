@@ -1,40 +1,37 @@
 import uuid
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.contrib.postgres.indexes import GinIndex
-
 from django.db.models import Count, Q, Avg
 from django.utils.translation import gettext_lazy as _
 
-
 # ==========================================
-# 1. MODELO BASE (HERENCIA DRY)
+# 0. CORE: CLASE BASE (DRY)
 # ==========================================
 
 class TimeStampedModel(models.Model):
     """
-    Clase base abstracta. Al heredar de esta clase, todos nuestros modelos 
-    tendrán registro exacto de creación y de su última actualización automáticamente.
+    Clase base abstracta. Otorga trazabilidad cronológica (Audit Trail)
+    a nivel de base de datos para cada registro del sistema.
     """
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
 
+
 # ==========================================
-# 2. MODELO CORE: INSTITUCIÓN EDUCATIVA
+# 1. TIER 0: MASTER ENTITY (INSTITUTION)
 # ==========================================
 
 class Institution(TimeStampedModel):
     """
-    Representa a la empresa o colegio que vamos a prospectar.
-    Optimizado para Búsqueda Global, Geolocalización y OSINT.
+    [Master Node]
+    Representa a la empresa o colegio prospecto. Mantiene solo la información 
+    de enrutamiento básico (Identity & Routing). Los datos pesados se delegan a los perfiles OneToOne.
     """
-    # ID inquebrantable (Estándar de seguridad militar)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # --- ENUMS (Listas de Opciones Validadas) ---
     class InstitutionType(models.TextChoices):
         KINDERGARTEN = 'kindergarten', 'Jardín Infantil / Preescolar'
         SCHOOL = 'school', 'Colegio (Básica/Media)'
@@ -50,7 +47,6 @@ class Institution(TimeStampedModel):
 
     # --- IDENTIDAD Y CONTACTO BÁSICO ---
     name = models.CharField(max_length=255, verbose_name="Nombre de la Institución")
-    # website DEBE permitir nulos, porque OSM encontrará colegios de los que aún no sabemos su URL
     website = models.URLField(max_length=255, unique=True, null=True, blank=True, verbose_name="Sitio Web")
     email = models.EmailField(blank=True, null=True, verbose_name="Email Principal")
     phone = models.CharField(max_length=50, blank=True, null=True, verbose_name="Teléfono Principal")
@@ -62,15 +58,10 @@ class Institution(TimeStampedModel):
         default=InstitutionType.SCHOOL, 
         verbose_name="Nivel Educativo"
     )
-    is_private = models.BooleanField(
-        default=True, 
-        db_index=True, 
-        verbose_name="Es Privada",
-        help_text="Las privadas suelen tener mayor presupuesto para software."
-    )
+    is_private = models.BooleanField(default=True, db_index=True, verbose_name="Es Privada")
     student_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Estudiantes Estimados")
 
-    # --- GEOLOCALIZACIÓN GLOBAL ---
+    # --- GEOLOCALIZACIÓN Y TERRITORIOS ---
     country = models.CharField(max_length=100, db_index=True, default="Colombia", verbose_name="País")
     state_region = models.CharField(max_length=100, blank=True, null=True, db_index=True, verbose_name="Estado / Región")
     city = models.CharField(max_length=100, db_index=True, verbose_name="Ciudad / Municipio")
@@ -78,7 +69,7 @@ class Institution(TimeStampedModel):
     latitude = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True, verbose_name="Latitud")
     longitude = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True, verbose_name="Longitud")
 
-    # --- TRAZABILIDAD Y ESTADO DEL LEAD ---
+    # --- TRAZABILIDAD (CRM ROUTING) ---
     discovery_source = models.CharField(
         max_length=20, 
         choices=DiscoverySource.choices, 
@@ -88,9 +79,8 @@ class Institution(TimeStampedModel):
     is_active = models.BooleanField(default=True, db_index=True, verbose_name="Activo en CRM")
     contacted = models.BooleanField(default=False, db_index=True, verbose_name="Contactado")
     
-    # --- INTELIGENCIA FORENSE Y SCORING ---
-    last_scored_at = models.DateTimeField(blank=True, null=True, verbose_name="Último Escaneo Forense")
-    tech_stack = models.JSONField(default=dict, blank=True, verbose_name="Inteligencia Estructurada (JSON)")
+    # Conservamos el Score y Last Scanned aquí porque se usan agresivamente para Order By y Filtros Rápidos
+    last_scored_at = models.DateTimeField(blank=True, null=True, verbose_name="Último Escaneo")
     lead_score = models.IntegerField(
         default=0, 
         db_index=True,
@@ -103,23 +93,18 @@ class Institution(TimeStampedModel):
         verbose_name_plural = "Instituciones Educativas"
         ordering = ['-lead_score']
         
-        # 🚀 ÍNDICES DE SILICON VALLEY
         indexes = [
             # Índice compuesto táctico para el Dashboard
             models.Index(fields=['-lead_score', 'contacted', 'is_active']),
             # Índice principal para el Buscador Geográfico Mundial
             models.Index(fields=['country', 'state_region', 'city']),
-            # Índice GIN para búsquedas a la velocidad de la luz dentro del JSON
-            GinIndex(fields=['tech_stack'], name='tech_stack_gin_idx'),
         ]
         
         constraints = [
-            # Garantiza que el score nunca salga del rango 0-100 a nivel de hardware
             models.CheckConstraint(
                 check=models.Q(lead_score__gte=0) & models.Q(lead_score__lte=100),
                 name='lead_score_range_0_to_100'
             ),
-            # Evita que el motor de descubrimiento inserte el mismo colegio duplicado
             models.UniqueConstraint(
                 fields=['name', 'city', 'country'],
                 name='unique_institution_per_city_country'
@@ -131,17 +116,71 @@ class Institution(TimeStampedModel):
 
 
 # ==========================================
-# 3. MODELOS DE VENTAS: CONTACTOS E INTERACCIONES
+# 2. TIER 1 & 2: MODULAR INTELLIGENCE PROFILES
+# ==========================================
+
+class TechProfile(TimeStampedModel):
+    """
+    [Tier 1: Fast Recon]
+    Almacena los resultados del escaneo ligero de infraestructura tecnológica (LMS, CMS, Analytics).
+    Separado de la institución para no saturar la tabla principal.
+    """
+    institution = models.OneToOneField(Institution, on_delete=models.CASCADE, related_name='tech_profile')
+    
+    has_lms = models.BooleanField(default=False, db_index=True)
+    lms_provider = models.CharField(max_length=100, blank=True, null=True, db_index=True, verbose_name="Proveedor LMS (Ej: Moodle)")
+    is_wordpress = models.BooleanField(default=False, verbose_name="Usa WordPress")
+    has_analytics = models.BooleanField(default=False, verbose_name="Tiene Google Analytics/Tag Manager")
+    
+    last_scanned = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Perfil Tecnológico"
+        verbose_name_plural = "Perfiles Tecnológicos"
+
+    def __str__(self):
+        return f"Tech Stack: {self.institution.name}"
+
+
+class DeepForensicProfile(TimeStampedModel):
+    """
+    [Tier 2: Deep AI Recon]
+    Almacena los resultados del motor de IA (DeepSeek/OpenAI), estrategias de ventas,
+    y datos estructurados que toman más tiempo en procesarse.
+    """
+    institution = models.OneToOneField(Institution, on_delete=models.CASCADE, related_name='forensic_profile')
+    
+    ai_classification = models.CharField(max_length=100, blank=True, null=True, db_index=True, verbose_name="Clasificación IA")
+    executive_summary = models.TextField(blank=True, null=True, verbose_name="Resumen Ejecutivo")
+    
+    # Array/JSON de tácticas de ventas generadas por la IA
+    sales_playbook = models.JSONField(default=list, blank=True, verbose_name="Recomendaciones Tácticas (Lista)")
+    predictive_copy = models.TextField(blank=True, null=True, verbose_name="Draft de Cold Email")
+    
+    estimated_budget = models.CharField(max_length=100, blank=True, null=True, verbose_name="Presupuesto Estimado")
+    
+    last_scanned = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Perfil Forense IA"
+        verbose_name_plural = "Perfiles Forenses IA"
+
+    def __str__(self):
+        return f"AI Intelligence: {self.institution.name}"
+
+
+# ==========================================
+# 3. CRM & OUTREACH: CONTACTOS E INTERACCIONES
 # ==========================================
 
 class Contact(TimeStampedModel):
-    """Representa al tomador de decisiones dentro de la institución."""
+    """Representa al tomador de decisiones (Rector, Director IT) dentro de la institución."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name='contacts')
     
     name = models.CharField(max_length=255)
     role = models.CharField(max_length=255, blank=True, null=True)
-    email = models.EmailField(blank=True, null=True, unique=True) # Evita contactos duplicados
+    email = models.EmailField(blank=True, null=True, unique=True)
     linkedin = models.URLField(blank=True, null=True)
     phone = models.CharField(max_length=50, blank=True, null=True)
 
@@ -150,7 +189,7 @@ class Contact(TimeStampedModel):
 
 
 class Interaction(TimeStampedModel):
-    """Registra cada correo, apertura y respuesta con exactitud militar y máxima seguridad."""
+    """Registra cada punto de contacto (email, llamada) con el prospecto."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
     class Status(models.TextChoices):
@@ -170,12 +209,7 @@ class Interaction(TimeStampedModel):
     opened_count = models.IntegerField(default=0)
     replied = models.BooleanField(default=False)
     
-    status = models.CharField(
-        max_length=20, 
-        choices=Status.choices, 
-        default=Status.NEW, 
-        db_index=True
-    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW, db_index=True)
     meeting_date = models.DateTimeField(blank=True, null=True)
 
     class Meta:
@@ -183,18 +217,16 @@ class Interaction(TimeStampedModel):
 
     def __str__(self):
         contact_name = self.contact.name if self.contact else "Sin Contacto"
-        return f"Interacción: {contact_name} | Estado: {self.get_status_display()} | Aperturas: {self.opened_count}"
-
+        return f"Interacción: {contact_name} | Estado: {self.get_status_display()}"
 
 
 # ==========================================
-# 1. ENTERPRISE QUERYSET & DATA ACCESS LAYER
+# 4. DATA WAREHOUSE & DASHBOARD MANAGER
 # ==========================================
+
 class CommandCenterQuerySet(models.QuerySet):
     """
-    Capa de acceso a datos optimizada para el Dashboard.
-    Resuelve las métricas del embudo directamente en el motor C de PostgreSQL,
-    evitando cargar objetos pesados en la memoria RAM de Python (O(1) Memory).
+    Capa de acceso a datos de Alto Rendimiento. Resuelve métricas complejas en la DB.
     """
     def get_funnel_metrics(self) -> dict:
         return self.aggregate(
@@ -207,37 +239,34 @@ class CommandCenterQuerySet(models.QuerySet):
 
 class CommandCenterManager(models.Manager):
     """
-    Manager exclusivo para el proxy. Aisla la lógica de inteligencia de negocios (BI)
-    del modelo principal de 'Institution' para mantener el principio de Responsabilidad Única (SRP).
+    Aisla la lógica de Business Intelligence (BI) de las consultas normales del ORM.
     """
     def get_queryset(self):
         return CommandCenterQuerySet(self.model, using=self._db)
         
     def get_dashboard_stats(self):
-        """Retorna las estadísticas listas para el Frontend."""
         return self.get_queryset().get_funnel_metrics()
 
+
 # ==========================================
-# 2. THE FACADE PATTERN (PROXY MODEL)
+# 5. THE FACADE PATTERN (PROXY MODEL)
 # ==========================================
+
 class CommandCenter(Institution):
     """
     [Architecture Pattern: Proxy Facade]
-    Controlador central del B2B Growth Engine. No altera el esquema relacional de la DB.
+    Controlador central del B2B Growth Engine.
     Actúa como un Gateway de seguridad y analítica para las operaciones de Celery.
     """
-    
-    # Inyectamos el manager de alto rendimiento
     objects = CommandCenterManager()
 
     class Meta:
         proxy = True
-        app_label = 'sales'  # Fuerza su ubicación exacta en el ecosistema
+        app_label = 'sales'
         verbose_name = _('🚀 Sovereign Command Center')
         verbose_name_plural = _('🚀 Sovereign Command Center')
         
-        # 🛡️ Role-Based Access Control (RBAC) de Grado Militar
-        # Crea permisos automáticos en la base de datos para restringir botones a usuarios específicos
+        # 🛡️ Role-Based Access Control (RBAC)
         permissions = [
             ("can_execute_osm_radar", _("Security: Can launch OSM Satellite Discovery")),
             ("can_execute_serp_resolver", _("Security: Can launch SERP URL Resolver")),
