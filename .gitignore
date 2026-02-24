@@ -1,0 +1,24 @@
+# Python basura
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Django secretos y DB
+db.sqlite3
+.env
+local_settings.py
+
+# Playwright & Browsers
+.auth/
+browser_data/
+
+# Logs de tu motor
+*.log
+recon_engine.log
+recon_engine_enterprise.log
+
+# Media y Static (opcional si es local)
+media/
+staticfiles/
