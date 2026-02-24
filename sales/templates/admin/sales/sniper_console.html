@@ -1,0 +1,137 @@
+{% extends "unfold/layouts/base.html" %}
+{% load i18n unfold static %}
+
+{% block content %}
+<main class="min-h-screen bg-[#050505] font-sans antialiased text-slate-300 p-4 lg:p-12 selection:bg-purple-500/30 selection:text-purple-200"
+      x-data="{ activeMission: false, targetName: '' }">
+
+    <div class="fixed inset-0 z-0 pointer-events-none opacity-20" 
+         style="background-image: radial-gradient(#1e1b4b 1px, transparent 1px); background-size: 32px 32px;"></div>
+
+    <div class="relative z-10 max-w-6xl mx-auto">
+        
+        <header class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16 animate-in fade-in slide-in-from-top-4 duration-700">
+            <div>
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-white">
+                        <span class="material-symbols-outlined text-black text-sm">target</span>
+                    </div>
+                    <h1 class="text-3xl font-black tracking-tighter text-white uppercase">Ghost_Sniper <span class="text-slate-600 font-light">v4.0</span></h1>
+                </div>
+                <p class="text-xs font-mono text-slate-500 uppercase tracking-[0.3em]">
+                    Autonomous B2B Reconnaissance & Intelligence Engine
+                </p>
+            </div>
+            
+            <div class="flex items-center gap-8 font-mono text-[10px] text-slate-500">
+                <div class="flex flex-col items-end">
+                    <span class="text-slate-700 uppercase">System_Status</span>
+                    <span class="text-emerald-500 flex items-center gap-1">
+                        <span class="relative flex h-2 w-2">
+                            <span class="absolute inline-flex w-full h-full rounded-full opacity-75 animate-ping bg-emerald-500/50"></span>
+                            <span class="relative inline-flex w-2 h-2 rounded-full bg-emerald-500"></span>
+                        </span>
+                        OPERATIONAL
+                    </span>
+                </div>
+                <div class="flex flex-col items-end">
+                    <span class="text-slate-700 uppercase">Neural_Link</span>
+                    <span class="text-white">ENCRYPTED_AES256</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="relative group mb-12 animate-in fade-in zoom-in duration-700 delay-150">
+            <div class="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl blur opacity-15 group-focus-within:opacity-40 transition duration-1000"></div>
+            
+            <form hx-post="{% url 'admin:sniper_engage' %}" 
+                  hx-target="#sniper-display" 
+                  hx-indicator="#engagement-indicator"
+                  @submit="activeMission = true; targetName = $el.target_url.value"
+                  class="relative bg-[#0a0a0a] rounded-2xl p-2 flex items-center border border-white/5 shadow-2xl">
+                {% csrf_token %}
+                <input type="hidden" name="mission_id" value="{{ mission_id }}">
+                
+                <div class="pl-6 text-slate-600">
+                    <span class="material-symbols-outlined">search</span>
+                </div>
+                
+                <input type="text" name="target_url" required
+                       placeholder="Ingresa nombre de institución o URL para infiltración profunda..."
+                       class="flex-1 bg-transparent border-none text-white px-6 py-5 focus:ring-0 text-lg placeholder:text-slate-800 font-medium">
+                
+                <button type="submit" 
+                        class="group relative overflow-hidden bg-white text-black font-black px-10 py-5 rounded-xl transition-all duration-300 hover:pr-14 active:scale-95">
+                    <span class="relative z-10 flex items-center gap-2 uppercase text-xs tracking-tighter">
+                        Initiate_Extraction
+                    </span>
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                        <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                    </span>
+                </button>
+            </form>
+        </section>
+
+        <div id="sniper-display" class="min-h-[500px] transition-all duration-500">
+            
+            <div class="flex flex-col items-center justify-center p-20 border border-white/5 rounded-3xl bg-[#080808]/50 backdrop-blur-sm">
+                <div class="relative mb-8">
+                    <div class="absolute inset-0 animate-ping rounded-full bg-purple-500/10"></div>
+                    <div class="relative w-20 h-20 rounded-full border border-white/10 flex items-center justify-center text-slate-800">
+                        <span class="material-symbols-outlined text-4xl">radar</span>
+                    </div>
+                </div>
+                <h3 class="text-slate-600 font-mono text-xs uppercase tracking-[0.4em] mb-2">Awaiting Target Coordinates</h3>
+                <p class="text-slate-800 text-sm max-w-xs text-center">El sistema está listo para desplegar el motor Ghost Sniper sobre cualquier objetivo educativo.</p>
+            </div>
+            
+        </div>
+
+        <div id="engagement-indicator" class="htmx-indicator fixed bottom-8 left-8 flex items-center gap-3 px-4 py-3 bg-white text-black rounded-full shadow-2xl z-50">
+            <div class="w-2 h-2 rounded-full bg-black animate-bounce"></div>
+            <span class="text-[10px] font-black uppercase tracking-tighter">Transmitting Data...</span>
+        </div>
+
+    </div>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #050505 !important;
+        }
+
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Ocultar scrollbars sin perder funcionalidad */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+
+        /* Estilos HTMX para animaciones de carga */
+        .htmx-indicator {
+            display: none;
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+        .htmx-request .htmx-indicator {
+            display: flex;
+            opacity: 1;
+        }
+        .htmx-request.htmx-indicator {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* Animación Custom para el Grid */
+        @keyframes grid-move {
+            0% { background-position: 0 0; }
+            100% { background-position: 32px 32px; }
+        }
+        .bg-grid-move {
+            animation: grid-move 4s linear infinite;
+        }
+    </style>
+</main>
+{% endblock %}
