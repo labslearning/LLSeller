@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'sales', # Nuestra aplicación B2B Core
+    'channels',
     
 
 ]
@@ -203,4 +204,11 @@ CELERY_TASK_ROUTES = {
     'sales.tasks.task_run_ghost_sniper': {'queue': 'scraping_queue'},
     'sales.tasks.task_run_osm_radar': {'queue': 'discovery_queue'},
     'sales.tasks.task_run_serp_resolver': {'queue': 'default'},
+}
+
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
 }

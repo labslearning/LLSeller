@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 from typing import Any, Dict
 from django.db.models import FloatField
 
@@ -7,12 +8,13 @@ from django.contrib import admin, messages
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q, F, Avg, Case, When, Value, IntegerField, Prefetch
-from django.http import HttpResponseRedirect, HttpRequest, JsonResponse
+from django.http import HttpResponseRedirect, HttpRequest, JsonResponse, HttpResponse
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.conf import settings
 from django.db.models.functions import Coalesce
 
@@ -23,10 +25,13 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import action, display
 
 # --- Importaciones locales ---
-from .models import Institution, CommandCenter, TechProfile, DeepForensicProfile
+from .models import (
+    Institution, CommandCenter, TechProfile, DeepForensicProfile, 
+    GlobalPipeline, SniperConsole, GeoRadarWorkspace 
+)
 from .engine.recon_engine import execute_recon, AIInsightsGenerator
 from .engine.serp_resolver import SERPResolverEngine
-from .tasks import task_run_osm_radar, task_run_serp_resolver, task_run_ghost_sniper
+from .tasks import task_run_osm_radar, task_run_serp_resolver, task_run_ghost_sniper, task_run_single_recon
 
 # ==========================================
 # TELEMETRÍA Y LOGGING CENTRALIZADO
@@ -85,8 +90,8 @@ try:
 except admin.sites.NotRegistered:
     pass
 
-@admin.register(Institution)
-class InstitutionAdmin(ModelAdmin):
+@admin.register(GlobalPipeline)
+class GlobalPipelineAdmin(ModelAdmin):
     """
     SDR Intelligence Interface.
     Estructura 100% estática: DOM simplificado para evitar el Resize Observer Loop de Unfold.
@@ -161,12 +166,24 @@ class InstitutionAdmin(ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
-            path('resolve-url/<str:inst_id>/', self.admin_site.admin_view(self.run_resolve_url), name='sales_institution_resolve_url'),
-            path('scan-lms/<str:inst_id>/', self.admin_site.admin_view(self.run_scan_lms), name='sales_institution_scan_lms'),
-            path('scan-deep/<str:inst_id>/', self.admin_site.admin_view(self.run_scan_deep), name='sales_institution_scan_deep'),
+            path('resolve-url/<str:inst_id>/', self.admin_site.admin_view(self.run_resolve_url), name='sales_globalpipeline_resolve_url'),
+            path('scan-lms/<str:inst_id>/', self.admin_site.admin_view(self.run_scan_lms), name='sales_globalpipeline_scan_lms'),
+            path('scan-deep/<str:inst_id>/', self.admin_site.admin_view(self.run_scan_deep), name='sales_globalpipeline_scan_deep'),
+            path('check-scan/<str:inst_id>/', self.admin_site.admin_view(self.check_scan_status), name='sales_globalpipeline_check_scan'),
             path('ws/status/<str:inst_id>/', self.admin_site.admin_view(self.ws_status), name='ws_status'),
         ]
         return custom_urls + urls
+
+    def _get_polling_html(self, inst_id):
+        poll_url = reverse('admin:sales_globalpipeline_check_scan', args=[inst_id])
+        return format_html(
+            '<div id="recon-panel-{}" class="whitespace-nowrap min-w-[120px]" '
+            'hx-get="{}" hx-trigger="every 3s" hx-swap="outerHTML">'
+            '  <span class="inline-block px-3 py-1 rounded text-[10px] font-bold uppercase text-slate-800 bg-amber-300 animate-pulse w-full text-center">'
+            '    ⏳ Analizando...'
+            '  </span>'
+            '</div>', inst_id, poll_url
+        )
 
     def run_resolve_url(self, request, inst_id):
         try:
@@ -184,35 +201,35 @@ class InstitutionAdmin(ModelAdmin):
                 messages.info(request, "Este lead ya posee una URL asignada.")
         except Exception as e:
             messages.error(request, f"❌ Error en resolución: {str(e)}")
-        return redirect('admin:sales_institution_changelist')
+        return redirect('admin:sales_globalpipeline_changelist')
 
     def run_scan_lms(self, request, inst_id):
-        try:
-            inst = Institution.objects.get(pk=inst_id)
-            if inst.website:
-                messages.info(request, f"📡 Iniciando escaneo ligero de plataforma para {inst.name}...")
-                execute_recon(inst.id)
-                messages.success(request, f"✅ Perfil Tecnológico (Tier 1) actualizado para {inst.name}.")
-                self._send_ws_update(inst_id, "Escaneo LMS completado")
-            else:
-                messages.error(request, "❌ Se requiere una URL válida antes de escanear.")
-        except Exception as e:
-            messages.error(request, f"❌ Fallo en escaneo LMS: {str(e)}")
-        return redirect('admin:sales_institution_changelist')
+        cache.set(f"scan_in_progress_{inst_id}", True, timeout=300)
+        task_run_single_recon.delay(inst_id)
+        return HttpResponse(self._get_polling_html(inst_id))
 
     def run_scan_deep(self, request, inst_id):
-        try:
-            inst = Institution.objects.get(pk=inst_id)
-            if inst.website:
-                messages.info(request, f"🕵️‍♂️ Ghost Sniper: Iniciando extracción profunda e IA para {inst.name}...")
-                execute_recon(inst.id)
-                messages.success(request, f"🚀 Inteligencia Forense (Tier 2) completada para {inst.name}.")
-                self._send_ws_update(inst_id, "Escaneo profundo completado")
-            else:
-                messages.error(request, "❌ Se requiere una URL válida antes de escanear.")
-        except Exception as e:
-            messages.error(request, f"❌ Fallo en escaneo profundo: {str(e)}")
-        return redirect('admin:sales_institution_changelist')
+        cache.set(f"scan_in_progress_{inst_id}", True, timeout=300)
+        task_run_single_recon.delay(inst_id)
+        return HttpResponse(self._get_polling_html(inst_id))
+
+    def check_scan_status(self, request, inst_id):
+        is_scanning = cache.get(f"scan_in_progress_{inst_id}")
+        
+        if is_scanning:
+            return HttpResponse(self._get_polling_html(inst_id))
+            
+        inst = Institution.objects.select_related('tech_profile', 'forensic_profile').get(pk=inst_id)
+        
+        btn_html = self.advanced_recon_trigger(inst)
+        
+        tech_html = self.display_intelligence_radar(inst)
+        tech_oob = tech_html.replace(f'id="tech-radar-{inst.pk}"', f'id="tech-radar-{inst.pk}" hx-swap-oob="true"')
+        
+        score_html = self.display_performance_score(inst)
+        score_oob = score_html.replace(f'id="score-panel-{inst.pk}"', f'id="score-panel-{inst.pk}" hx-swap-oob="true"')
+
+        return HttpResponse(f"{btn_html}\n{tech_oob}\n{score_oob}")
 
     def ws_status(self, request, inst_id):
         return JsonResponse({"status": "ok", "message": f"Canal abierto para {inst_id}"})
@@ -252,30 +269,30 @@ class InstitutionAdmin(ModelAdmin):
 
     @display(description="Mando")
     def advanced_recon_trigger(self, obj):
-        url_resolve = reverse('admin:sales_institution_resolve_url', args=[obj.pk])
-        url_lms = reverse('admin:sales_institution_scan_lms', args=[obj.pk])
-        url_deep = reverse('admin:sales_institution_scan_deep', args=[obj.pk])
+        url_resolve = reverse('admin:sales_globalpipeline_resolve_url', args=[obj.pk])
+        url_lms = reverse('admin:sales_globalpipeline_scan_lms', args=[obj.pk])
+        url_deep = reverse('admin:sales_globalpipeline_scan_deep', args=[obj.pk])
 
         btn_base = "inline-block px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-white"
 
         if not obj.website:
             return format_html(
-                '<div class="whitespace-nowrap min-w-[120px]">'
+                '<div id="recon-panel-{}" class="whitespace-nowrap min-w-[120px]">'
                 '  <a href="{}" class="{} bg-blue-600 hover:bg-blue-700">🌐 Buscar URL</a>'
-                '</div>', url_resolve, btn_base
+                '</div>', obj.pk, url_resolve, btn_base
             )
 
         return format_html(
-            '<div class="whitespace-nowrap min-w-[120px] leading-loose">'
-            '  <a href="{}" class="{} bg-purple-600 hover:bg-purple-700 mb-1">📡 Scan LMS</a><br>'
-            '  <a href="{}" class="{} bg-gray-900 dark:bg-gray-100 dark:text-gray-900">🧠 Deep Recon</a>'
-            '</div>', url_lms, btn_base, url_deep, btn_base
+            '<div id="recon-panel-{}" class="whitespace-nowrap min-w-[120px] leading-loose">'
+            '  <button hx-post="{}" hx-target="#recon-panel-{}" hx-swap="outerHTML" class="{} bg-purple-600 hover:bg-purple-700 mb-1 w-full text-left">📡 Scan LMS</button><br>'
+            '  <button hx-post="{}" hx-target="#recon-panel-{}" hx-swap="outerHTML" class="{} bg-gray-900 dark:bg-gray-100 dark:text-gray-900 w-full text-left">🧠 Deep Recon</button>'
+            '</div>', obj.pk, url_lms, obj.pk, btn_base, url_deep, obj.pk, btn_base
         )
 
     @display(description='Tecnología')
     def display_intelligence_radar(self, obj):
         if not hasattr(obj, 'tech_profile') or not obj.tech_profile:
-            return format_html('<div class="whitespace-nowrap min-w-[100px]"><span class="text-xs text-gray-400 italic">Sin escanear</span></div>')
+            return format_html('<div id="tech-radar-{}" class="whitespace-nowrap min-w-[100px]"><span class="text-xs text-gray-400 italic">Sin escanear</span></div>', obj.pk)
 
         tech = obj.tech_profile
         badges = []
@@ -292,9 +309,9 @@ class InstitutionAdmin(ModelAdmin):
             badges.append(format_html('<span class="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">WP</span>'))
 
         if not badges:
-            return format_html('<div class="whitespace-nowrap min-w-[100px]"><span class="text-xs text-gray-400 italic">-</span></div>')
+            return format_html('<div id="tech-radar-{}" class="whitespace-nowrap min-w-[100px]"><span class="text-xs text-gray-400 italic">-</span></div>', obj.pk)
 
-        return format_html('<div class="whitespace-nowrap min-w-[100px] leading-tight">{}</div>', format_html("".join(badges)))
+        return format_html('<div id="tech-radar-{}" class="whitespace-nowrap min-w-[100px] leading-tight">{}</div>', obj.pk, format_html("".join(badges)))
 
     @display(description='Score', ordering='lead_score')
     def display_performance_score(self, obj):
@@ -304,9 +321,9 @@ class InstitutionAdmin(ModelAdmin):
         # ELIMINAMOS LA BARRA DE PROGRESO ANIMADA (EL VERDADERO CAUSANTE DEL GLITCH)
         # Mostramos un indicador de puntos sólido, rápido e inquebrantable.
         return format_html(
-            '<div class="whitespace-nowrap min-w-[60px]">'
+            '<div id="score-panel-{}" class="whitespace-nowrap min-w-[60px]">'
             '  <strong class="text-sm {}">{} PTS</strong>'
-            '</div>', color, score
+            '</div>', obj.pk, color, score
         )
 
     @display(description='Contacto')
@@ -391,7 +408,7 @@ class InstitutionAdmin(ModelAdmin):
         for inst in queryset:
             if inst.website:
                 try:
-                    execute_recon(inst.id)
+                    task_run_single_recon.delay(inst.id)
                     success += 1
                 except Exception as e:
                     logger.error(f"Fallo en bulk recon {inst.name}: {e}")
@@ -489,3 +506,140 @@ class CommandCenterAdmin(ModelAdmin):
             'avg_score': metrics.get('avg_score', 0)
         })
         return TemplateResponse(request, "admin/sales/commandcenter/dashboard.html", context)
+
+
+@admin.register(SniperConsole)
+class SniperConsoleAdmin(ModelAdmin):
+    def has_add_permission(self, request): return False
+    
+    def changelist_view(self, request, extra_context=None):
+        context = dict(self.admin_site.each_context(request))
+        # Generamos un Mission ID único para esta sesión de la ventana
+        mission_id = str(uuid.uuid4())
+        context.update({
+            'title': mark_safe('<span class="flex items-center gap-2">🎯 Ghost Sniper <span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded border border-purple-500/30">V4.0-STABLE</span></span>'),
+            'mission_id': mission_id,
+        })
+        return TemplateResponse(request, "admin/sales/sniper_console.html", context)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        return [
+            path('engage/', self.admin_site.admin_view(self.launch_sniper), name='sniper_engage'),
+            path('telemetry/<str:inst_id>/', self.admin_site.admin_view(self.get_telemetry), name='sniper_telemetry'),
+        ] + urls
+
+    def launch_sniper(self, request):
+        """
+        Punto de entrada de alta disponibilidad. 
+        Resuelve nombres a URLs e inicia el motor forense.
+        """
+        raw_target = request.POST.get('target_url', '').strip()
+        mission_id = request.POST.get('mission_id')
+
+        # [TIER GOD] Resolución Inteligente de Entidad
+        # Si no empieza con http, asumimos que es un nombre y activamos el Resolutor SERP
+        is_url = raw_target.startswith(('http://', 'https://', 'www.'))
+        
+        if is_url:
+            inst, created = Institution.objects.get_or_create(
+                website=raw_target,
+                defaults={'name': 'Objetivo Identificado...', 'mission_id': mission_id}
+            )
+        else:
+            inst, created = Institution.objects.get_or_create(
+                name=raw_target,
+                defaults={'mission_id': mission_id, 'discovery_source': 'manual'}
+            )
+
+        # Inicializamos el Log de Telemetría en Caché
+        cache.set(f"telemetry_{inst.id}", ["🛰️ Inicializando secuencia de comandos...", "📡 Localizando servidores..."], timeout=600)
+        cache.set(f"scan_in_progress_{inst.id}", True, timeout=600)
+
+        # Disparamos la Misión en Celery
+        task_run_single_recon.delay(inst.id)
+
+        # Devolvemos la consola de telemetría inmediata
+        telemetry_url = reverse('admin:sniper_telemetry', args=[inst.id])
+        return HttpResponse(f'''
+            <div id="sniper-display" hx-get="{telemetry_url}" hx-trigger="every 2s" hx-swap="innerHTML">
+                <div class="p-8 border border-purple-500/30 bg-purple-500/5 rounded-xl animate-pulse">
+                    <p class="font-mono text-purple-400 text-sm">>> ENGAGING TARGET: {raw_target}</p>
+                    <p class="font-mono text-slate-500 text-xs mt-2">Awaiting neural link...</p>
+                </div>
+            </div>
+        ''')
+
+    def get_telemetry(self, request, inst_id):
+        """Devuelve el estado de la misión y los logs en tiempo real."""
+        is_active = cache.get(f"scan_in_progress_{inst_id}")
+        logs = cache.get(f"telemetry_{inst_id}", [])
+        
+        if not is_active:
+            # Si terminó, traemos el resultado final (Card Forense)
+            inst = Institution.objects.select_related('tech_profile', 'forensic_profile').get(id=inst_id)
+            # Aquí podrías usar render_to_string para devolver una tarjeta de perfil elegante
+            return HttpResponse(f"""
+                <div class="animate-in fade-in zoom-in duration-500">
+                    <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-lg mb-6 flex justify-between items-center">
+                        <span class="text-emerald-400 font-bold">✓ MISIÓN COMPLETADA</span>
+                        <a href="{reverse('admin:sales_globalpipeline_change', args=[inst.id])}" class="text-xs bg-emerald-500 text-black px-3 py-1 rounded font-bold">VER EN CRM</a>
+                    </div>
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="p-6 bg-[#111] rounded-xl border border-slate-800">
+                             <h4 class="text-slate-500 text-xs uppercase font-bold mb-4">Tech Stack</h4>
+                             <p class="text-white font-mono text-xl">{inst.tech_profile.lms_provider if hasattr(inst, 'tech_profile') and inst.tech_profile else 'N/A'}</p>
+                        </div>
+                        <div class="p-6 bg-[#111] rounded-xl border border-slate-800">
+                             <h4 class="text-slate-500 text-xs uppercase font-bold mb-4">Lead Score</h4>
+                             <p class="text-emerald-400 font-mono text-3xl">{inst.lead_score} PTS</p>
+                        </div>
+                    </div>
+                </div>
+            """)
+
+        # Si sigue activo, mostramos los logs tipo terminal
+        log_html = "".join([f'<p class="font-mono text-xs text-slate-400 mb-1">>> {log}</p>' for log in logs])
+        return HttpResponse(f'''
+            <div class="bg-black p-6 rounded-xl border border-slate-800 shadow-inner h-64 overflow-y-auto">
+                <div class="flex justify-between mb-4 border-b border-slate-800 pb-2">
+                    <span class="text-[10px] font-bold text-purple-500">ACTIVE TELEMETRY</span>
+                    <span class="animate-ping h-2 w-2 rounded-full bg-purple-500"></span>
+                </div>
+                {log_html}
+                <p class="font-mono text-xs text-white animate-pulse">_</p>
+            </div>
+        ''')
+
+
+@admin.register(GeoRadarWorkspace)
+class GeoRadarWorkspaceAdmin(ModelAdmin):
+    def has_add_permission(self, request): return False
+    
+    def changelist_view(self, request, extra_context=None):
+        context = dict(self.admin_site.each_context(request))
+        context.update({'title': '🛰️ Geospatial Radar Command', 'mission_id': str(uuid.uuid4())})
+        return TemplateResponse(request, "admin/sales/geo_radar.html", context)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        return [
+            path('deploy/', self.admin_site.admin_view(self.deploy_radar), name='radar_deploy'),
+            path('results/<str:mission_id>/', self.admin_site.admin_view(self.get_radar_results), name='radar_results'),
+        ] + urls
+
+    def deploy_radar(self, request):
+        country = request.POST.get('country')
+        city = request.POST.get('city')
+        mission_id = request.POST.get('mission_id')
+        task_run_osm_radar.delay(country, city, mission_id)
+        return HttpResponse('<div class="p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl animate-pulse text-purple-400 text-xs font-bold uppercase tracking-widest flex items-center gap-3"><span class="material-symbols-outlined animate-spin">sync</span> Satélite OSM Desplegado. Barrido en progreso...</div>')
+
+    def get_radar_results(self, request, mission_id):
+        results = Institution.objects.filter(mission_id=mission_id).order_by('-created_at')
+        count = results.count()
+        html_counter = f'<div id="result-counter" hx-swap-oob="true" class="bg-black px-4 py-2 rounded-full border border-white/5 font-mono text-[10px] text-purple-400">{count} OBJETIVOS DETECTADOS</div>'
+        
+        table_rows = "".join([f'<tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors"><td class="p-4 text-xs font-bold text-white uppercase">{i.name}</td><td class="p-4 text-[10px] text-slate-500 font-mono uppercase">{i.city}</td><td class="p-4 text-right"><a href="{reverse("admin:sales_globalpipeline_change", args=[i.id])}" class="bg-white text-black px-3 py-1 rounded text-[9px] font-black hover:bg-purple-600 hover:text-white transition-all uppercase">Ver Perfil</a></td></tr>' for i in results])
+        table_html = f'<table class="w-full text-left"><thead><tr class="bg-[#0d0d0d] text-[10px] uppercase text-slate-500 font-black"><th class="p-4 text-xs">Institución</th><th class="p-4 text-xs">Ciudad</th><th class="p-4 text-right text-xs">Acción</th></tr></thead><tbody>{table_rows}</tbody></table>'
+        return HttpResponse(f'{html_counter}{table_html}')

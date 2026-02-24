@@ -31,6 +31,7 @@ class Institution(TimeStampedModel):
     de enrutamiento básico (Identity & Routing). Los datos pesados se delegan a los perfiles OneToOne.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    mission_id = models.UUIDField(null=True, blank=True, db_index=True, verbose_name="ID de Misión") #
     
     class InstitutionType(models.TextChoices):
         KINDERGARTEN = 'kindergarten', 'Jardín Infantil / Preescolar'
@@ -276,3 +277,25 @@ class CommandCenter(Institution):
 
     def __str__(self):
         return "B2B Growth Engine Operations"
+
+# 2. Al FINAL del archivo sales/models.py, agrega los Proxy Models:
+class GlobalPipeline(Institution):
+    class Meta:
+        proxy = True
+        app_label = 'sales'
+        verbose_name = "1. 🌐 Global Database"
+        verbose_name_plural = "1. 🌐 Global Database"
+
+class SniperConsole(Institution):
+    class Meta:
+        proxy = True
+        app_label = 'sales'
+        verbose_name = "2. 🎯 Sniper Console"
+        verbose_name_plural = "2. 🎯 Sniper Console"
+
+class GeoRadarWorkspace(Institution):
+    class Meta:
+        proxy = True
+        app_label = 'sales'
+        verbose_name = "3. 🛰️ Geospatial Radar"
+        verbose_name_plural = "3. 🛰️ Geospatial Radar"
