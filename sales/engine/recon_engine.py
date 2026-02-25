@@ -813,6 +813,58 @@ class B2BReconEngine:
 
         return triggers
 
+    @sync_to_async
+    def _save_intelligence_to_db(self, inst_id: str, master_contacts: dict, tech_data: dict, bi_data: dict):
+        """
+        [DATA WAREHOUSE ADAPTER]
+        Operación atómica síncrona envuelta en asincronismo.
+        Mapea el JSON crudo extraído por Playwright hacia los modelos relacionales de Django.
+        """
+        from sales.models import Institution, TechProfile
+        from django.db import transaction
+        from django.utils import timezone
+
+        with transaction.atomic():
+            # 1. Bloqueo de fila exclusivo para evitar colisiones
+            inst = Institution.objects.select_for_update().get(id=inst_id)
+            
+            # 2. Extracción de los mejores datos de contacto
+            best_email = self._clean_emails(list(master_contacts.get('emails', [])))
+            best_phone = list(master_contacts['phones'])[0] if master_contacts.get('phones') else None
+            
+            update_fields = ['last_scored_at']
+            inst.last_scored_at = timezone.now()
+
+            if best_email and not inst.email:
+                inst.email = best_email
+                update_fields.append('email')
+                
+            if best_phone and not inst.phone:
+                inst.phone = best_phone
+                update_fields.append('phone')
+
+            # 3. Dynamic Lead Scoring (Cálculo de calidad del prospecto en tiempo real)
+            score = 10  # Base
+            if tech_data.get('has_lms'): score += 40
+            if best_email: score += 25
+            if best_phone: score += 15
+            if bi_data.get('premium_flags'): score += 10
+            
+            inst.lead_score = min(score, 100) # Tope en 100
+            update_fields.append('lead_score')
+
+            inst.save(update_fields=update_fields)
+
+            # 4. Actualización del Perfil Tecnológico (TechProfile)
+            tech_profile, created = TechProfile.objects.get_or_create(institution=inst)
+            tech_profile.has_lms = tech_data.get('has_lms', False)
+            tech_profile.lms_provider = str(tech_data.get('lms_type', '')).lower()
+            tech_profile.is_wordpress = tech_data.get('cms_wordpress', False)
+            tech_profile.has_analytics = tech_data.get('analytics_ga', False)
+            tech_profile.save()
+
+            return inst.name, tech_profile.lms_provider
+
     async def scan_target(self, browser: BrowserContext, target: Dict[str, Any]):
         """
         Ejecución Atómica Principal.
@@ -823,21 +875,15 @@ class B2BReconEngine:
             if not target_url.startswith('http'):
                 target_url = f"https://{target_url}"
             domain = urlparse(target_url).netloc
-            target_name = target.get('name', 'Institución Desconocida')
 
             # 1. DNS Fail-Fast
             if not await self._check_dns_resolution(domain):
                 logger.warning(f"🚫 [{domain}] Dominio inaccesible a nivel DNS. Skip.")
                 return
 
-            # 2. Cargar modelo DB
-            inst = None
-            if 'id' in target:
-                try:
-                    inst = await Institution.objects.aget(id=target['id'])
-                except Institution.DoesNotExist:
-                    logger.error(f"⚠️ ID {target['id']} no hallado en la Base de Datos.")
-                    return
+            if 'id' not in target:
+                logger.error(f"⚠️ ID no provisto en el target: {domain}")
+                return
 
             page = await browser.new_page()
             await self._apply_stealth(page)
@@ -902,41 +948,15 @@ class B2BReconEngine:
                 # --- ENRIQUECIMIENTO BACKEND Y TRIGGERS ---
                 bi_data['sales_triggers'] = self._generate_sales_triggers(tech_data, bi_data)
 
-                domain_info = ReconUtils.extract_domain_info(target_url)
-                target_root = domain_info['registrable_domain']
-                bi_data['domain_intel'] = {
-                    'domain_info': domain_info,
-                    'whois': await ReconUtils.get_whois_info(target_root),
-                    'dns': await ReconUtils.get_dns_records(target_root)
-                }
+                # --- GUARDADO EN DB A TRAVÉS DE ADAPTADOR SEGURO ---
+                inst_name, found_lms = await self._save_intelligence_to_db(
+                    inst_id=target['id'],
+                    master_contacts=master_contacts,
+                    tech_data=tech_data,
+                    bi_data=bi_data
+                )
 
-                # --- GUARDADO ATÓMICO EN POSTGRESQL/SQLITE ---
-                if inst:
-                    inst.tech_stack = {
-                        'technologies': tech_data,
-                        'business_intel': {
-                            **bi_data,
-                            'contact_intel': {
-                                'emails': list(master_contacts['emails'])[:10],
-                                'phones': list(master_contacts['phones'])[:8],
-                                'whatsapp': list(master_contacts['whatsapp'])[:3],
-                                'addresses': list(master_contacts['addresses'])[:2]
-                            },
-                            'ai_ready': True 
-                        }
-                    }
-
-                    best_email = self._clean_emails(list(master_contacts['emails']))
-                    if best_email and not inst.email: 
-                        inst.email = best_email
-
-                    if hasattr(inst, 'last_scored_at'): inst.last_scored_at = timezone.now()
-
-                    # Transacción Segura
-                    await inst.asave(update_fields=['tech_stack', 'email', 'last_scored_at'] if hasattr(inst, 'last_scored_at') else ['tech_stack', 'email'])
-
-                    found_lms = str(tech_data.get('lms_type', 'Ninguno')).upper()
-                    logger.info(f"✅ [{domain}] | Plataforma: {found_lms} | E-mails Hallados: {len(master_contacts['emails'])}")
+                logger.info(f"✅ [{domain}] | LMS: {str(found_lms).upper() or 'NINGUNO'} | E-mails Hallados: {len(master_contacts['emails'])}")
 
             except Exception as e:
                 logger.error(f"❌ [{domain}] Colapso en Scraper: {str(e)}")

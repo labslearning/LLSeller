@@ -1,102 +1,166 @@
+import time
 import logging
 import asyncio
 import requests
 import uuid
 import re
 from typing import Dict, List, Any, Optional
+from urllib.parse import urlparse
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
-from requests.exceptions import RequestException, Timeout
+from requests.exceptions import RequestException, HTTPError, Timeout
 from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 
-# Importaciones locales optimizadas para alta disponibilidad
+# Importaciones locales
 from .models import Institution
 from .engine.serp_resolver import SERPResolverEngine
 from .engine.recon_engine import _orchestrate, execute_recon
 
-# Logger de grado industrial con trazabilidad para CloudWatch/Datadog
+# Logger estructurado de grado empresarial
 logger = logging.getLogger("Sovereign.CeleryWorkers")
 
 # =========================================================
-# MISIÓN 0: SINGLE TARGET RECON (MOTOR CON TELEMETRÍA)
+# MISIÓN 0: OMNI-SCAN (TIER GOD RECON ENGINE)
 # =========================================================
 @shared_task(
     bind=True, 
     queue='scraping_queue',
-    soft_time_limit=240, 
-    time_limit=300,
+    max_retries=3,  # Auto-recuperación de Celery
+    autoretry_for=(RequestException, HTTPError),
+    retry_backoff=True, # Exponential Backoff Nativo
+    retry_backoff_max=60,
+    soft_time_limit=300, 
+    time_limit=360,
     name="sales.tasks.task_run_single_recon"
 )
 def task_run_single_recon(self, inst_id: str):
     """
-    Motor quirúrgico de élite para las Ventanas 1 y 2.
-    Implementa un log de telemetría asíncrono para actualización de UI vía HTMX.
+    Motor OMNI-SCAN de Grado Empresarial.
+    Pipeline: Resolución Heurística (SERP) -> Sanitización de Datos -> Infiltración Profunda (Playwright).
     """
-    def log_telemetry(message: str):
-        """Helper para inyectar logs en el flujo de la Sniper Console."""
-        current_logs = cache.get(f"telemetry_{inst_id}", [])
-        timestamp = timezone.now().strftime('%H:%M:%S')
-        current_logs.append(f"{timestamp} | {message}")
-        # Mantenemos solo los últimos 10 eventos para optimizar RAM
-        cache.set(f"telemetry_{inst_id}", current_logs[-10:], timeout=600)
-        logger.info(f"[TELEMETRY][{inst_id}]: {message}")
+    start_time = time.time()
 
-    log_telemetry("🎯 Objetivo fijado. Iniciando secuencia de aproximación...")
-    
-    # Patrón: Distributed Lock (Evita colisiones por doble clic del usuario)
+    def log_telemetry(message: str, level: str = "SYS"):
+        """Telemetría de ultra-baja latencia con precisión de milisegundos para HTMX."""
+        cache_key = f"telemetry_{inst_id}"
+        current_logs = cache.get(cache_key, [])
+        # Timestamp de alta precisión
+        timestamp = timezone.now().strftime('%H:%M:%S.%f')[:-3]
+        
+        formatted_msg = f"[{timestamp}] [{level}] {message}"
+        current_logs.append(formatted_msg)
+        
+        # Sliding Window optimizada (solo guarda los últimos 8 en RAM)
+        cache.set(cache_key, current_logs[-8:], timeout=600)
+        logger.info(f"[OMNI-SCAN][{inst_id}]: {message}")
+
+    # 1. Recuperación Segura y Bloqueo Distribuido Inmediato
     lock_id = f"lock_recon_{inst_id}"
-    if not cache.add(lock_id, "processing", 600):
-        log_telemetry("⚠️ Misión abortada: El objetivo ya está bajo fuego de otro proceso.")
-        return f"Skipped: {inst_id} en proceso."
+    if not cache.add(lock_id, "processing", timeout=600):
+        log_telemetry("Misión interceptada: Objetivo bajo escaneo concurrente.", "WARN")
+        return "Locked by another worker"
 
     try:
-        log_telemetry("🌐 Levantando túneles proxy residenciales y rotación de IP...")
-        log_telemetry("🕵️‍♂️ Ejecutando Bypass de WAF (Cloudflare/Akamai)...")
+        # Obtenemos el registro (solo lectura por ahora para no bloquear DB)
+        inst = Institution.objects.get(id=inst_id)
+        log_telemetry(f"⚡ OMNI-SCAN DESPLEGADO: {inst.name[:25]}", "INIT")
         
-        # Ejecución del motor forense Ghost Sniper
+        # ---------------------------------------------------------
+        # FASE 1: RESOLUCIÓN SERP (Auto-Sanable y Sanitizada)
+        # ---------------------------------------------------------
+        if not inst.website:
+            log_telemetry("Buscando huella digital en redes SERP (DuckDuckGo)...", "NET")
+            
+            engine = SERPResolverEngine()
+            keyword = "jardín infantil" if inst.institution_type == 'kindergarten' else "universidad" if inst.institution_type == 'university' else "colegio"
+            query = f'"{inst.name}" {inst.city} {inst.country} {keyword} sitio web oficial'
+            
+            found_url = None
+            
+            # Circuit Breaker Manual: 3 Intentos con retraso por si DuckDuckGo nos bloquea
+            for attempt in range(1, 4):
+                try:
+                    results = engine._sync_ddg_search(query)
+                    if results:
+                        for r in results:
+                            candidate = r.get('href', '')
+                            if engine._is_valid_candidate(candidate):
+                                # SANITIZACIÓN DE GRADO EMPRESARIAL:
+                                # Elimina UTMs, anclas y basura (ej: colegio.com/?ref=google -> colegio.com)
+                                parsed = urlparse(candidate)
+                                clean_url = f"{parsed.scheme}://{parsed.netloc}".lower()
+                                found_url = clean_url
+                                break
+                    break # Si no hubo error, salimos del loop de reintentos
+                except Exception as e:
+                    log_telemetry(f"Sobrecarga SERP. Retrying ({attempt}/3)...", "WARN")
+                    time.sleep(2 ** attempt) # Exponential backoff: 2s, 4s, 8s
+            
+            if found_url:
+                # INYECCIÓN ATÓMICA: Evita condiciones de carrera en PostgreSQL
+                with transaction.atomic():
+                    # Bloqueamos la fila exclusiva para esta actualización
+                    locked_inst = Institution.objects.select_for_update().get(id=inst_id)
+                    locked_inst.website = found_url
+                    locked_inst.save(update_fields=['website'])
+                    
+                log_telemetry(f"Enlace establecido: {found_url}", "OK")
+                inst.website = found_url # Actualizamos memoria local
+            else:
+                log_telemetry("Objetivo fantasma. Misión cancelada.", "FAIL")
+                return "Ghost Target"
+
+        # ---------------------------------------------------------
+        # FASE 2: GHOST SNIPER (Infiltración y Extracción)
+        # ---------------------------------------------------------
+        log_telemetry("Bypass de WAF y extracción forense en curso...", "HACK")
+        
+        # Llamada al motor pesado de Playwright
         execute_recon(inst_id)
         
-        log_telemetry("🧠 Extrayendo Tech Stack y analizando patrones con IA...")
-        log_telemetry("✅ Inteligencia completada. Sincronizando con el núcleo central.")
-        return f"Success: Perfil {inst_id} enriquecido."
+        elapsed = round(time.time() - start_time, 2)
+        log_telemetry(f"MISIÓN CUMPLIDA. Extracción en {elapsed}s", "SUCCESS")
+        return f"Omni-Scan Complete: {elapsed}s"
         
+    except Institution.DoesNotExist:
+        logger.error(f"Falla crítica: ID {inst_id} no existe.")
+        return "404 Not Found"
+    except SoftTimeLimitExceeded:
+        log_telemetry("Tiempo de infiltración excedido. Abortando...", "TIMEOUT")
+        return "Soft Timeout"
     except Exception as e:
-        error_msg = f"❌ FALLO CRÍTICO: {str(e)}"
-        log_telemetry(error_msg)
-        logger.error(f"Falla en misión {inst_id}: {str(e)}")
-        raise
+        log_telemetry(f"ERROR ESTRUCTURAL: {str(e)[:40]}", "CRITICAL")
+        logger.exception(f"OMNI-SCAN Crash en {inst_id}")
+        raise self.retry(exc=e) # Delega el error a Celery para que reintente todo desde cero
     finally:
-        # IMPORTANTE: Liberamos el semáforo para que el Polling de HTMX detecte el fin
+        # PURGA DE MEMORIA: Garantiza que el botón se libere sin importar qué pase
         cache.delete(f"scan_in_progress_{inst_id}")
         cache.delete(lock_id)
 
-
 # =========================================================
-# MISIÓN 1: RADAR OPENSTREETMAP (GEO-DISCOVERY MASIVO)
+# MISIÓN 1: RADAR OPENSTREETMAP (DATA WAREHOUSE INGESTION)
 # =========================================================
 @shared_task(
     bind=True, 
     queue='discovery_queue', 
-    max_retries=3, 
-    default_retry_delay=60,
+    max_retries=5,
+    default_retry_delay=45, # Backoff generoso para no ser baneados por Overpass
     autoretry_for=(RequestException, Timeout),
     soft_time_limit=600,
     time_limit=660
 )
 def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] = None):
     """
-    Motor de Extracción Geoespacial de alto rendimiento V5.0.
-    Utiliza tagging por 'mission_id' para alimentar la Ventana 3 (Geo-Radar).
-    Inmune a errores de tildes y mayúsculas mediante Fuzzy Regex.
+    Extracción Geoespacial Tier God.
+    Normaliza datos (URLs, Emails) e infiere el tipo de sector (Privado/Público).
     """
     batch_uuid = mission_id or str(uuid.uuid4())
-    logger.info(f"🛰️ [OSM RADAR] Desplegando sobre {city}, {country} | Misión ID: {batch_uuid}")
+    logger.info(f"🛰️ [OSM RADAR] Inserción Orbital en {city}, {country} | Misión ID: {batch_uuid}")
     
-    # 🧠 Magia de Silicon Valley: Regex Dinámico para Tildes
-    # Transforma "Bogota" en "[bB][oO][gG][oOóÓ][tT][aAáÁ]" para engañar a OSM
+    # Fuzzy Regex avanzado
     city_fuzzy = re.sub(r'[aAáÁ]', '[aAáÁ]', city)
     city_fuzzy = re.sub(r'[eEéÉ]', '[eEéÉ]', city_fuzzy)
     city_fuzzy = re.sub(r'[iIíÍ]', '[iIíÍ]', city_fuzzy)
@@ -113,19 +177,19 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
     """
     
     try:
-        logger.info("📡 [OSM RADAR] Enviando pulso a la API de Overpass...")
         response = requests.post("https://overpass-api.de/api/interpreter", data={'data': query}, timeout=185)
         response.raise_for_status()
         elements = response.json().get('elements', [])
         
-        logger.info(f"✅ [OSM RADAR] API Respondió. Nodos crudos detectados por el satélite: {len(elements)}")
-        
         if not elements:
-            logger.warning(f"⚠️ [OSM RADAR] OSM no tiene datos para '{city}'. Intenta con el nombre oficial de la región.")
+            logger.warning(f"⚠️ [OSM RADAR] Zona muerta detectada. Cero resultados en {city}.")
             return f"Cero resultados en {city}."
 
         institutions_to_create = []
         names_seen = set()
+        
+        # Contadores analíticos
+        stats = {"con_web": 0, "sin_web": 0, "privados": 0}
         
         for el in elements:
             tags = el.get('tags', {})
@@ -134,21 +198,57 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
             
             names_seen.add(name.lower())
             
+            # --- 1. NORMALIZACIÓN DE URL ---
+            raw_url = tags.get('website') or tags.get('contact:website') or tags.get('url')
+            if raw_url:
+                raw_url = raw_url.strip().lower()
+                if not raw_url.startswith(('http://', 'https://')):
+                    raw_url = f"https://{raw_url}"
+                stats["con_web"] += 1
+            else:
+                stats["sin_web"] += 1
+
+            # --- 2. NORMALIZACIÓN DE EMAIL ---
+            raw_email = tags.get('email') or tags.get('contact:email')
+            if raw_email:
+                raw_email = raw_email.strip().lower()
+
+            # --- 3. INFERENCIA HEURÍSTICA (Público vs Privado) ---
+            operator_type = tags.get('operator:type', '').lower()
+            fee = tags.get('fee', '').lower()
+            
+            # Asumimos que no es privado por defecto, pero buscamos pistas
+            is_private = False
+            if operator_type in ['private', 'ngo', 'religious'] or fee == 'yes':
+                is_private = True
+            elif operator_type in ['public', 'government']:
+                is_private = False
+                
+            if is_private: stats["privados"] += 1
+
+            # --- 4. RECONSTRUCCIÓN FÍSICA ---
+            street = tags.get('addr:street', '')
+            housenumber = tags.get('addr:housenumber', '')
+            address = f"{street} {housenumber}".strip() or None
+            
             institutions_to_create.append(
                 Institution(
-                    name=name,
-                    city=city,
-                    country=country,
+                    name=name.strip(),
+                    city=city.strip().title(),
+                    country=country.strip().title(),
+                    website=raw_url,
+                    phone=tags.get('phone') or tags.get('contact:phone'),
+                    email=raw_email,
+                    address=address,
                     institution_type=tags.get('amenity', 'school'),
                     discovery_source='osm',
-                    mission_id=batch_uuid, 
-                    is_active=True
+                    mission_id=batch_uuid,
+                    is_active=True,
+                    is_private=is_private  # Guardamos la inferencia
                 )
             )
 
-        logger.info(f"⏳ [OSM RADAR] Limpiando datos y guardando {len(institutions_to_create)} leads en la Base de Datos...")
-
-        # Inserción Atómica Bulk (O(n) optimizado)
+        # Inserción Bulk Atómica
         with transaction.atomic():
             Institution.objects.bulk_create(
                 institutions_to_create, 
@@ -156,12 +256,26 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
                 batch_size=500
             )
         
-        logger.info(f"🎯 [OSM RADAR] ÉXITO TOTAL. Misión completada. La tabla web debería actualizarse ahora.")
-        return {"mission_id": batch_uuid, "count": len(institutions_to_create)}
+        logger.info(f"🎯 [OSM RADAR] ÉXITO. {len(institutions_to_create)} leads. ({stats['con_web']} Webs, {stats['privados']} Privados).")
+
+        # =========================================================
+        # ENRUTAMIENTO INTELIGENTE (SMART ROUTING)
+        # =========================================================
+        # Solo disparamos el buscador de IA si realmente hay colegios ciegos
+        if stats["sin_web"] > 0:
+            logger.info(f"🤖 [SMART ROUTE] Desplegando SERP para buscar {stats['sin_web']} webs faltantes.")
+            task_run_serp_resolver.apply_async(kwargs={'limit': min(stats["sin_web"], 150)}, countdown=2)
+        
+        # Solo disparamos el escáner forense si encontramos webs directamente
+        if stats["con_web"] > 0:
+            logger.info(f"🕵️‍♂️ [SMART ROUTE] Desplegando Ghost Sniper para validar {stats['con_web']} webs nativas.")
+            task_run_ghost_sniper.apply_async(kwargs={'mission_id': batch_uuid, 'limit': min(stats["con_web"], 50)}, countdown=5)
+
+        return {"mission_id": batch_uuid, "total": len(institutions_to_create), "stats": stats}
 
     except Exception as e:
-        logger.error(f"❌ [OSM RADAR] Falla estructural: {str(e)}")
-        raise 
+        logger.error(f"❌ [OSM RADAR] Crash Crítico: {str(e)}")
+        raise self.retry(exc=e)
 
 
 # =========================================================
@@ -174,12 +288,19 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
     time_limit=950
 )
 def task_run_serp_resolver(self, limit: int = 50):
-    """Resuelve URLs oficiales para prospectos ciegos usando heurística SERP."""
-    logger.info(f"🔍 [SERP RESOLVER] Iniciando resolución para {limit} objetivos.")
+    """Buscador autónomo. Al encontrar URLs, delega inmediatamente al escáner LMS."""
+    logger.info(f"🔍 [SERP RESOLVER] Cacería iniciada para {limit} objetivos ciegos.")
     try:
         engine = SERPResolverEngine(concurrency_limit=3)
+        # IMPORTANTE: resolve_missing_urls debe retornar cuántos resolvió con éxito
+        # Asumiendo que internamente guarda en BD, delegamos la siguiente fase:
         engine.resolve_missing_urls(limit=limit)
-        return f"Resolución completada (Lote de {limit})."
+        
+        # Pasamos la antorcha al Ghost Sniper para que revise lo que el SERP acaba de encontrar
+        logger.info("🕵️‍♂️ [CHAIN REACTION] SERP finalizó. Despertando a Ghost Sniper para escaneo de LMS...")
+        task_run_ghost_sniper.apply_async(kwargs={'limit': limit}, countdown=5)
+        
+        return f"Resolución SERP Finalizada. Pasando a fase Forense."
     except Exception as e:
         logger.error(f"❌ [SERP] Error en motor de búsqueda: {str(e)}")
         raise
@@ -196,23 +317,28 @@ def task_run_serp_resolver(self, limit: int = 50):
 )
 def task_run_ghost_sniper(self, limit: int = 25, mission_id: Optional[str] = None):
     """
-    Motor Forense Masivo por Lotes.
-    Si se provee 'mission_id', prioriza ese lote específico (Ideal para Ventana 3).
+    Orquestador Forense Masivo.
+    Se alimenta de las bases de datos previamente curadas por OSM y SERP.
     """
-    logger.info(f"🕵️‍♂️ [GHOST SNIPER] Desplegando ataque sobre lote (Misión: {mission_id})")
+    logger.info(f"🕵️‍♂️ [GHOST SNIPER] Iniciando escaneo LMS masivo (Batch: {limit})")
     
-    # Filtro inteligente: prioriza por misión o por falta de escaneo
+    # Filtro: Tienen web, están activos, pero NO tienen un Tech Stack registrado aún.
     query = Institution.objects.filter(website__isnull=False, is_active=True).exclude(website='')
     
     if mission_id:
-        query = query.filter(mission_id=mission_id)
+        query = query.filter(mission_id=mission_id, tech_profile__isnull=True)
     else:
-        query = query.filter(last_scored_at__isnull=True)
+        query = query.filter(tech_profile__isnull=True)
+
+    # Añadimos un fallback: si no hay nulos en tech_profile, buscamos los no analizados por fecha
+    if not query.exists():
+        query = Institution.objects.filter(website__isnull=False, last_scored_at__isnull=True).exclude(website='')
 
     qs = query[:limit]
     
     if not qs.exists():
-        return "Misión abortada: Inbox Zero."
+        logger.info("✅ [GHOST SNIPER] Inbox Zero. Todo el pipeline está enriquecido.")
+        return "Inbox Zero."
 
     targets = [
         {'id': inst.id, 'name': inst.name, 'url': inst.website, 'city': inst.city}
@@ -220,12 +346,11 @@ def task_run_ghost_sniper(self, limit: int = 25, mission_id: Optional[str] = Non
     ]
 
     try:
-        # Orquestación Playwright asíncrona (Reutilización de navegador)
         asyncio.run(_orchestrate(targets))
-        return f"Misión cumplida: {len(targets)} enriquecidos."
+        return f"Misión cumplida: {len(targets)} colegios inyectados con Tech Stack."
     except SoftTimeLimitExceeded:
-        logger.warning("⏳ [GHOST SNIPER] Tiempo límite alcanzado. Lote procesado parcialmente.")
-        return "Timeout parcial: Datos guardados hasta el punto de corte."
+        logger.warning("⏳ [GHOST SNIPER] Cut-off por tiempo límite. Lote guardado parcialmente.")
+        return "Timeout. Guardado parcial."
     except Exception as e:
-        logger.error(f"❌ [GHOST SNIPER] Crash en el orquestador: {str(e)}")
+        logger.error(f"❌ [GHOST SNIPER] Crash en orquestador Playwright: {str(e)}")
         raise

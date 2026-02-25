@@ -1,172 +1,349 @@
 {% extends "unfold/layouts/base.html" %}
 
 {% block content %}
-<main class="min-h-screen bg-[#050505] text-slate-300 font-sans antialiased overflow-hidden" x-data="{ scanning: false }">
-
-    <div class="fixed inset-0 z-0 pointer-events-none">
-        <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,#12101f_0%,#050505_100%)]"></div>
-        <div class="absolute inset-0 opacity-[0.02]" style="background-image: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');"></div>
+<main class="h-screen w-full bg-[#030303] text-slate-300 font-sans antialiased overflow-hidden flex flex-col relative selection:bg-indigo-500/30 selection:text-indigo-200" x-data="radarEngine()">
+    
+    <div class="absolute inset-0 z-0 pointer-events-none opacity-[0.15]" 
+         style="background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 64px 64px;">
     </div>
+    <div class="absolute top-[-20%] left-[10%] w-[80%] h-[50%] bg-indigo-600/10 blur-[150px] rounded-full pointer-events-none z-0"></div>
 
-    <div class="relative z-10 p-4 lg:p-8 max-w-[1600px] mx-auto flex flex-col gap-6 h-full">
+    <div class="flex flex-col h-full w-full max-w-[1920px] mx-auto p-4 lg:p-6 gap-6 relative z-10">
         
-        <div class="flex items-center gap-4 mb-2">
-            <div class="relative flex-shrink-0">
-                <div class="absolute inset-0 bg-purple-500 blur-lg opacity-40 animate-pulse"></div>
-                <div class="relative w-12 h-12 bg-black border border-white/10 rounded-xl flex items-center justify-center shadow-2xl">
-                    <span class="material-symbols-outlined text-purple-500 text-3xl">radar</span>
+        <header class="shrink-0 flex items-center justify-between bg-[#0A0A0A]/80 backdrop-blur-2xl border border-white/5 p-5 lg:px-8 rounded-2xl shadow-2xl z-20">
+            <div class="flex items-center gap-6">
+                <div class="relative flex-shrink-0 w-14 h-14 bg-gradient-to-br from-[#111] to-black border border-white/10 rounded-xl flex items-center justify-center shadow-inner group cursor-default">
+                    <div x-show="scanning" class="absolute inset-0 bg-indigo-500/20 rounded-xl animate-pulse"></div>
+                    <div class="absolute inset-0 bg-indigo-500/0 group-hover:bg-indigo-500/10 rounded-xl transition-colors duration-500"></div>
+                    <span class="material-symbols-outlined text-indigo-500 text-3xl z-10 transition-transform duration-700 group-hover:rotate-180" :class="scanning ? 'animate-spin-slow' : ''">my_location</span>
+                </div>
+                <div class="flex flex-col justify-center">
+                    <h1 class="text-2xl font-bold text-white tracking-tight m-0 flex items-center gap-3">
+                        Geo_Radar <span class="text-indigo-500 font-light">Workspace</span>
+                        <span class="px-2.5 py-0.5 rounded text-[10px] font-mono tracking-widest border transition-all duration-300 shadow-sm" 
+                              :class="scanning ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 shadow-indigo-500/20' : 'bg-white/5 text-slate-500 border-white/10'" 
+                              x-text="scanning ? 'LIVE SCAN' : 'STANDBY'"></span>
+                    </h1>
+                    <p class="text-[11px] font-mono text-slate-500 uppercase tracking-[0.25em] mt-1.5">Sovereign Intelligence Engine V5.0</p>
                 </div>
             </div>
-            <div>
-                <h1 class="text-3xl font-black text-white uppercase tracking-tighter m-0 leading-none drop-shadow-lg">Geo_Radar <span class="text-purple-600">Pro</span></h1>
-                <p class="text-[10px] font-mono text-purple-400/70 uppercase tracking-[0.3em] mt-1">Territorial Intelligence System V5.0</p>
-            </div>
-        </div>
-
-        <div style="background: rgba(10, 10, 10, 0.9); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 16px; padding: 24px; box-shadow: 0 0 30px rgba(168, 85, 247, 0.1); position: relative; z-index: 50;">
-            <h2 style="color: #fff; font-size: 11px; text-transform: uppercase; font-weight: 900; letter-spacing: 2px; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
-                <span class="material-symbols-outlined" style="font-size: 16px; color: #a855f7;">travel_explore</span>
-                Consola de Despliegue Satelital
-            </h2>
             
-            <form hx-post="{% url 'admin:radar_deploy' %}" 
-                  hx-target="#mission-telemetry-panel" 
-                  @submit="scanning = true"
-                  style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">
-                {% csrf_token %}
-                <input type="hidden" name="mission_id" value="{{ mission_id }}">
+            <div class="hidden lg:flex items-center gap-10">
+                <div class="flex flex-col items-end">
+                    <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><span class="material-symbols-outlined text-[12px]">fingerprint</span> Misión Activa</span>
+                    <span class="text-[13px] font-mono text-indigo-200 bg-indigo-900/20 px-3 py-1 rounded-md border border-indigo-500/20">{{ mission_id|slice:":8" }}</span>
+                </div>
+                <div class="w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent"></div>
+                <div class="flex flex-col items-end">
+                    <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><span class="material-symbols-outlined text-[12px]">memory</span> Estado Operativo</span>
+                    <span class="text-[13px] font-mono font-bold tracking-widest transition-colors duration-300" 
+                          :class="scanning ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'text-slate-500'" 
+                          x-text="scanning ? 'SISTEMA ENLAZADO' : 'INACTIVO'"></span>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-12 gap-6 relative z-10">
+            
+            <aside class="col-span-1 xl:col-span-3 flex flex-col gap-6 h-full min-h-0">
                 
-                <div style="flex: 1; min-width: 250px;">
-                    <label style="display: block; color: #64748b; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; font-family: monospace;">País Objetivo</label>
-                    <div style="display: flex; align-items: center; background: #000; border: 1px solid #333; border-radius: 8px; padding: 0 16px;">
-                        <span class="material-symbols-outlined" style="color: #64748b; font-size: 18px;">public</span>
-                        <input type="text" name="country" placeholder="Ej: Colombia" required
-                               style="width: 100%; background: transparent; border: none; color: #fff; font-size: 14px; font-weight: bold; padding: 16px 12px; outline: none; text-transform: uppercase;">
-                    </div>
+                <div class="shrink-0 bg-[#0A0A0A]/95 backdrop-blur-2xl border border-white/5 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    
+                    <h2 class="text-[11px] font-bold text-slate-300 uppercase tracking-widest mb-6 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[16px] text-indigo-500">api</span>
+                        Matriz de Despliegue
+                    </h2>
+                    
+                    <form hx-post="{% url 'admin:radar_deploy' %}" 
+                          hx-target="#backend-void" 
+                          @submit="launchSatellite()"
+                          class="flex flex-col gap-5 relative z-10">
+                        {% csrf_token %}
+                        <input type="hidden" name="mission_id" value="{{ mission_id }}">
+                        
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-mono text-slate-500 uppercase tracking-widest ml-1">País Objetivo</label>
+                            <div class="relative focus-within:transform focus-within:scale-[1.02] transition-all duration-300">
+                                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-[18px]">public</span>
+                                <input type="text" name="country" placeholder="Ej: Colombia" required :readonly="scanning"
+                                       class="w-full bg-[#111] border border-white/5 text-white text-[13px] py-4 pl-12 pr-4 rounded-xl focus:border-indigo-500 focus:bg-black focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none placeholder-slate-700 disabled:opacity-50">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-mono text-slate-500 uppercase tracking-widest ml-1">Región / Ciudad</label>
+                            <div class="relative focus-within:transform focus-within:scale-[1.02] transition-all duration-300">
+                                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-[18px]">location_city</span>
+                                <input type="text" name="city" placeholder="Ej: Bogota" required :readonly="scanning"
+                                       class="w-full bg-[#111] border border-white/5 text-white text-[13px] py-4 pl-12 pr-4 rounded-xl focus:border-indigo-500 focus:bg-black focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none placeholder-slate-700 disabled:opacity-50">
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <button type="submit" x-show="!scanning"
+                                    class="w-full h-[56px] bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(79,70,229,0.2)] hover:shadow-[0_0_30px_rgba(79,70,229,0.5)] transform hover:-translate-y-1">
+                                Iniciar Extracción
+                                <span class="material-symbols-outlined text-[20px]">rocket_launch</span>
+                            </button>
+
+                            <button type="button" x-show="scanning" @click="abortMission()"
+                                    class="w-full h-[56px] bg-[#111] hover:bg-red-500/10 border border-red-500/30 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-3 hover:shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+                                Abortar Conexión
+                                <span class="material-symbols-outlined text-[20px]">power_settings_new</span>
+                            </button>
+                        </div>
+                    </form>
+                    <div id="backend-void" class="hidden"></div>
                 </div>
 
-                <div style="flex: 1; min-width: 250px;">
-                    <label style="display: block; color: #64748b; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; font-family: monospace;">Ciudad / Región</label>
-                    <div style="display: flex; align-items: center; background: #000; border: 1px solid #333; border-radius: 8px; padding: 0 16px;">
-                        <span class="material-symbols-outlined" style="color: #64748b; font-size: 18px;">location_city</span>
-                        <input type="text" name="city" placeholder="Ej: Bogota" required
-                               style="width: 100%; background: transparent; border: none; color: #fff; font-size: 14px; font-weight: bold; padding: 16px 12px; outline: none; text-transform: uppercase;">
-                    </div>
-                </div>
-
-                <button type="submit" 
-                        style="background: #9333ea; color: white; border: none; padding: 16px 32px; border-radius: 8px; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(147, 51, 234, 0.4); transition: all 0.2s; min-width: 200px; justify-content: center;"
-                        onmouseover="this.style.background='#a855f7'; this.style.transform='translateY(-2px)';" 
-                        onmouseout="this.style.background='#9333ea'; this.style.transform='translateY(0)';">
-                    LANZAR SATÉLITE
-                    <span class="material-symbols-outlined">rocket_launch</span>
-                </button>
-            </form>
-        </div>
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 mt-2">
-            
-            <aside class="col-span-1 lg:col-span-3 space-y-6">
-                <div id="mission-telemetry-panel" class="bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-                    <div class="flex justify-between items-center mb-6 relative z-10">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Enlace Satelital</span>
-                        <div class="flex gap-1">
-                            <template x-if="!scanning">
-                                <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">STANDBY</span>
-                            </template>
-                            <template x-if="scanning">
-                                <span class="flex items-center gap-2 text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded font-mono animate-pulse">
-                                    <span class="h-1.5 w-1.5 rounded-full bg-purple-500"></span> ACTIVE
-                                </span>
-                            </template>
-                        </div>
-                    </div>
-
-                    <div class="relative py-12 flex flex-col items-center border border-white/5 bg-[#050505] rounded-2xl z-10">
-                        <div x-show="scanning" class="absolute inset-0 flex items-center justify-center opacity-20">
-                            <div class="w-32 h-32 border border-purple-500 rounded-full animate-ping"></div>
-                        </div>
-                        <span class="material-symbols-outlined text-slate-800 text-5xl mb-4 transition-colors duration-500"
-                              :class="scanning ? 'text-purple-500' : 'text-slate-800'">
-                            satellite_alt
+                <div class="flex-1 min-h-0 bg-[#0A0A0A]/95 backdrop-blur-2xl border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                    <div class="shrink-0 px-5 py-4 border-b border-white/5 flex justify-between items-center bg-[#111]/50">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[14px]">terminal</span> System Logs
                         </span>
-                        <p class="text-[11px] font-mono text-slate-500 tracking-tighter uppercase" 
-                           x-text="scanning ? 'Contactando Overpass API...' : 'Esperando Órdenes'"></p>
-                    </div>
-                </div>
-
-                <div class="bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 shadow-2xl">
-                    <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6">Metadatos de Misión</h4>
-                    <div class="space-y-4 font-mono text-[10px]">
-                        <div class="flex justify-between border-b border-white/5 pb-2">
-                            <span class="text-slate-600 uppercase">Mission_ID</span>
-                            <span class="text-white">{{ mission_id|slice:":8" }}</span>
+                        <div class="flex gap-1.5">
+                            <div class="w-2.5 h-2.5 rounded-full bg-slate-800"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-slate-800"></div>
+                            <div class="w-2.5 h-2.5 rounded-full transition-all duration-300" :class="scanning ? 'bg-indigo-500 animate-pulse shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-slate-800'"></div>
                         </div>
-                        <div class="flex justify-between border-b border-white/5 pb-2">
-                            <span class="text-slate-600 uppercase">Engine</span>
-                            <span class="text-emerald-500">OSM_V5_FUZZY</span>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-5 font-mono text-[10px] leading-relaxed flex flex-col gap-2 custom-scrollbar" id="terminal-logs">
+                        <template x-for="log in logs" :key="log.id">
+                            <div class="opacity-0 animate-fade-in flex gap-3">
+                                <span class="text-slate-600 shrink-0">[{log.time}]</span>
+                                <span :class="log.color" x-text="log.text"></span>
+                            </div>
+                        </template>
+                        <div x-show="scanning" class="flex gap-3 mt-2">
+                            <span class="text-slate-600 shrink-0">[{getCurrentTime()}]</span>
+                            <span class="text-indigo-400">Ejecutando subrutinas<span class="animate-pulse">...</span></span>
                         </div>
                     </div>
                 </div>
             </aside>
 
-            <section class="col-span-1 lg:col-span-9 flex flex-col">
-                <div class="bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl flex-1 flex flex-col min-h-[500px]">
+            <section class="col-span-1 xl:col-span-9 flex flex-col h-full min-h-0">
+                <div class="bg-[#050505]/95 backdrop-blur-3xl border border-white/5 rounded-2xl shadow-[0_0_60px_rgba(0,0,0,0.9)] flex-1 flex flex-col overflow-hidden relative group">
                     
-                    <div class="p-6 border-b border-white/5 bg-white/[0.01] flex justify-between items-center z-20 relative shadow-md">
-                        <h3 class="text-sm font-black text-white uppercase tracking-tighter flex items-center gap-3 m-0">
-                            <span class="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></span>
-                            Carga de Datos Interceptada
+                    <div class="shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-b from-[#111] to-[#0A0A0A] relative z-20">
+                        <h3 class="text-[14px] font-black text-white uppercase tracking-widest flex items-center gap-3 m-0">
+                            <span class="material-symbols-outlined text-[22px] text-indigo-500">dataset</span>
+                            Base de Datos Objetivo
                         </h3>
-                        <div id="result-counter" class="bg-[#050505] px-4 py-2 rounded-full border border-white/10 font-mono text-[10px] text-purple-400 font-bold shadow-inner">
-                            0 OBJETIVOS DETECTADOS
+                        
+                        <div id="table-spinner" class="htmx-indicator flex items-center gap-3 bg-indigo-500/10 border border-indigo-500/30 px-4 py-2 rounded-lg shadow-[0_0_15px_rgba(99,102,241,0.1)]">
+                            <div class="w-3.5 h-3.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span class="text-[10px] font-mono text-indigo-400 uppercase tracking-widest font-bold">Sincronizando DB</span>
                         </div>
                     </div>
 
-                    <div class="flex-1 overflow-auto custom-scrollbar relative bg-[#050505]">
-                        <div id="radar-results-table" 
-                             hx-get="{% url 'admin:radar_results' mission_id %}" 
-                             hx-trigger="every 3s"
+                    <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar relative target-wrapper bg-transparent">
+                        
+                        <div hx-get="{% url 'admin:radar_results' mission_id %}" 
+                             hx-trigger="load, every 3s"
                              hx-indicator="#table-spinner"
-                             class="absolute inset-0">
+                             hx-swap="innerHTML"
+                             class="min-h-full w-full">
                             
-                            <div class="flex flex-col items-center justify-center h-full text-center p-10 opacity-30">
-                                <span class="material-symbols-outlined text-7xl mb-4 text-white">dataset</span>
-                                <h4 class="text-white text-xs font-bold uppercase tracking-widest">Matriz Limpia</h4>
-                                <p class="text-slate-400 text-[10px] mt-2 max-w-xs">Ingresa País y Ciudad en la consola superior y presiona LANZAR SATÉLITE para poblar el radar.</p>
+                            <div class="flex flex-col items-center justify-center h-full text-center p-10 absolute inset-0">
+                                <div class="relative w-24 h-24 mb-6">
+                                    <div class="absolute inset-0 border border-indigo-500/20 rounded-full animate-ping"></div>
+                                    <div class="absolute inset-2 border border-indigo-500/40 rounded-full animate-pulse"></div>
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span class="material-symbols-outlined text-4xl text-slate-600">radar</span>
+                                    </div>
+                                </div>
+                                <h4 class="text-slate-300 text-sm font-black font-mono uppercase tracking-[0.2em]">Enlace con BD Pendiente</h4>
+                                <p class="text-slate-500 text-[11px] font-mono mt-3 max-w-sm uppercase tracking-widest">Inicia la extracción en la consola lateral para poblar el Grid de Datos.</p>
                             </div>
-                        </div>
-                    </div>
 
-                    <div id="table-spinner" class="htmx-indicator flex items-center justify-center gap-3 px-8 py-4 bg-purple-900/20 border-t border-purple-500/30">
-                        <div class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                        <span class="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Descargando Inteligencia a la Base de Datos...</span>
+                        </div>
+
+                        <div class="sticky bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none z-10"></div>
                     </div>
                 </div>
             </section>
         </div>
     </div>
 
+    <script>
+        function radarEngine() {
+            return {
+                scanning: false,
+                logs: [],
+                logCounter: 0,
+                simulationInterval: null,
+                
+                init() {
+                    this.addLog("Sovereign Engine Initialize. All systems nominal.", "text-emerald-500 font-bold");
+                    this.addLog("Awaiting targeting coordinates...", "text-slate-400");
+                },
+
+                getCurrentTime() {
+                    const now = new Date();
+                    return now.getHours().toString().padStart(2, '0') + ':' + 
+                           now.getMinutes().toString().padStart(2, '0') + ':' + 
+                           now.getSeconds().toString().padStart(2, '0');
+                },
+
+                addLog(text, color = "text-slate-400") {
+                    this.logs.push({ id: this.logCounter++, time: this.getCurrentTime(), text: text, color: color });
+                    setTimeout(() => {
+                        const term = document.getElementById('terminal-logs');
+                        if(term) term.scrollTop = term.scrollHeight;
+                    }, 50);
+                },
+
+                launchSatellite() {
+                    setTimeout(() => {
+                        this.scanning = true;
+                        this.logs = [];
+                        this.addLog(">>> UPLINK ESTABLISHED. DEPLOYING SAT-OSM...", "text-indigo-400 font-bold");
+                        
+                        const actions = [
+                            { msg: "By-passing WAF and establishing secure TLS tunnel...", color: "text-slate-400" },
+                            { msg: "Injecting Spatial Regex Payload into Overpass API.", color: "text-slate-300" },
+                            { msg: "Awaiting JSON telemetry from satellite cluster...", color: "text-yellow-500/80" },
+                            { msg: "Data stream received. Normalizing URLs and Emails...", color: "text-indigo-300" },
+                            { msg: "Executing AI Heuristics to determine public/private sector...", color: "text-slate-400" },
+                            { msg: "Performing Atomic Bulk-Insert into PostgreSQL...", color: "text-emerald-400" },
+                            { msg: "Firing Background AI Resolvers (SERP & Ghost Sniper)...", color: "text-purple-400 font-bold" }
+                        ];
+
+                        let step = 0;
+                        this.simulationInterval = setInterval(() => {
+                            if (step < actions.length && this.scanning) {
+                                this.addLog(actions[step].msg, actions[step].color);
+                                step++;
+                            } else {
+                                clearInterval(this.simulationInterval);
+                            }
+                        }, 2500);
+                    }, 50);
+                },
+
+                abortMission() {
+                    this.scanning = false;
+                    clearInterval(this.simulationInterval);
+                    this.addLog(">>> KILL SWITCH ACTIVATED.", "text-red-500 font-black");
+                    this.addLog("Severing Celery connections. Mission Aborted.", "text-red-400");
+                }
+            }
+        }
+    </script>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap');
         
-        body { font-family: 'Inter', sans-serif; background-color: #050505 !important; margin: 0; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
 
-        /* Scrollbar Cyberpunk */
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.4); }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #222; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9333ea; }
+        @keyframes spin-slow { 100% { transform: rotate(360deg); } }
+        .animate-spin-slow { animation: spin-slow 8s linear infinite; }
 
-        /* Arreglo vital para el indicador HTMX */
-        .htmx-indicator { display: none !important; }
-        .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: flex !important; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.2s ease forwards; }
+
+        /* Scrollbar Premium Estilo Apple/Stripe */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 20px; border: 2px solid transparent; background-clip: content-box; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(99,102,241,0.6); }
+
+        .htmx-indicator { opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
+
+        /* ==========================================================
+           LA TABLA DEFINITIVA (Unbreakable Layout)
+           ========================================================== */
         
-        /* Asegurar que la tabla inyectada por Django se vea brutal */
-        table { width: 100%; border-collapse: collapse; text-align: left; background: #050505; }
-        table thead th { position: sticky; top: 0; background-color: #111; padding: 16px; border-bottom: 1px solid #222; font-size: 10px; text-transform: uppercase; color: #888; font-weight: 900; z-index: 10; letter-spacing: 1px; }
-        table tbody td { padding: 16px; border-bottom: 1px solid #111; color: #ddd; font-size: 12px; font-weight: bold; }
-        table tbody tr:hover td { background-color: rgba(147, 51, 234, 0.05); }
+        .target-wrapper table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            text-align: left;
+            margin: 0;
+        }
+
+        /* Sticky Header Flotante con Backdrop Blur Premium */
+        .target-wrapper thead th {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            background: rgba(5, 5, 5, 0.85) !important;
+            backdrop-filter: blur(16px) !important;
+            -webkit-backdrop-filter: blur(16px) !important;
+            padding: 18px 24px;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #64748b;
+            font-weight: 900;
+            letter-spacing: 0.15em;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-family: 'JetBrains Mono', monospace;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        .target-wrapper tbody td {
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            color: #cbd5e1;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.25s ease;
+            white-space: nowrap;
+            background: transparent;
+            /* Borde izquierdo transparente para el efecto hover */
+            border-left: 2px solid transparent;
+        }
+
+        /* Hover de Fila God Tier */
+        .target-wrapper tbody tr {
+            transition: background-color 0.2s ease;
+        }
+        
+        .target-wrapper tbody tr:hover td {
+            background-color: rgba(99, 102, 241, 0.04); /* Fondo sutil índigo */
+            color: #ffffff;
+        }
+        
+        /* Borde lateral iluminado en la primera celda al hacer hover */
+        .target-wrapper tbody tr:hover td:first-child {
+            border-left: 2px solid #6366f1;
+        }
+
+        /* Estilo para links (Websites de colegios) */
+        .target-wrapper tbody td a {
+            color: #818cf8;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 6px 12px;
+            background: rgba(99, 102, 241, 0.08);
+            border-radius: 8px;
+            transition: all 0.2s;
+            border: 1px solid rgba(99, 102, 241, 0.1);
+        }
+        
+        .target-wrapper tbody td a:hover {
+            background: rgba(99, 102, 241, 0.2);
+            color: #c7d2fe;
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+        }
+
+        /* Aspecto profesional para celdas vacías */
+        .target-wrapper tbody td:empty::after,
+        .target-wrapper tbody td:contains("None") {
+            content: "N/A";
+            color: #334155;
+            font-style: italic;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255,255,255,0.02);
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
     </style>
 </main>
 {% endblock %}

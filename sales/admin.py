@@ -438,15 +438,15 @@ class CommandCenterAdmin(ModelAdmin):
             messages.error(request, "⛔ Acceso Denegado: Tu rango no permite acceso al Dashboard Ejecutivo.")
             return redirect('admin:index')
 
+        # === 1. MANEJO DE MISIONES (Botones de acción masiva) ===
         if request.method == "POST":
             action_type = request.POST.get('action_type')
             mission_control = {
                 'radar': {
                     'task': task_run_osm_radar,
                     'kwargs': {
-                        'country': request.POST.get('country'),
-                        'state': request.POST.get('state'),
-                        'city': request.POST.get('city')
+                        'country': request.POST.get('country', 'Colombia'),
+                        'city': request.POST.get('city', '')
                     },
                     'success_msg': "🛰️ Satélite OSM desplegado. Analizando cuadrante en segundo plano."
                 },
@@ -467,45 +467,74 @@ class CommandCenterAdmin(ModelAdmin):
                 try:
                     mission['task'].delay(**mission['kwargs'])
                     self.message_user(request, mission['success_msg'], level='SUCCESS')
-                    cache.delete('b2b_dashboard_metrics')
+                    cache.delete('b2b_dashboard_metrics') # Forzar recálculo del dashboard
                 except Exception as e:
                     logger.critical(f"Falla de conexión con el Message Broker: {str(e)}")
                     self.message_user(request, "🚨 ERROR CRÍTICO: Infraestructura Celery/Redis inalcanzable.", level='ERROR')
             return HttpResponseRedirect(request.path)
 
+        # === 2. CÁLCULO ANALÍTICO DE ALTO RENDIMIENTO (BI) ===
         try:
             metrics = cache.get('b2b_dashboard_metrics')
         except Exception:
             metrics = None
 
         if not metrics:
-            try:
-                metrics = CommandCenter.objects.get_dashboard_stats()
-            except AttributeError:
-                metrics = Institution.objects.aggregate(
-                    total_leads=Count('id'),
-                    blind_leads=Count('id', filter=Q(website__isnull=True) | Q(website='')),
-                    ready_to_scan=Count('id', filter=Q(website__isnull=False, last_scored_at__isnull=True) & ~Q(website='')),
-                    enriched_leads=Count('id', filter=Q(tech_profile__isnull=False)),
-                    avg_score=Coalesce(Avg('lead_score', output_field=FloatField()), Value(0.0))
+            # A. KPIs Generales (Tarjetas Superiores)
+            base_metrics = Institution.objects.aggregate(
+                total_leads=Count('id'),
+                blind_leads=Count('id', filter=Q(website__isnull=True) | Q(website='')),
+                enriched_leads=Count('id', filter=Q(tech_profile__isnull=False)),
+                avg_score=Coalesce(Avg('lead_score', output_field=FloatField()), Value(0.0)),
+                private_schools=Count('id', filter=Q(is_private=True))
+            )
+
+            # B. Market Share de LMS (Para gráfico de Dona)
+            lms_distribution = list(Institution.objects.filter(tech_profile__isnull=False)
+                .annotate(
+                    lms_clean=Case(
+                        When(tech_profile__lms_provider__isnull=True, then=Value('Ninguno/In-House')),
+                        When(tech_profile__lms_provider='', then=Value('Ninguno/In-House')),
+                        default=F('tech_profile__lms_provider')
+                    )
                 )
+                .values('lms_clean')
+                .annotate(total=Count('id'))
+                .order_by('-total')[:6] # Agarra el Top 6 del mercado
+            )
+            
+            lms_labels = [str(item['lms_clean']).upper() for item in lms_distribution]
+            lms_data = [item['total'] for item in lms_distribution]
+
+            # C. Salud del Pipeline B2B (Para gráfico de Barras)
+            pipeline_health = Institution.objects.aggregate(
+                hot=Count('id', filter=Q(lead_score__gte=75)),
+                warm=Count('id', filter=Q(lead_score__gte=40, lead_score__lt=75)),
+                cold=Count('id', filter=Q(lead_score__lt=40))
+            )
+
+            # Empaquetamos todo y lo convertimos a JSON para JavaScript
+            metrics = {
+                'kpis': base_metrics,
+                'lms_labels': json.dumps(lms_labels),
+                'lms_data': json.dumps(lms_data),
+                'pipeline_data': json.dumps([pipeline_health['hot'], pipeline_health['warm'], pipeline_health['cold']])
+            }
             try:
-                cache.set('b2b_dashboard_metrics', metrics, timeout=30)
+                cache.set('b2b_dashboard_metrics', metrics, timeout=60) # Caché de 1 minuto para no saturar DB
             except Exception:
                 pass
 
+        # === 3. RENDERIZADO ===
         context = dict(self.admin_site.each_context(request))
         context.update({
-            'title': 'The Sovereign Engine',
-            'total_leads': metrics.get('total_leads', 0),
-            'blind_leads': metrics.get('blind_leads', 0),
-            'ready_to_scan': metrics.get('ready_to_scan', 0),
-            'enriched_leads': metrics.get('enriched_leads', 0),
-            'avg_score': metrics.get('avg_score', 0)
+            'title': 'Sovereign C-Level Dashboard',
+            'metrics': metrics['kpis'],
+            'lms_labels': metrics['lms_labels'],
+            'lms_data': metrics['lms_data'],
+            'pipeline_data': metrics['pipeline_data']
         })
         return TemplateResponse(request, "admin/sales/commandcenter/dashboard.html", context)
-
-
 @admin.register(SniperConsole)
 class SniperConsoleAdmin(ModelAdmin):
     def has_add_permission(self, request): return False
