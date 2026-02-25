@@ -13,7 +13,8 @@ echo "========================================================="
 # 1. TCP WAIT (Tel Aviv DB Protection)
 # Espera activa hasta que el socket de PostgreSQL esté 100% operativo
 echo "⏳ Verificando disponibilidad del Vault (PostgreSQL)..."
-until pg_isready -h "db" -p "5432" -U "sovereign_db_user"; do
+#until pg_isready -h "db" -p "5432" -U "sovereign_db_user"; do
+until pg_isready -h "db" -p "5432" -U "sovereign_db_user" -d "sovereign_db"; do
   echo "⚠️  PostgreSQL no está listo. Reintentando en 2 segundos..."
   sleep 2
 done

@@ -29,6 +29,7 @@ ALLOWED_HOSTS = []
 
 # Application definition
 INSTALLED_APPS = [
+    'daphne', # <--- [OBLIGATORIO para Django 5.x + Channels]
     'unfold',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -70,16 +71,25 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = 'core.asgi.application' # <--- EL MAPA DE RUTA GOD TIER
 
 
-# Database
+# ==========================================
+# [NIVEL DIOS]: DATABASE VAULT DYNAMICS
+# ==========================================
+
+
+# Si existe la variable DATABASE_URL, asumimos que estamos dentro de Docker
+IS_DOCKER = os.getenv('DATABASE_URL') is not None
+DB_HOST = 'db' if IS_DOCKER else 'localhost'
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'llseller_db',
-        'USER': 'llseller_user',
-        'PASSWORD': '9967112',
-        'HOST': 'localhost',
+        'NAME': 'sovereign_db',
+        'USER': 'sovereign_db_user',
+        'PASSWORD': 'SovereignGodTier2026!',
+        'HOST': DB_HOST,
         'PORT': '5432',
     }
 }
@@ -167,42 +177,39 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
 
 # ==========================================
-# CONFIGURACIÓN CELERY & REDIS (BACKGROUND WORKERS)
 # ==========================================
-CELERY_BROKER_URL = 'redis://10.88.0.3:6379/0'
-CELERY_RESULT_BACKEND = 'redis://10.88.0.3:6379/0'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'America/Bogota'
+# [NIVEL DIOS]: CONFIGURACIÓN CELERY DINÁMICA
+# ==========================================
+# Detectamos si estamos en Docker/Podman buscando una variable de entorno de la DB
+# Si no existe, asumimos que estamos en local y usamos 'localhost'
+IS_DOCKER = os.getenv('DATABASE_URL') is not None
+REDIS_HOST = 'redis' if IS_DOCKER else 'localhost'
 
-# ==========================================
-# CONFIGURACIÓN CELERY ENTERPRISE (REDIS)
-# ==========================================
-CELERY_BROKER_URL = 'redis://10.88.0.3:6379/0'
-CELERY_RESULT_BACKEND = 'redis://10.88.0.3:6379/0'
-# Serialización segura
+# Configuración Maestra del Broker
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:6379/0'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:6379/0'
+
+# Protocolos de Serialización y Tiempo
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = TIME_ZONE
+CELERY_TIMEZONE = TIME_ZONE # Usa la variable TIME_ZONE definida arriba en settings
 
 # --- TUNEADO DE RENDIMIENTO DE SILICON VALLEY ---
-# Evita que un worker se trague toda la RAM tras miles de ejecuciones. 
-# Reinicia el worker invisiblemente tras procesar 100 colegios.
+# Reinicia el worker tras 100 tareas para prevenir fugas de RAM (Memory Leaks)
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 100 
 
-# Limita cuántas tareas pre-descarga el worker (Evita cuellos de botella si las tareas son lentas)
+# Optimiza la distribución de tareas: toma 1 a la vez (Evita cuellos de botella)
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1 
 
-# Reconoce la tarea solo DESPUÉS de ejecutarla (Si el servidor se reinicia, no pierdes datos)
+# Garantía de Ejecución: Solo confirma la tarea después de terminarla
 CELERY_TASK_ACKS_LATE = True 
 
-# Routing (Pistas de alta velocidad)
+# Enrutamiento de Alta Velocidad
 CELERY_TASK_ROUTES = {
     'sales.tasks.task_run_ghost_sniper': {'queue': 'scraping_queue'},
     'sales.tasks.task_run_osm_radar': {'queue': 'discovery_queue'},
-    'sales.tasks.task_run_serp_resolver': {'queue': 'default'},
+    'sales.tasks.task_run_inbound_catcher': {'queue': 'default'},
 }
 
 

@@ -40,16 +40,19 @@ services:
       - sovereign_net
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" # <--- [PUENTE ACTIVO]: Permite que tu venv local se conecte al Vault
     environment:
       POSTGRES_USER: sovereign_db_user
       POSTGRES_PASSWORD: SovereignGodTier2026!
       POSTGRES_DB: sovereign_db
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sovereign_db_user"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U sovereign_db_user -d sovereign_db"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 15s # Da tiempo al Vault para crear los archivos la primera vez
     deploy:
       resources:
         limits:
@@ -68,14 +71,17 @@ services:
       - sovereign_net
     volumes:
       - redis_data:/data
-    # [FIX]: AOF (Append Only File) activado para evitar pérdida de colas si hay reinicios
+    ports:
+      - "6379:6379" # <--- [PUENTE ACTIVO]: Permite que tu Celery/venv local vea el Broker
     command: redis-server --save 60 1 --loglevel warning --appendonly yes
     logging: *default-logging
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
+      # [FIX GOD TIER]: Usamos el comando nativo de Redis para el chequeo de salud
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG || exit 1"]
+      interval: 10s
+      timeout: 5s
       retries: 5
+      start_period: 10s
     deploy:
       resources:
         limits:
@@ -103,10 +109,12 @@ services:
       <<: *common-env
     logging: *default-logging
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      # [FIX GOD TIER]: Usamos wget porque la imagen mínima (slim) no tiene curl
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8000/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
     depends_on:
       db:
         condition: service_healthy
@@ -174,7 +182,8 @@ services:
     <<: *default-security
     networks:
       - sovereign_net
-    command: celery -A core flower --port=5555 --address=0.0.0.0 --basic_auth=admin:SovereignAdmin2026!
+    # Forzamos conexión directa al broker interno para evitar el Connection Refused
+    command: celery -A core flower --port=5555 --address=0.0.0.0 --broker=redis://redis:6379/0 --basic_auth=admin:SovereignAdmin2026!
     ports:
       - "5555:5555"
     env_file:
