@@ -134,8 +134,6 @@ class GlobalPipelineAdmin(ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(
             'tech_profile', 'forensic_profile'
-        ).prefetch_related(
-            Prefetch('tech_profile__lms_provider', to_attr='cached_lms')
         ).annotate(
             priority_rank=Case(
                 When(website__isnull=False, last_scored_at__isnull=False, then=Value(3)),
@@ -144,7 +142,7 @@ class GlobalPipelineAdmin(ModelAdmin):
                 output_field=IntegerField(),
             )
         ).order_by('-priority_rank', '-lead_score', '-updated_at')
-
+        
     def changelist_view(self, request, extra_context=None):
         qs = self.get_queryset(request)
         metrics = qs.aggregate(

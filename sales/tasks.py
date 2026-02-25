@@ -2,7 +2,9 @@ import logging
 import asyncio
 import requests
 import uuid
+import re
 from typing import Dict, List, Any, Optional
+
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from requests.exceptions import RequestException, Timeout
@@ -86,14 +88,24 @@ def task_run_single_recon(self, inst_id: str):
 )
 def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] = None):
     """
-    Motor de Extracción Geoespacial de alto rendimiento.
+    Motor de Extracción Geoespacial de alto rendimiento V5.0.
     Utiliza tagging por 'mission_id' para alimentar la Ventana 3 (Geo-Radar).
+    Inmune a errores de tildes y mayúsculas mediante Fuzzy Regex.
     """
-    logger.info(f"🛰️ [OSM RADAR] Barrido satelital sobre: {city}, {country}")
+    batch_uuid = mission_id or str(uuid.uuid4())
+    logger.info(f"🛰️ [OSM RADAR] Desplegando sobre {city}, {country} | Misión ID: {batch_uuid}")
+    
+    # 🧠 Magia de Silicon Valley: Regex Dinámico para Tildes
+    # Transforma "Bogota" en "[bB][oO][gG][oOóÓ][tT][aAáÁ]" para engañar a OSM
+    city_fuzzy = re.sub(r'[aAáÁ]', '[aAáÁ]', city)
+    city_fuzzy = re.sub(r'[eEéÉ]', '[eEéÉ]', city_fuzzy)
+    city_fuzzy = re.sub(r'[iIíÍ]', '[iIíÍ]', city_fuzzy)
+    city_fuzzy = re.sub(r'[oOóÓ]', '[oOóÓ]', city_fuzzy)
+    city_fuzzy = re.sub(r'[uUúÚ]', '[uUúÚ]', city_fuzzy)
     
     query = f"""
     [out:json][timeout:180];
-    area["name"="{city}"]->.searchArea;
+    area["name"~"^{city_fuzzy}$",i]->.searchArea;
     (
       nwr["amenity"~"school|kindergarten|university|college"](area.searchArea);
     );
@@ -101,16 +113,18 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
     """
     
     try:
+        logger.info("📡 [OSM RADAR] Enviando pulso a la API de Overpass...")
         response = requests.post("https://overpass-api.de/api/interpreter", data={'data': query}, timeout=185)
         response.raise_for_status()
         elements = response.json().get('elements', [])
         
+        logger.info(f"✅ [OSM RADAR] API Respondió. Nodos crudos detectados por el satélite: {len(elements)}")
+        
         if not elements:
+            logger.warning(f"⚠️ [OSM RADAR] OSM no tiene datos para '{city}'. Intenta con el nombre oficial de la región.")
             return f"Cero resultados en {city}."
 
         institutions_to_create = []
-        # El mission_id vincula los resultados a la Ventana 3 en tiempo real
-        batch_uuid = mission_id or str(uuid.uuid4())
         names_seen = set()
         
         for el in elements:
@@ -132,6 +146,8 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
                 )
             )
 
+        logger.info(f"⏳ [OSM RADAR] Limpiando datos y guardando {len(institutions_to_create)} leads en la Base de Datos...")
+
         # Inserción Atómica Bulk (O(n) optimizado)
         with transaction.atomic():
             Institution.objects.bulk_create(
@@ -140,7 +156,7 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
                 batch_size=500
             )
         
-        logger.info(f"✅ [OSM RADAR] {len(institutions_to_create)} prospectos inyectados en misión {batch_uuid}.")
+        logger.info(f"🎯 [OSM RADAR] ÉXITO TOTAL. Misión completada. La tabla web debería actualizarse ahora.")
         return {"mission_id": batch_uuid, "count": len(institutions_to_create)}
 
     except Exception as e:

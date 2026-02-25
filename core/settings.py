@@ -134,7 +134,7 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 UNFOLD = {
     "SITE_TITLE": "B2B Intelligence Engine",
     "SITE_HEADER": "Recon Dashboard",
-    "SITE_ICON": "rocket_launch",  # Icono superior
+    #"SITE_ICON": "rocket_launch",  # Icono superior
     "COLORS": {
         "primary": {
             "50": "#f0fdfa", "100": "#ccfbf1", "200": "#99f6e4",
@@ -169,8 +169,8 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 # ==========================================
 # CONFIGURACIÓN CELERY & REDIS (BACKGROUND WORKERS)
 # ==========================================
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_BROKER_URL = 'redis://10.88.0.3:6379/0'
+CELERY_RESULT_BACKEND = 'redis://10.88.0.3:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -179,9 +179,8 @@ CELERY_TIMEZONE = 'America/Bogota'
 # ==========================================
 # CONFIGURACIÓN CELERY ENTERPRISE (REDIS)
 # ==========================================
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-
+CELERY_BROKER_URL = 'redis://10.88.0.3:6379/0'
+CELERY_RESULT_BACKEND = 'redis://10.88.0.3:6379/0'
 # Serialización segura
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'

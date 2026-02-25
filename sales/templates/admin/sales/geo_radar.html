@@ -1,82 +1,87 @@
 {% extends "unfold/layouts/base.html" %}
 
 {% block content %}
-<main class="min-h-screen bg-[#050505] text-slate-300 font-sans antialiased overflow-hidden selection:bg-purple-500/30 selection:text-purple-200"
-      x-data="{ 
-          scanning: false, 
-          missionStarted: false,
-          stats: { nodes: 0, depth: '0%', latency: '24ms' } 
-      }">
+<main class="min-h-screen bg-[#050505] text-slate-300 font-sans antialiased overflow-hidden" x-data="{ scanning: false }">
 
     <div class="fixed inset-0 z-0 pointer-events-none">
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,#12101f_0%,#050505_100%)]"></div>
-        <div class="absolute inset-0 opacity-[0.03]" style="background-image: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');"></div>
+        <div class="absolute inset-0 opacity-[0.02]" style="background-image: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');"></div>
     </div>
 
-    <div class="relative z-10 p-6 lg:p-10 max-w-[1600px] mx-auto">
+    <div class="relative z-10 p-4 lg:p-8 max-w-[1600px] mx-auto flex flex-col gap-6 h-full">
         
-        <header class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-8 mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
-            <div class="flex items-center gap-5">
-                <div class="relative">
-                    <div class="absolute inset-0 bg-purple-500 blur-xl opacity-20 animate-pulse"></div>
-                    <div class="relative w-14 h-14 bg-black border border-white/10 rounded-2xl flex items-center justify-center">
-                        <span class="material-symbols-outlined text-purple-500 text-3xl">language</span>
-                    </div>
-                </div>
-                <div>
-                    <h1 class="text-4xl font-black text-white tracking-tighter uppercase leading-none">Geo_Radar <span class="text-purple-600">Pro</span></h1>
-                    <p class="text-[10px] font-mono text-slate-500 uppercase tracking-[0.4em] mt-2">Territorial Intelligence System // Active Session</p>
+        <div class="flex items-center gap-4 mb-2">
+            <div class="relative flex-shrink-0">
+                <div class="absolute inset-0 bg-purple-500 blur-lg opacity-40 animate-pulse"></div>
+                <div class="relative w-12 h-12 bg-black border border-white/10 rounded-xl flex items-center justify-center shadow-2xl">
+                    <span class="material-symbols-outlined text-purple-500 text-3xl">radar</span>
                 </div>
             </div>
+            <div>
+                <h1 class="text-3xl font-black text-white uppercase tracking-tighter m-0 leading-none drop-shadow-lg">Geo_Radar <span class="text-purple-600">Pro</span></h1>
+                <p class="text-[10px] font-mono text-purple-400/70 uppercase tracking-[0.3em] mt-1">Territorial Intelligence System V5.0</p>
+            </div>
+        </div>
 
+        <div style="background: rgba(10, 10, 10, 0.9); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 16px; padding: 24px; box-shadow: 0 0 30px rgba(168, 85, 247, 0.1); position: relative; z-index: 50;">
+            <h2 style="color: #fff; font-size: 11px; text-transform: uppercase; font-weight: 900; letter-spacing: 2px; margin-top: 0; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                <span class="material-symbols-outlined" style="font-size: 16px; color: #a855f7;">travel_explore</span>
+                Consola de Despliegue Satelital
+            </h2>
+            
             <form hx-post="{% url 'admin:radar_deploy' %}" 
                   hx-target="#mission-telemetry-panel" 
-                  @submit="scanning = true; missionStarted = true"
-                  class="flex items-center gap-2 p-1.5 bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 shadow-2xl w-full xl:w-auto">
+                  @submit="scanning = true"
+                  style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">
                 {% csrf_token %}
                 <input type="hidden" name="mission_id" value="{{ mission_id }}">
                 
-                <div class="flex items-center gap-2 px-4 py-2 bg-black/40 rounded-xl border border-white/5">
-                    <span class="material-symbols-outlined text-slate-600 text-sm">public</span>
-                    <input type="text" name="country" placeholder="PAÍS" required
-                           class="bg-transparent border-none text-white text-[11px] font-black w-24 focus:ring-0 placeholder:text-slate-700 uppercase">
+                <div style="flex: 1; min-width: 250px;">
+                    <label style="display: block; color: #64748b; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; font-family: monospace;">País Objetivo</label>
+                    <div style="display: flex; align-items: center; background: #000; border: 1px solid #333; border-radius: 8px; padding: 0 16px;">
+                        <span class="material-symbols-outlined" style="color: #64748b; font-size: 18px;">public</span>
+                        <input type="text" name="country" placeholder="Ej: Colombia" required
+                               style="width: 100%; background: transparent; border: none; color: #fff; font-size: 14px; font-weight: bold; padding: 16px 12px; outline: none; text-transform: uppercase;">
+                    </div>
                 </div>
 
-                <div class="flex items-center gap-2 px-4 py-2 bg-black/40 rounded-xl border border-white/5">
-                    <span class="material-symbols-outlined text-slate-600 text-sm">location_city</span>
-                    <input type="text" name="city" placeholder="CIUDAD" required
-                           class="bg-transparent border-none text-white text-[11px] font-black w-36 focus:ring-0 placeholder:text-slate-700 uppercase">
+                <div style="flex: 1; min-width: 250px;">
+                    <label style="display: block; color: #64748b; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; font-family: monospace;">Ciudad / Región</label>
+                    <div style="display: flex; align-items: center; background: #000; border: 1px solid #333; border-radius: 8px; padding: 0 16px;">
+                        <span class="material-symbols-outlined" style="color: #64748b; font-size: 18px;">location_city</span>
+                        <input type="text" name="city" placeholder="Ej: Bogota" required
+                               style="width: 100%; background: transparent; border: none; color: #fff; font-size: 14px; font-weight: bold; padding: 16px 12px; outline: none; text-transform: uppercase;">
+                    </div>
                 </div>
 
                 <button type="submit" 
-                        class="relative group bg-white text-black font-black px-8 py-3.5 rounded-xl transition-all hover:bg-purple-600 hover:text-white active:scale-95">
-                    <span class="text-[11px] uppercase tracking-tighter flex items-center gap-2">
-                        Execute_Scan <span class="material-symbols-outlined text-sm">rocket_launch</span>
-                    </span>
+                        style="background: #9333ea; color: white; border: none; padding: 16px 32px; border-radius: 8px; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px rgba(147, 51, 234, 0.4); transition: all 0.2s; min-width: 200px; justify-content: center;"
+                        onmouseover="this.style.background='#a855f7'; this.style.transform='translateY(-2px)';" 
+                        onmouseout="this.style.background='#9333ea'; this.style.transform='translateY(0)';">
+                    LANZAR SATÉLITE
+                    <span class="material-symbols-outlined">rocket_launch</span>
                 </button>
             </form>
-        </header>
-
-        <div class="grid grid-cols-12 gap-8">
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 mt-2">
             
-            <aside class="col-span-12 xl:col-span-3 space-y-6">
-                
-                <div id="mission-telemetry-panel" class="bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 shadow-2xl">
-                    <div class="flex justify-between items-center mb-6">
-                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mission_Status</span>
+            <aside class="col-span-1 lg:col-span-3 space-y-6">
+                <div id="mission-telemetry-panel" class="bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-6 relative z-10">
+                        <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Enlace Satelital</span>
                         <div class="flex gap-1">
                             <template x-if="!scanning">
-                                <span class="text-[10px] text-slate-700 font-mono italic">Standby...</span>
+                                <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">STANDBY</span>
                             </template>
                             <template x-if="scanning">
-                                <span class="flex items-center gap-2 text-[10px] text-purple-500 font-bold animate-pulse">
+                                <span class="flex items-center gap-2 text-[10px] bg-purple-500/20 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded font-mono animate-pulse">
                                     <span class="h-1.5 w-1.5 rounded-full bg-purple-500"></span> ACTIVE
                                 </span>
                             </template>
                         </div>
                     </div>
 
-                    <div class="relative py-12 flex flex-col items-center border border-white/5 bg-white/[0.01] rounded-2xl overflow-hidden">
+                    <div class="relative py-12 flex flex-col items-center border border-white/5 bg-[#050505] rounded-2xl z-10">
                         <div x-show="scanning" class="absolute inset-0 flex items-center justify-center opacity-20">
                             <div class="w-32 h-32 border border-purple-500 rounded-full animate-ping"></div>
                         </div>
@@ -84,81 +89,57 @@
                               :class="scanning ? 'text-purple-500' : 'text-slate-800'">
                             satellite_alt
                         </span>
-                        <p class="text-[11px] font-mono text-slate-500 tracking-tighter" 
-                           x-text="scanning ? 'PINGING_OVERPASS_API...' : 'LINK_IDLE'"></p>
+                        <p class="text-[11px] font-mono text-slate-500 tracking-tighter uppercase" 
+                           x-text="scanning ? 'Contactando Overpass API...' : 'Esperando Órdenes'"></p>
                     </div>
                 </div>
 
-                <div class="bg-black/40 backdrop-blur-sm border border-white/5 rounded-3xl p-6">
-                    <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6">Live_Telemetry</h4>
-                    <div class="space-y-5 font-mono text-[10px]">
+                <div class="bg-[#0a0a0a] border border-white/5 rounded-3xl p-6 shadow-2xl">
+                    <h4 class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6">Metadatos de Misión</h4>
+                    <div class="space-y-4 font-mono text-[10px]">
                         <div class="flex justify-between border-b border-white/5 pb-2">
-                            <span class="text-slate-600 uppercase">Session_ID</span>
-                            <span class="text-white">{{ mission_id|slice:":12" }}</span>
+                            <span class="text-slate-600 uppercase">Mission_ID</span>
+                            <span class="text-white">{{ mission_id|slice:":8" }}</span>
                         </div>
                         <div class="flex justify-between border-b border-white/5 pb-2">
-                            <span class="text-slate-600 uppercase">Latency</span>
-                            <span class="text-emerald-500" x-text="stats.latency"></span>
+                            <span class="text-slate-600 uppercase">Engine</span>
+                            <span class="text-emerald-500">OSM_V5_FUZZY</span>
                         </div>
-                        <div class="flex justify-between border-b border-white/5 pb-2">
-                            <span class="text-slate-600 uppercase">OSM_Nodes</span>
-                            <span class="text-purple-400" x-text="stats.nodes">0</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="p-1 bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-3xl">
-                    <div class="bg-[#050505] rounded-[22px] p-6">
-                        <h4 class="text-xs font-bold text-white mb-4 uppercase italic italic">Comandos en Lote</h4>
-                        <button class="w-full py-3 bg-white text-black text-[10px] font-black rounded-xl hover:bg-purple-600 hover:text-white transition-all uppercase mb-3">
-                            🎯 Deep Scan Toda la Zona
-                        </button>
-                        <button class="w-full py-3 border border-white/10 text-slate-500 text-[10px] font-black rounded-xl hover:border-white/20 hover:text-white transition-all uppercase">
-                            📥 Exportar Inteligencia
-                        </button>
                     </div>
                 </div>
             </aside>
 
-            <section class="col-span-12 xl:col-span-9">
-                <div class="bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl h-full flex flex-col">
+            <section class="col-span-1 lg:col-span-9 flex flex-col">
+                <div class="bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl flex-1 flex flex-col min-h-[500px]">
                     
-                    <div class="p-8 border-b border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/[0.01]">
-                        <div>
-                            <h3 class="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-3">
-                                <span class="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></span>
-                                Neural_Data_Stream
-                            </h3>
-                            <p class="text-[10px] text-slate-500 font-mono mt-1 uppercase tracking-widest">Infiltrating Territorial Educational Nodes</p>
-                        </div>
-                        
-                        <div id="result-counter" class="bg-black px-4 py-2 rounded-full border border-white/5 font-mono text-[10px] text-purple-400">
+                    <div class="p-6 border-b border-white/5 bg-white/[0.01] flex justify-between items-center z-20 relative shadow-md">
+                        <h3 class="text-sm font-black text-white uppercase tracking-tighter flex items-center gap-3 m-0">
+                            <span class="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.5)]"></span>
+                            Carga de Datos Interceptada
+                        </h3>
+                        <div id="result-counter" class="bg-[#050505] px-4 py-2 rounded-full border border-white/10 font-mono text-[10px] text-purple-400 font-bold shadow-inner">
                             0 OBJETIVOS DETECTADOS
                         </div>
                     </div>
 
-                    <div class="flex-1 overflow-auto custom-scrollbar">
+                    <div class="flex-1 overflow-auto custom-scrollbar relative bg-[#050505]">
                         <div id="radar-results-table" 
                              hx-get="{% url 'admin:radar_results' mission_id %}" 
                              hx-trigger="every 3s"
-                             hx-indicator="#table-spinner">
+                             hx-indicator="#table-spinner"
+                             class="absolute inset-0">
                             
-                            <div class="flex flex-col items-center justify-center h-[500px] text-center p-10 group">
-                                <div class="relative mb-6">
-                                    <div class="absolute inset-0 bg-white/5 blur-3xl rounded-full scale-150 group-hover:bg-purple-500/10 transition duration-1000"></div>
-                                    <span class="material-symbols-outlined text-slate-800 text-7xl transition-all duration-700 group-hover:text-purple-900 group-hover:scale-110">
-                                        biotech
-                                    </span>
-                                </div>
-                                <h4 class="text-white text-sm font-bold uppercase tracking-[0.2em] mb-2">Esperando Señal Satelital</h4>
-                                <p class="text-slate-600 text-xs max-w-xs font-medium">Ingresa las coordenadas de búsqueda para iniciar la extracción masiva de instituciones en el cuadrante.</p>
+                            <div class="flex flex-col items-center justify-center h-full text-center p-10 opacity-30">
+                                <span class="material-symbols-outlined text-7xl mb-4 text-white">dataset</span>
+                                <h4 class="text-white text-xs font-bold uppercase tracking-widest">Matriz Limpia</h4>
+                                <p class="text-slate-400 text-[10px] mt-2 max-w-xs">Ingresa País y Ciudad en la consola superior y presiona LANZAR SATÉLITE para poblar el radar.</p>
                             </div>
                         </div>
                     </div>
 
-                    <div id="table-spinner" class="htmx-indicator flex items-center gap-3 px-8 py-4 bg-purple-600/10 border-t border-purple-500/20">
+                    <div id="table-spinner" class="htmx-indicator flex items-center justify-center gap-3 px-8 py-4 bg-purple-900/20 border-t border-purple-500/30">
                         <div class="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-                        <span class="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Sincronizando flujo de datos en tiempo real...</span>
+                        <span class="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Descargando Inteligencia a la Base de Datos...</span>
                     </div>
                 </div>
             </section>
@@ -166,24 +147,26 @@
     </div>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;900&display=swap');
         
-        body { font-family: 'Inter', sans-serif; background-color: #050505 !important; }
+        body { font-family: 'Inter', sans-serif; background-color: #050505 !important; margin: 0; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
 
-        /* Scrollbar Silicon Valley Style */
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #333; }
+        /* Scrollbar Cyberpunk */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.4); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #222; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9333ea; }
 
-        /* HTMX Indicator Fix */
-        .htmx-indicator { display: none; }
-        .htmx-request.htmx-indicator { display: flex; }
-        .htmx-request .htmx-indicator { display: flex; }
-
-        /* Table Aesthetics */
-        table thead th { @apply sticky top-0 bg-[#0a0a0a] z-20; }
+        /* Arreglo vital para el indicador HTMX */
+        .htmx-indicator { display: none !important; }
+        .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: flex !important; }
+        
+        /* Asegurar que la tabla inyectada por Django se vea brutal */
+        table { width: 100%; border-collapse: collapse; text-align: left; background: #050505; }
+        table thead th { position: sticky; top: 0; background-color: #111; padding: 16px; border-bottom: 1px solid #222; font-size: 10px; text-transform: uppercase; color: #888; font-weight: 900; z-index: 10; letter-spacing: 1px; }
+        table tbody td { padding: 16px; border-bottom: 1px solid #111; color: #ddd; font-size: 12px; font-weight: bold; }
+        table tbody tr:hover td { background-color: rgba(147, 51, 234, 0.05); }
     </style>
 </main>
 {% endblock %}
