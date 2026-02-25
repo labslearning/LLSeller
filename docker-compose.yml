@@ -2,14 +2,17 @@ version: '3.8'
 
 # =========================================================
 # CLÚSTER DE PRODUCCIÓN TIER GOD (SILICON VALLEY / TEL AVIV)
+# FIREWALL BYPASS - MODO HOST NATIVO (PARA PARROT OS / KALI)
 # =========================================================
 
-# --- PLANTILLAS REUTILIZABLES (DRY PRINCIPLE) ---
 x-common-env: &common-env
-  DATABASE_URL: postgres://sovereign_db_user:SovereignGodTier2026!@db:5432/sovereign_db
-  CELERY_BROKER_URL: redis://redis:6379/0
-  CELERY_RESULT_BACKEND: redis://redis:6379/0
-  TZ: "America/Bogota" # Sincroniza el tiempo de los ataques
+  # [FIREWALL BYPASS]: Destruimos los DNS virtuales. Todo el tráfico viaja por el localhost del kernel.
+  DATABASE_URL: postgres://sovereign_db_user:SovereignGodTier2026!@127.0.0.1:5432/sovereign_db
+  CELERY_BROKER_URL: redis://127.0.0.1:6379/0
+  CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/0
+  POSTGRES_HOST: 127.0.0.1
+  REDIS_HOST: 127.0.0.1
+  TZ: "America/Bogota"
 
 x-logging: &default-logging
   driver: "json-file"
@@ -18,14 +21,9 @@ x-logging: &default-logging
     max-file: "3"
 
 x-security: &default-security
-  # Bloquea ataques de escalada de privilegios a nivel del Kernel de Linux
   security_opt:
     - no-new-privileges:true
-  init: true # Evita procesos Zombies (Complementa a Tini)
-
-networks:
-  sovereign_net:
-    driver: bridge
+  init: true
 
 services:
   # ==========================================
@@ -35,29 +33,22 @@ services:
     image: postgres:15-alpine
     container_name: sovereign_db
     restart: always
+    # 🔥 [MAGIA AQUÍ]: Salto de Firewall
+    network_mode: "host"
     <<: *default-security
-    networks:
-      - sovereign_net
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432" # <--- [PUENTE ACTIVO]: Permite que tu venv local se conecte al Vault
+      - postgres_data:/var/lib/postgresql/data:Z
     environment:
       POSTGRES_USER: sovereign_db_user
       POSTGRES_PASSWORD: SovereignGodTier2026!
       POSTGRES_DB: sovereign_db
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sovereign_db_user -d sovereign_db"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U sovereign_db_user -d sovereign_db"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s # Da tiempo al Vault para crear los archivos la primera vez
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
+      start_period: 15s
 
   # ==========================================
   # 2. NEURAL MEMORY (Redis Broker)
@@ -66,27 +57,18 @@ services:
     image: redis:7-alpine
     container_name: sovereign_redis
     restart: always
+    network_mode: "host"
     <<: *default-security
-    networks:
-      - sovereign_net
     volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379" # <--- [PUENTE ACTIVO]: Permite que tu Celery/venv local vea el Broker
+      - redis_data:/data:Z
     command: redis-server --save 60 1 --loglevel warning --appendonly yes
     logging: *default-logging
     healthcheck:
-      # [FIX GOD TIER]: Usamos el comando nativo de Redis para el chequeo de salud
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG || exit 1"]
+      test: ["CMD-SHELL", "redis-cli -h 127.0.0.1 ping | grep PONG || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
 
   # ==========================================
   # 3. COMMAND CENTER (Django + Gunicorn)
@@ -95,22 +77,20 @@ services:
     build: .
     container_name: sovereign_web
     restart: always
+    network_mode: "host"
     <<: *default-security
-    networks:
-      - sovereign_net
+    # Gunicorn expuesto a 0.0.0.0 para que puedas acceder desde fuera
     command: gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 3 --threads 2
     volumes:
-      - static_volume:/app/staticfiles
-    ports:
-      - "8080:8000"
+      - static_volume:/app/staticfiles:Z
     env_file:
       - .env
     environment:
       <<: *common-env
+      BOOTSTRAP_MODE: full
     logging: *default-logging
     healthcheck:
-      # [FIX GOD TIER]: Usamos wget porque la imagen mínima (slim) no tiene curl
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8000/ || exit 1"]
+      test: ["CMD-SHELL", "wget --quiet --server-response http://127.0.0.1:8000/admin/login/ 2>&1 | grep -q 'HTTP/1.1 200\\|HTTP/1.1 302' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -128,27 +108,21 @@ services:
     build: .
     container_name: sovereign_celery_worker
     restart: always
+    network_mode: "host"
     <<: *default-security
-    # [CRÍTICO]: Chrome requiere más de 64MB de /dev/shm para no crashear
     shm_size: '2gb' 
-    networks:
-      - sovereign_net
     command: celery -A core worker -l info --concurrency=4 --prefetch-multiplier=1 --max-tasks-per-child=50
     env_file:
       - .env
     environment:
       <<: *common-env
+      BOOTSTRAP_MODE: none
     logging: *default-logging
     depends_on:
-      db:
+      web:
         condition: service_healthy
       redis:
         condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          cpus: '1.5'
-          memory: 2G
 
   # ==========================================
   # 5. THE MASTER CLOCK (Celery Beat)
@@ -157,17 +131,17 @@ services:
     build: .
     container_name: sovereign_celery_beat
     restart: always
+    network_mode: "host"
     <<: *default-security
-    networks:
-      - sovereign_net
     command: celery -A core beat -l info --pidfile=
     env_file:
       - .env
     environment:
       <<: *common-env
+      BOOTSTRAP_MODE: none
     logging: *default-logging
     depends_on:
-      db:
+      web:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -179,19 +153,32 @@ services:
     build: .
     container_name: sovereign_flower
     restart: always
+    network_mode: "host"
     <<: *default-security
-    networks:
-      - sovereign_net
-    # Forzamos conexión directa al broker interno para evitar el Connection Refused
-    command: celery -A core flower --port=5555 --address=0.0.0.0 --broker=redis://redis:6379/0 --basic_auth=admin:SovereignAdmin2026!
-    ports:
-      - "5555:5555"
+    command:
+      - celery
+      - -A
+      - core
+      - flower
+      - --port=5555
+      - --address=0.0.0.0
+      - --broker=redis://127.0.0.1:6379/0
+      - --basic_auth=admin:SovereignAdmin2026!
     env_file:
       - .env
     environment:
       <<: *common-env
+      BOOTSTRAP_MODE: none
     logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider --http-user=admin --http-password='SovereignAdmin2026!' http://127.0.0.1:5555/ || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
     depends_on:
+      web:
+        condition: service_healthy
       redis:
         condition: service_healthy
 

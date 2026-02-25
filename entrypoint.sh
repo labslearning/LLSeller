@@ -1,37 +1,73 @@
 #!/bin/bash
 # =========================================================
-# ZERO-DOWNTIME BOOTSTRAP SCRIPT
+# ZERO-DOWNTIME BOOTSTRAP SCRIPT (GOD TIER)
 # =========================================================
 
-# Falla inmediatamente si cualquier comando devuelve un error
 set -e
 
-echo "========================================================="
-echo "🛡️  [SOVEREIGN INIT] Iniciando Secuencia de Arranque"
-echo "========================================================="
+BOOTSTRAP_MODE="${BOOTSTRAP_MODE:-full}"
+SKIP_BOOTSTRAP="${SKIP_BOOTSTRAP:-0}"
 
-# 1. TCP WAIT (Tel Aviv DB Protection)
-# Espera activa hasta que el socket de PostgreSQL esté 100% operativo
-echo "⏳ Verificando disponibilidad del Vault (PostgreSQL)..."
-#until pg_isready -h "db" -p "5432" -U "sovereign_db_user"; do
-until pg_isready -h "db" -p "5432" -U "sovereign_db_user" -d "sovereign_db"; do
-  echo "⚠️  PostgreSQL no está listo. Reintentando en 2 segundos..."
-  sleep 2
-done
-echo "✅ Vault operativo y aceptando conexiones."
+log_header() {
+  echo "========================================================="
+  echo "🛡️  [SOVEREIGN INIT] Iniciando Secuencia de Arranque"
+  echo "========================================================="
+  echo "🔧 Modo de bootstrap detectado: ${BOOTSTRAP_MODE}"
+}
 
-# 2. MIGRACIONES TRANSACCIONALES
-echo "📦 Aplicando esquemas de Base de Datos..."
-python manage.py migrate --noinput
+wait_for_db() {
+  local db_host="${POSTGRES_HOST:-db}"
+  local db_port="${POSTGRES_PORT:-5432}"
+  local db_user="${POSTGRES_USER:-sovereign_db_user}"
+  local db_name="${POSTGRES_DB:-sovereign_db}"
 
-# 3. COMPILACIÓN DE ESTÁTICOS (Dashboard UI)
-echo "🧹 Compilando y ofuscando assets estáticos..."
-python manage.py collectstatic --noinput --clear
+  echo "⏳ Verificando disponibilidad del Vault (PostgreSQL en ${db_host}:${db_port})..."
+  until pg_isready -h "${db_host}" -p "${db_port}" -U "${db_user}" -d "${db_name}"; do
+    echo "⚠️  PostgreSQL no está listo. Reintentando en 2 segundos..."
+    sleep 2
+  done
+  echo "✅ Vault operativo y aceptando conexiones."
+}
+
+run_migrations() {
+  echo "📦 Aplicando esquemas de Base de Datos..."
+  python manage.py migrate --noinput
+}
+
+collect_static() {
+  echo "🧹 Compilando y ofuscando assets estáticos..."
+  python manage.py collectstatic --noinput --clear
+}
+
+run_bootstrap() {
+  if [ "${SKIP_BOOTSTRAP}" = "1" ]; then
+    echo "⏭️  SKIP_BOOTSTRAP=1 detectado: se omite bootstrap."
+    return
+  fi
+
+  case "${BOOTSTRAP_MODE}" in
+    full)
+      wait_for_db
+      run_migrations
+      collect_static
+      ;;
+    db)
+      wait_for_db
+      ;;
+    none)
+      echo "⏭️  Bootstrap desactivado (BOOTSTRAP_MODE=none). Acceso directo."
+      ;;
+    *)
+      echo "❌ BOOTSTRAP_MODE inválido: '${BOOTSTRAP_MODE}'. Usa: full | db | none"
+      exit 1
+      ;;
+  esac
+}
+
+log_header
+run_bootstrap
 
 echo "🚀 [SOVEREIGN INIT] Traspasando control al proceso principal..."
 echo "========================================================="
 
-# 4. EJECUCIÓN DEL PROCESO MAESTRO
-# 'exec' reemplaza el proceso de Bash con Gunicorn/Celery, 
-# permitiendo que Tini gestione las señales correctamente.
 exec "$@"
