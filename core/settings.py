@@ -211,3 +211,15 @@ CHANNEL_LAYERS = {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
     },
 }
+
+import os
+
+# ==========================================
+# IMAP INBOUND CONFIGURATION (REPLY CATCHER)
+# ==========================================
+IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
+IMAP_PORT = int(os.getenv("IMAP_PORT", 993))
+
+# Reutilizamos las mismas credenciales SMTP para no duplicar secretos
+IMAP_USERNAME = os.getenv("EMAIL_HOST_USER") 
+IMAP_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")

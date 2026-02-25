@@ -1,0 +1,192 @@
+version: '3.8'
+
+# =========================================================
+# CLÚSTER DE PRODUCCIÓN TIER GOD (SILICON VALLEY / TEL AVIV)
+# =========================================================
+
+# --- PLANTILLAS REUTILIZABLES (DRY PRINCIPLE) ---
+x-common-env: &common-env
+  DATABASE_URL: postgres://sovereign_db_user:SovereignGodTier2026!@db:5432/sovereign_db
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/0
+  TZ: "America/Bogota" # Sincroniza el tiempo de los ataques
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-security: &default-security
+  # Bloquea ataques de escalada de privilegios a nivel del Kernel de Linux
+  security_opt:
+    - no-new-privileges:true
+  init: true # Evita procesos Zombies (Complementa a Tini)
+
+networks:
+  sovereign_net:
+    driver: bridge
+
+services:
+  # ==========================================
+  # 1. THE VAULT (PostgreSQL Database)
+  # ==========================================
+  db:
+    image: postgres:15-alpine
+    container_name: sovereign_db
+    restart: always
+    <<: *default-security
+    networks:
+      - sovereign_net
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: sovereign_db_user
+      POSTGRES_PASSWORD: SovereignGodTier2026!
+      POSTGRES_DB: sovereign_db
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sovereign_db_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # ==========================================
+  # 2. NEURAL MEMORY (Redis Broker)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: sovereign_redis
+    restart: always
+    <<: *default-security
+    networks:
+      - sovereign_net
+    volumes:
+      - redis_data:/data
+    # [FIX]: AOF (Append Only File) activado para evitar pérdida de colas si hay reinicios
+    command: redis-server --save 60 1 --loglevel warning --appendonly yes
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================
+  # 3. COMMAND CENTER (Django + Gunicorn)
+  # ==========================================
+  web:
+    build: .
+    container_name: sovereign_web
+    restart: always
+    <<: *default-security
+    networks:
+      - sovereign_net
+    command: gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 3 --threads 2
+    volumes:
+      - static_volume:/app/staticfiles
+    ports:
+      - "8080:8000"
+    env_file:
+      - .env
+    environment:
+      <<: *common-env
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ==========================================
+  # 4. GHOST SNIPER FLEET (Celery Workers)
+  # ==========================================
+  celery_worker:
+    build: .
+    container_name: sovereign_celery_worker
+    restart: always
+    <<: *default-security
+    # [CRÍTICO]: Chrome requiere más de 64MB de /dev/shm para no crashear
+    shm_size: '2gb' 
+    networks:
+      - sovereign_net
+    command: celery -A core worker -l info --concurrency=4 --prefetch-multiplier=1 --max-tasks-per-child=50
+    env_file:
+      - .env
+    environment:
+      <<: *common-env
+    logging: *default-logging
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2G
+
+  # ==========================================
+  # 5. THE MASTER CLOCK (Celery Beat)
+  # ==========================================
+  celery_beat:
+    build: .
+    container_name: sovereign_celery_beat
+    restart: always
+    <<: *default-security
+    networks:
+      - sovereign_net
+    command: celery -A core beat -l info --pidfile=
+    env_file:
+      - .env
+    environment:
+      <<: *common-env
+    logging: *default-logging
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ==========================================
+  # 6. OVERSEER (Celery Flower - Visual Monitor)
+  # ==========================================
+  celery_flower:
+    build: .
+    container_name: sovereign_flower
+    restart: always
+    <<: *default-security
+    networks:
+      - sovereign_net
+    command: celery -A core flower --port=5555 --address=0.0.0.0 --basic_auth=admin:SovereignAdmin2026!
+    ports:
+      - "5555:5555"
+    env_file:
+      - .env
+    environment:
+      <<: *common-env
+    logging: *default-logging
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  static_volume:
