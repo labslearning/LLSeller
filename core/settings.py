@@ -1,6 +1,6 @@
 """
 Django settings for core project.
-Arquitectura: God-Tier Revenue Engine B2B
+Arquitectura: God-Tier Revenue Engine B2B (Pure Host Mode Edition)
 """
 
 import os
@@ -11,21 +11,16 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # [NIVEL DIOS 1]: Carga Absoluta de Variables de Entorno
-# Esto garantiza que sin importar desde dónde ejecutes el script (Cron, Celery, Terminal),
-# Django siempre encontrará tus contraseñas de forma segura.
 env_path = BASE_DIR / '.env'
 load_dotenv(dotenv_path=env_path)
 
-
-# Quick-start development settings - unsuitable for production
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-@kz*q(^k3o!#^oy#uym$g9t+1dzwh%-o3!i7x8=dfks$q&pln6'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 INSTALLED_APPS = [
@@ -39,8 +34,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'sales', # Nuestra aplicación B2B Core
     'channels',
-    
-
 ]
 
 MIDDLEWARE = [
@@ -74,81 +67,63 @@ WSGI_APPLICATION = 'core.wsgi.application'
 ASGI_APPLICATION = 'core.asgi.application' # <--- EL MAPA DE RUTA GOD TIER
 
 
-# ==========================================
-# [NIVEL DIOS]: DATABASE VAULT DYNAMICS
-# ==========================================
 
 
-# Si existe la variable DATABASE_URL, asumimos que estamos dentro de Docker
-IS_DOCKER = os.getenv('DATABASE_URL') is not None
-DB_HOST = 'db' if IS_DOCKER else 'localhost'
+# ==========================================
+# [NIVEL DIOS]: DATABASE VAULT DYNAMICS (PURE HOST MODE)
+# ==========================================
+# Al usar Podman en Parrot OS con network_mode: "host", el DNS interno desaparece.
+# Todo debe conectarse obligatoriamente a través de 127.0.0.1 (IPv4 forzado).
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'sovereign_db',
         'USER': 'sovereign_db_user',
-        'PASSWORD': 'SovereignGodTier2026!',
-        'HOST': DB_HOST,
-        'PORT': '5432',
+        'PASSWORD': '9967112fhr',
+        'HOST': '127.0.0.1', # Forzado a IPv4 local
+        'PORT': '5454',
     }
 }
 
-
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',},
 ]
-
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Bogota' # Ajustado a tu zona horaria real
 USE_I18N = True
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-
 # ==========================================
 # [NIVEL DIOS 2]: MOTOR DE ENVÍO SMTP (FASE 10)
 # ==========================================
-# Le decimos a Django que use los servidores de Google (o el proveedor que elijas)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-
-# Leemos las credenciales desde el archivo .env de forma segura
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
-
-
-# Añade esto al FINAL de tu settings.py
-
+# ==========================================
+# THEME UNFOLD GOD TIER
+# ==========================================
 UNFOLD = {
     "SITE_TITLE": "B2B Intelligence Engine",
     "SITE_HEADER": "Recon Dashboard",
-    #"SITE_ICON": "rocket_launch",  # Icono superior
     "COLORS": {
         "primary": {
             "50": "#f0fdfa", "100": "#ccfbf1", "200": "#99f6e4",
-            "300": "#5eead4", "400": "#2dd4bf", "500": "#14b8a6", # Color de acento (Teal)
+            "300": "#5eead4", "400": "#2dd4bf", "500": "#14b8a6", 
             "600": "#0d9488", "700": "#0f766e", "800": "#115e59", "900": "#134e4a",
         },
     },
@@ -162,7 +137,7 @@ UNFOLD = {
                 "items": [
                     {
                         "title": "Directorio de Prospectos",
-                        "icon": "domain", # Icono de edificio corporativo
+                        "icon": "domain", 
                         "link": "/admin/sales/institution/",
                     },
                 ],
@@ -171,47 +146,31 @@ UNFOLD = {
     },
 }
 
-
-load_dotenv()
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
-
-# ==========================================
 # ==========================================
 # [NIVEL DIOS]: CONFIGURACIÓN CELERY DINÁMICA
 # ==========================================
-# Detectamos si estamos en Docker/Podman buscando una variable de entorno de la DB
-# Si no existe, asumimos que estamos en local y usamos 'localhost'
-IS_DOCKER = os.getenv('DATABASE_URL') is not None
-REDIS_HOST = 'redis' if IS_DOCKER else 'localhost'
+# En modo Host, Redis siempre está en 127.0.0.1
+REDIS_HOST = '127.0.0.1'
 
-# Configuración Maestra del Broker
 CELERY_BROKER_URL = f'redis://{REDIS_HOST}:6379/0'
 CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:6379/0'
-
-# Protocolos de Serialización y Tiempo
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = TIME_ZONE # Usa la variable TIME_ZONE definida arriba en settings
+CELERY_TIMEZONE = TIME_ZONE 
 
 # --- TUNEADO DE RENDIMIENTO DE SILICON VALLEY ---
-# Reinicia el worker tras 100 tareas para prevenir fugas de RAM (Memory Leaks)
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 100 
-
-# Optimiza la distribución de tareas: toma 1 a la vez (Evita cuellos de botella)
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1 
-
-# Garantía de Ejecución: Solo confirma la tarea después de terminarla
 CELERY_TASK_ACKS_LATE = True 
 
-# Enrutamiento de Alta Velocidad
 CELERY_TASK_ROUTES = {
     'sales.tasks.task_run_ghost_sniper': {'queue': 'scraping_queue'},
     'sales.tasks.task_run_osm_radar': {'queue': 'discovery_queue'},
     'sales.tasks.task_run_inbound_catcher': {'queue': 'default'},
 }
-
 
 CHANNEL_LAYERS = {
     "default": {
@@ -219,14 +178,10 @@ CHANNEL_LAYERS = {
     },
 }
 
-import os
-
 # ==========================================
 # IMAP INBOUND CONFIGURATION (REPLY CATCHER)
 # ==========================================
 IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
 IMAP_PORT = int(os.getenv("IMAP_PORT", 993))
-
-# Reutilizamos las mismas credenciales SMTP para no duplicar secretos
 IMAP_USERNAME = os.getenv("EMAIL_HOST_USER") 
 IMAP_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")

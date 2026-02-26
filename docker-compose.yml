@@ -7,7 +7,8 @@ version: '3.8'
 
 x-common-env: &common-env
   # [FIREWALL BYPASS]: Destruimos los DNS virtuales. Todo el tráfico viaja por el localhost del kernel.
-  DATABASE_URL: postgres://sovereign_db_user:SovereignGodTier2026!@127.0.0.1:5432/sovereign_db
+  # 🔥 CAMBIO 1: La URL de la DB ahora apunta al puerto 5454
+  DATABASE_URL: postgres://sovereign_db_user:9967112fhr@127.0.0.1:5454/sovereign_db
   CELERY_BROKER_URL: redis://127.0.0.1:6379/0
   CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/0
   POSTGRES_HOST: 127.0.0.1
@@ -36,15 +37,18 @@ services:
     # 🔥 [MAGIA AQUÍ]: Salto de Firewall
     network_mode: "host"
     <<: *default-security
+    # 🔥 CAMBIO 2: [EVASIÓN DE PARROT OS] Obligamos al motor a usar el puerto 5454
+    command: postgres -p 5454
     volumes:
       - postgres_data:/var/lib/postgresql/data:Z
     environment:
       POSTGRES_USER: sovereign_db_user
-      POSTGRES_PASSWORD: SovereignGodTier2026!
+      POSTGRES_PASSWORD: 9967112fhr
       POSTGRES_DB: sovereign_db
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U sovereign_db_user -d sovereign_db"]
+      # 🔥 CAMBIO 3: El scanner ahora busca en el puerto 5454
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5454 -U sovereign_db_user -d sovereign_db"]
       interval: 10s
       timeout: 5s
       retries: 5

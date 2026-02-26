@@ -541,10 +541,10 @@ class SniperConsoleAdmin(ModelAdmin):
     
     def changelist_view(self, request, extra_context=None):
         context = dict(self.admin_site.each_context(request))
-        # Generamos un Mission ID único para esta sesión de la ventana
+        # Mission ID único para aislar la telemetría en Redis y coordinar el Enjambre
         mission_id = str(uuid.uuid4())
         context.update({
-            'title': mark_safe('<span class="flex items-center gap-2">🎯 Ghost Sniper <span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded border border-purple-500/30">V4.0-STABLE</span></span>'),
+            'title': mark_safe('<span class="flex items-center gap-2">🌌 Ghost Swarm <span class="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.3)]">V6.0 GOD-TIER</span></span>'),
             'mission_id': mission_id,
         })
         return TemplateResponse(request, "admin/sales/sniper_console.html", context)
@@ -552,91 +552,209 @@ class SniperConsoleAdmin(ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         return [
+            path('search/', self.admin_site.admin_view(self.search_targets), name='sniper_search'),
             path('engage/', self.admin_site.admin_view(self.launch_sniper), name='sniper_engage'),
-            path('telemetry/<str:inst_id>/', self.admin_site.admin_view(self.get_telemetry), name='sniper_telemetry'),
+            path('telemetry/<str:mission_id>/', self.admin_site.admin_view(self.get_telemetry), name='sniper_telemetry'),
         ] + urls
+
+    def search_targets(self, request):
+        """
+        [OMNI-SEARCH & SWARM DETECTOR - Nivel God Tier]
+        Busca en vivo por nombre, URL o ciudad, y soporta pegado masivo de Excel.
+        Clasifica al instante entre "Conocidos" (Vault) y "Nuevos" (Zero-Day).
+        """
+        query = request.GET.get('search_query', '').strip()
+        mission_id = request.GET.get('mission_id', '')
+
+        if len(query) < 3:
+            return HttpResponse('<div class="flex items-center justify-center p-12 text-slate-500 font-mono text-xs uppercase tracking-widest"><span class="material-symbols-outlined mr-2">radar</span> Ingresa nombres, dominios o pega una lista separada por comas...</div>')
+
+        # Detección Multiobjetivo (Swarm Mode)
+        raw_targets = [t.strip() for t in query.replace('\n', ',').split(',') if t.strip()]
+        is_swarm = len(raw_targets) > 1
+
+        mode_badge = '<span class="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded text-[10px] uppercase font-black tracking-widest animate-pulse">Swarm Mode Active</span>' if is_swarm else '<span class="bg-blue-500/20 text-blue-400 border border-blue-500/50 px-2 py-1 rounded text-[10px] uppercase font-black tracking-widest">Single Target Lock</span>'
+        
+        html_output = f'<div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">'
+        html_output += f'<div class="flex justify-between items-center border-b border-white/10 pb-4"><h3 class="text-white font-black uppercase text-sm tracking-widest">Análisis Forense Vectorial</h3>{mode_badge}</div>'
+
+        known_targets, zero_day_targets = [], []
+
+        for target in raw_targets:
+            # Búsqueda Vectorial Simulada (Cruce múltiple)
+            db_match = Institution.objects.filter(Q(name__icontains=target) | Q(website__icontains=target) | Q(city__icontains=target)).first()
+            if db_match:
+                known_targets.append(db_match)
+            else:
+                zero_day_targets.append(target)
+
+        # 1. EN EL VAULT (Actualización/Confirmación)
+        if known_targets:
+            html_output += '<div class="space-y-2"><h4 class="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-sm">database</span> Registros Existentes (Re-Escanear)</h4>'
+            for inst in known_targets:
+                tech = inst.tech_profile.lms_provider if hasattr(inst, 'tech_profile') and inst.tech_profile else 'UNKNOWN'
+                score_color = "text-emerald-400" if inst.lead_score >= 70 else "text-amber-400" if inst.lead_score >= 40 else "text-red-400"
+                html_output += f'''
+                <div class="bg-[#111] border border-emerald-500/20 p-3 rounded-lg flex justify-between items-center">
+                    <div>
+                        <p class="text-white text-xs font-bold">{inst.name} <span class="text-slate-500 font-mono text-[9px] ml-2">{inst.website or 'Sin URL'}</span></p>
+                        <p class="text-[10px] {score_color} font-mono mt-1 font-bold">🎯 Score: {inst.lead_score} PTS | ⚙️ Tech: {tech}</p>
+                    </div>
+                    <span class="material-symbols-outlined text-emerald-500/50 text-sm">verified</span>
+                </div>
+                '''
+            html_output += '</div>'
+
+        # 2. ZERO-DAY TARGETS (Nuevos Objetivos)
+        if zero_day_targets:
+            html_output += '<div class="space-y-2 mt-4"><h4 class="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-sm">travel_explore</span> Zero-Day Targets (Extracción Profunda)</h4>'
+            for z_target in zero_day_targets:
+                html_output += f'''
+                <div class="bg-purple-900/10 border border-purple-500/30 p-3 rounded-lg flex justify-between items-center">
+                    <p class="text-purple-300 text-xs font-mono truncate max-w-[80%]">{z_target}</p>
+                    <span class="material-symbols-outlined text-purple-500/80 text-sm animate-spin">radar</span>
+                </div>
+                '''
+            html_output += '</div>'
+
+        # 3. SWITCHES TÁCTICOS Y LANZAMIENTO
+        target_payload = ",".join([str(t.id) for t in known_targets] + zero_day_targets)
+        
+        html_output += f'''
+        <form hx-post="{reverse('admin:sniper_engage')}" hx-target="#sniper-display" class="mt-8 bg-black border border-slate-800 p-6 rounded-2xl shadow-2xl">
+            <input type="hidden" name="mission_id" value="{mission_id}">
+            <input type="hidden" name="target_payload" value="{target_payload}">
+            
+            <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Parámetros de Infiltración Forense</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <label class="flex items-center gap-3 cursor-pointer group"><input type="checkbox" name="deep_scan" value="1" checked class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-purple-600 focus:ring-purple-600"><span class="text-xs text-slate-400 font-mono group-hover:text-white transition-colors">Deep Crawl (Subdominios y PDFs)</span></label>
+                <label class="flex items-center gap-3 cursor-pointer group"><input type="checkbox" name="extract_contacts" value="1" checked class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-emerald-600 focus:ring-emerald-600"><span class="text-xs text-slate-400 font-mono group-hover:text-white transition-colors">IA Extractor (Directivos & Emails)</span></label>
+                <label class="flex items-center gap-3 cursor-pointer group"><input type="checkbox" name="bypass_waf" value="1" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-red-600 focus:ring-red-600"><span class="text-xs text-slate-400 font-mono group-hover:text-white transition-colors">Bypass WAF (Cloudflare/Imperva Evade)</span></label>
+                <label class="flex items-center gap-3 cursor-pointer group"><input type="checkbox" name="force_serp" value="1" checked class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-600"><span class="text-xs text-slate-400 font-mono group-hover:text-white transition-colors">Auto-Validar URL (SERP Auto-Fix)</span></label>
+            </div>
+            
+            <button type="submit" class="w-full bg-gradient-to-r from-red-600 to-purple-700 hover:from-red-500 hover:to-purple-600 text-white p-4 rounded-xl font-black text-sm uppercase tracking-[0.2em] transition-all shadow-[0_0_20px_rgba(220,38,38,0.4)] flex justify-center items-center gap-3 group">
+                <span class="material-symbols-outlined group-hover:animate-bounce">rocket_launch</span>
+                EJECUTAR ENJAMBRE ({len(known_targets) + len(zero_day_targets)} OBJETIVOS)
+            </button>
+        </form>
+        </div>
+        '''
+        return HttpResponse(html_output)
 
     def launch_sniper(self, request):
         """
-        Punto de entrada de alta disponibilidad. 
-        Resuelve nombres a URLs e inicia el motor forense.
+        [LANZADOR ASÍNCRONO MULTIHILO]
+        Crea los registros faltantes y dispara MÚLTIPLES misiones de Celery en paralelo.
         """
-        raw_target = request.POST.get('target_url', '').strip()
         mission_id = request.POST.get('mission_id')
-
-        # [TIER GOD] Resolución Inteligente de Entidad
-        # Si no empieza con http, asumimos que es un nombre y activamos el Resolutor SERP
-        is_url = raw_target.startswith(('http://', 'https://', 'www.'))
+        target_payload = request.POST.get('target_payload', '').split(',')
         
-        if is_url:
-            inst, created = Institution.objects.get_or_create(
-                website=raw_target,
-                defaults={'name': 'Objetivo Identificado...', 'mission_id': mission_id}
-            )
-        else:
-            inst, created = Institution.objects.get_or_create(
-                name=raw_target,
-                defaults={'mission_id': mission_id, 'discovery_source': 'manual'}
-            )
+        # Opciones tácticas que puedes pasar a tus tareas de Celery en el futuro
+        # deep_scan = request.POST.get('deep_scan') == '1'
+        
+        active_ids = []
+        for target in target_payload:
+            target = target.strip()
+            if not target: continue
 
-        # Inicializamos el Log de Telemetría en Caché
-        cache.set(f"telemetry_{inst.id}", ["🛰️ Inicializando secuencia de comandos...", "📡 Localizando servidores..."], timeout=600)
-        cache.set(f"scan_in_progress_{inst.id}", True, timeout=600)
+            # Instanciación Determinista
+            if target.isdigit():
+                inst = Institution.objects.get(id=target)
+            else:
+                is_url = target.startswith(('http', 'www.'))
+                if is_url:
+                    inst, _ = Institution.objects.get_or_create(website=target.lower(), defaults={'name': 'Validating Domain...', 'mission_id': mission_id})
+                else:
+                    inst, _ = Institution.objects.get_or_create(name=target, defaults={'mission_id': mission_id, 'discovery_source': 'manual'})
+            
+            active_ids.append(inst.id)
+            
+            # Inicializamos Logs en Caché (Aislados por ID)
+            cache.set(f"telemetry_{inst.id}", [f"🛰️ [GHOST SWARM] Enlazando objetivo...", "⚡ Evasión inicial iniciada..."], timeout=1200)
+            cache.set(f"scan_in_progress_{inst.id}", True, timeout=1200)
+            
+            # DISPARO PARALELO: Cada colegio va a un Worker distinto (DAG Deterministic)
+            task_run_single_recon.delay(inst.id)
 
-        # Disparamos la Misión en Celery
-        task_run_single_recon.delay(inst.id)
-
-        # Devolvemos la consola de telemetría inmediata
-        telemetry_url = reverse('admin:sniper_telemetry', args=[inst.id])
+        # Registramos todos los IDs en la misión maestra
+        cache.set(f"swarm_mission_{mission_id}", active_ids, timeout=1200)
+        telemetry_url = reverse('admin:sniper_telemetry', args=[mission_id])
+        
         return HttpResponse(f'''
             <div id="sniper-display" hx-get="{telemetry_url}" hx-trigger="every 2s" hx-swap="innerHTML">
-                <div class="p-8 border border-purple-500/30 bg-purple-500/5 rounded-xl animate-pulse">
-                    <p class="font-mono text-purple-400 text-sm">>> ENGAGING TARGET: {raw_target}</p>
-                    <p class="font-mono text-slate-500 text-xs mt-2">Awaiting neural link...</p>
+                <div class="p-12 border border-red-500/30 bg-[#050000] rounded-2xl flex flex-col items-center shadow-[inset_0_0_80px_rgba(220,38,38,0.15)] relative overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-b from-red-500/10 to-transparent animate-pulse"></div>
+                    <span class="material-symbols-outlined text-red-500 text-6xl mb-6 animate-spin drop-shadow-[0_0_20px_rgba(220,38,38,1)]">radar</span>
+                    <p class="font-mono text-white text-lg font-black tracking-[0.4em] uppercase z-10">GHOST FLEET DEPLOYED</p>
+                    <p class="font-mono text-red-400 text-xs mt-3 z-10 tracking-widest">{len(active_ids)} DRONES INFILTRANDO OBJETIVOS</p>
+                    <div class="w-full max-w-md bg-slate-900 h-1 mt-8 rounded-full overflow-hidden z-10">
+                        <div class="bg-red-500 h-full animate-[progress_2s_ease-in-out_infinite]"></div>
+                    </div>
                 </div>
             </div>
         ''')
 
-    def get_telemetry(self, request, inst_id):
-        """Devuelve el estado de la misión y los logs en tiempo real."""
-        is_active = cache.get(f"scan_in_progress_{inst_id}")
-        logs = cache.get(f"telemetry_{inst_id}", [])
+    def get_telemetry(self, request, mission_id):
+        """
+        [C2 TELEMETRY HUB]
+        Monitoreo simultáneo y en tiempo real de todo el enjambre de Celery.
+        """
+        active_ids = cache.get(f"swarm_mission_{mission_id}", [])
+        if not active_ids: return HttpResponse("<div>Error 404: Enlace satelital perdido.</div>")
+
+        institutions = Institution.objects.filter(id__in=active_ids).select_related('tech_profile')
         
-        if not is_active:
-            # Si terminó, traemos el resultado final (Card Forense)
-            inst = Institution.objects.select_related('tech_profile', 'forensic_profile').get(id=inst_id)
-            # Aquí podrías usar render_to_string para devolver una tarjeta de perfil elegante
-            return HttpResponse(f"""
-                <div class="animate-in fade-in zoom-in duration-500">
-                    <div class="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-lg mb-6 flex justify-between items-center">
-                        <span class="text-emerald-400 font-bold">✓ MISIÓN COMPLETADA</span>
-                        <a href="{reverse('admin:sales_globalpipeline_change', args=[inst.id])}" class="text-xs bg-emerald-500 text-black px-3 py-1 rounded font-bold">VER EN CRM</a>
-                    </div>
-                    <div class="grid grid-cols-2 gap-6">
-                        <div class="p-6 bg-[#111] rounded-xl border border-slate-800">
-                             <h4 class="text-slate-500 text-xs uppercase font-bold mb-4">Tech Stack</h4>
-                             <p class="text-white font-mono text-xl">{inst.tech_profile.lms_provider if hasattr(inst, 'tech_profile') and inst.tech_profile else 'N/A'}</p>
-                        </div>
-                        <div class="p-6 bg-[#111] rounded-xl border border-slate-800">
-                             <h4 class="text-slate-500 text-xs uppercase font-bold mb-4">Lead Score</h4>
-                             <p class="text-emerald-400 font-mono text-3xl">{inst.lead_score} PTS</p>
-                        </div>
-                    </div>
-                </div>
-            """)
+        all_completed = True
+        html_output = '<div class="space-y-4 animate-in fade-in duration-300">'
+        
+        for inst in institutions:
+            is_active = cache.get(f"scan_in_progress_{inst.id}")
+            if is_active: all_completed = False
+            
+            status_color = "text-amber-500 border-amber-500/30 bg-amber-500/5" if is_active else "text-emerald-500 border-emerald-500/30 bg-emerald-500/10"
+            status_icon = "sync animate-spin" if is_active else "verified_user"
+            score = f"{inst.lead_score} PTS" if not is_active else "ANALYZING..."
+            tech = inst.tech_profile.lms_provider if hasattr(inst, 'tech_profile') and inst.tech_profile else 'SCANNING...'
+            
+            logs = cache.get(f"telemetry_{inst.id}", ["Awaiting data..."])
+            last_log = logs[-1] if logs else "Processing..."
 
-        # Si sigue activo, mostramos los logs tipo terminal
-        log_html = "".join([f'<p class="font-mono text-xs text-slate-400 mb-1">>> {log}</p>' for log in logs])
-        return HttpResponse(f'''
-            <div class="bg-black p-6 rounded-xl border border-slate-800 shadow-inner h-64 overflow-y-auto">
-                <div class="flex justify-between mb-4 border-b border-slate-800 pb-2">
-                    <span class="text-[10px] font-bold text-purple-500">ACTIVE TELEMETRY</span>
-                    <span class="animate-ping h-2 w-2 rounded-full bg-purple-500"></span>
+            html_output += f'''
+            <div class="p-4 rounded-xl border {status_color} flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all hover:scale-[1.01]">
+                <div class="flex-1 w-full">
+                    <h5 class="text-white font-bold text-sm flex items-center gap-2"><span class="material-symbols-outlined {status_color.split()[0]} text-lg">{status_icon}</span> {inst.name}</h5>
+                    <div class="mt-2 bg-black/50 p-2 rounded border border-white/5 w-full">
+                        <p class="text-[10px] font-mono {status_color.split()[0]} opacity-90 truncate">> {last_log}</p>
+                    </div>
                 </div>
-                {log_html}
-                <p class="font-mono text-xs text-white animate-pulse">_</p>
+                <div class="flex gap-6 font-mono text-[10px] uppercase font-bold tracking-widest bg-black/40 p-3 rounded-lg border border-white/5">
+                    <div class="flex flex-col items-end"><span class="text-slate-600">LMS Engine</span><span class="text-purple-400">{tech}</span></div>
+                    <div class="flex flex-col items-end"><span class="text-slate-600">Threat Score</span><span class="{status_color.split()[0]}">{score}</span></div>
+                </div>
             </div>
-        ''')
+            '''
+        html_output += '</div>'
+
+        if all_completed:
+            # Termina el polling HTMX y muestra tarjeta final maestra
+            return HttpResponse(f'''
+            <div class="mb-6 p-6 border border-emerald-500/50 bg-[#010a05] rounded-2xl flex flex-col md:flex-row justify-between items-center shadow-[0_0_40px_rgba(16,185,129,0.15)] animate-in zoom-in duration-700">
+                <div class="mb-4 md:mb-0 text-center md:text-left">
+                    <h3 class="text-emerald-400 font-black text-2xl tracking-[0.2em] uppercase flex items-center gap-3">
+                        <span class="material-symbols-outlined text-3xl">task_alt</span> OPERACIÓN FINALIZADA
+                    </h3>
+                    <p class="text-emerald-500/70 text-xs font-mono mt-2">Enjambre regresando a base. Datos encriptados y asegurados en el Vault.</p>
+                </div>
+                <a href="/admin/sales/institution/" class="bg-emerald-500 text-black px-8 py-4 rounded-xl font-black uppercase tracking-[0.2em] hover:bg-white transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+                    ABRIR VAULT
+                </a>
+            </div>
+            {html_output}
+            ''')
+        else:
+            # Polling HTMX Continúa
+            return HttpResponse(html_output)
 
 
 @admin.register(GeoRadarWorkspace)
