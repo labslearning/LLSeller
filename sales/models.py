@@ -1,8 +1,9 @@
 import uuid
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.db.models import Count, Q, Avg
+from django.db.models import Count, Q, Avg, CheckConstraint
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 
 # ==========================================
 # 0. CORE: CLASE BASE (DRY)
@@ -196,43 +197,167 @@ class Contact(TimeStampedModel):
         return f"{self.name} - {self.role or 'Sin Cargo'}"
 
 
+# Asegúrate de importar TimeStampedModel, Institution y Contact arriba en tu archivo
+
 class Interaction(TimeStampedModel):
-    """Registra cada punto de contacto (email, llamada) con el prospecto."""
+    """
+    [OMNI-CHANNEL INTERACTION NODE]
+    Registro inmutable y transaccional de cada punto de contacto (Outbound/Inbound).
+    Diseñado para analítica de ML de alto volumen, reconstrucción forense de ventas
+    y telemetría de comportamiento de leads.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
+    # --- ENUMS: ESTADOS Y CANALES (Type-Safe Choices) ---
     class Status(models.TextChoices):
-        NEW = 'NEW', 'Nuevo'
-        SENT = 'SENT', 'Enviado'
-        OPENED = 'OPENED', 'Abierto'
-        REPLIED = 'REPLIED', 'Respondido'
-        MEETING = 'MEETING', 'Reunión Agendada'
-        CLOSED = 'CLOSED', 'Cerrado'
+        NEW = 'NEW', _('Nuevo (Pendiente)')
+        QUEUED = 'QUEUED', _('En Cola (Worker)') 
+        SENT = 'SENT', _('Enviado (Entregado al MTA)')
+        OPENED = 'OPENED', _('Abierto (Tracking Pixel)')
+        REPLIED = 'REPLIED', _('Respondido (Inbound Interceptado)')
+        MEETING = 'MEETING', _('Reunión Agendada (Conversión Exitoso)')
+        BOUNCED = 'BOUNCED', _('Rebotado (Hard/Soft Bounce)')
+        CLOSED = 'CLOSED', _('Cerrado (Sin Interés/Perdido)')
 
-    institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name='interactions')
-    contact = models.ForeignKey(Contact, on_delete=models.CASCADE, null=True, blank=True, related_name='interactions')
+    class Channel(models.TextChoices):
+        EMAIL = 'EMAIL', _('Email Cold Outreach')
+        WHATSAPP = 'WHATSAPP', _('WhatsApp Business API')
+        LINKEDIN = 'LINKEDIN', _('LinkedIn InMail/Mensaje')
+        CALL = 'CALL', _('Llamada Telefónica')
+
+    # --- RELACIONES OPTIMIZADAS ---
+    institution = models.ForeignKey(
+        'Institution', 
+        on_delete=models.CASCADE, # Si muere el colegio, mueren las interacciones
+        related_name='interactions',
+        db_index=True,
+        help_text="Nodo Institucional Padre"
+    )
+    contact = models.ForeignKey(
+        'Contact', 
+        on_delete=models.SET_NULL, # [GOD TIER] Si el contacto es borrado, NO perdemos el registro de la métrica de interacción para el ML
+        null=True, 
+        blank=True, 
+        related_name='interactions',
+        db_index=True
+    )
+
+    channel = models.CharField(
+        max_length=20, 
+        choices=Channel.choices, 
+        default=Channel.EMAIL,
+        db_index=True,
+        verbose_name="Canal de Outreach"
+    )
+
+    # --- PAYLOADS (OUTBOUND & INBOUND) ---
+    subject = models.CharField(max_length=255, blank=True, null=True, verbose_name="Asunto del Mensaje")
+    message_sent = models.TextField(blank=True, null=True, verbose_name="Payload Enviado (Copy Generado)")
     
-    subject = models.CharField(max_length=255, blank=True, null=True)
-    message_sent = models.TextField(blank=True, null=True)
+    # El campo faltante requerido para cerrar el ciclo de IA
+    message_received = models.TextField(
+        blank=True, 
+        null=True, 
+        verbose_name="Payload Recibido (Respuesta Cruda)"
+    )
+
+    # --- DATA WAREHOUSE & TELEMETRÍA AVANZADA ---
+    telemetry_data = models.JSONField(
+        default=dict, 
+        blank=True, 
+        verbose_name="Telemetría Forense (Headers, IPs, User-Agent, Sentimiento NLP)",
+        help_text="Esquema libre para almacenar el intent detectado, latencias y metadata del protocolo."
+    )
+
+    # --- KPIs Y ENGAGEMENT METRICS ---
+    opened_count = models.IntegerField(default=0, verbose_name="Aperturas (Tracking Pixel)")
+    clicked_count = models.IntegerField(default=0, verbose_name="Clics en Enlaces (Deep Links)")
     
-    opened_count = models.IntegerField(default=0)
-    
-    # [FEEDBACK LOOP IA] Le dice al modelo de Machine Learning que este intento fue un ÉXITO
+    # [FEEDBACK LOOP IA] Target para el motor RandomForest / XGBoost
     replied = models.BooleanField(
         default=False, 
         db_index=True,
-        verbose_name="Prospecto Respondió"
+        verbose_name="Conversión Lograda (Respondió)"
     )
     
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW, db_index=True)
-    meeting_date = models.DateTimeField(blank=True, null=True)
+    status = models.CharField(
+        max_length=20, 
+        choices=Status.choices, 
+        default=Status.NEW, 
+        db_index=True
+    )
+    meeting_date = models.DateTimeField(blank=True, null=True, verbose_name="Fecha de Reunión (Si aplica)")
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name = "Interacción B2B"
+        verbose_name_plural = "Interacciones B2B"
+        
+        # [GOD TIER] Índices compuestos para que tu CommandCenter vuele
+        indexes = [
+            models.Index(fields=['institution', 'status']),
+            models.Index(fields=['status', 'replied']),
+            models.Index(fields=['created_at', 'channel']),
+        ]
+        
+        # [GOD TIER] Integridad Referencial a nivel PostgreSQL (Imposible corromper los datos)
+        constraints = [
+            # Regla 1: Si agendaste reunión, DB exige que exista una fecha
+            CheckConstraint(
+                check=~Q(status='MEETING') | Q(meeting_date__isnull=False),
+                name='interaction_meeting_requires_date'
+            ),
+            # Regla 2: Si el estado es REPLIED, el bool `replied` DEBE ser True
+            CheckConstraint(
+                check=~Q(status='REPLIED') | Q(replied=True),
+                name='interaction_replied_status_sync'
+            )
+        ]
 
-    def __str__(self):
-        contact_name = self.contact.name if self.contact else "Sin Contacto"
-        return f"Interacción: {contact_name} | Estado: {self.get_status_display()}"
+    def __str__(self) -> str:
+        contact_label = self.contact.name if self.contact else "Sin Contacto"
+        return f"[{self.get_channel_display()}] {contact_label} | Estado: {self.get_status_display()}"
 
+    # ==========================================
+    # DOMAIN-DRIVEN DESIGN (DDD) METHODS
+    # ==========================================
+    
+    def register_open(self, ip_address: str = "Unknown", user_agent: str = "Unknown") -> None:
+        """Registra una apertura con telemetría de forma idempotente (Domain Behavior)."""
+        self.opened_count += 1
+        if self.status in [self.Status.NEW, self.Status.SENT]:
+            self.status = self.Status.OPENED
+        
+        # Apilar el log en el JSONField de forma limpia
+        opens_log = self.telemetry_data.get('opens', [])
+        opens_log.append({
+            'timestamp': timezone.now().isoformat(),
+            'ip': ip_address,
+            'user_agent': user_agent
+        })
+        self.telemetry_data['opens'] = opens_log
+        
+        self.save(update_fields=['opened_count', 'status', 'telemetry_data', 'updated_at'])
+
+    def register_inbound_reply(self, raw_payload: str, intent: str = "NEUTRAL", sentiment_score: float = 0.0) -> None:
+        """
+        Intercepta la respuesta B2B y alimenta directamente la base de datos 
+        preparando el terreno para la matriz de Machine Learning.
+        """
+        self.message_received = raw_payload
+        self.replied = True
+        
+        # Solo lo pasamos a REPLIED si no estamos ya en algo superior como MEETING
+        if self.status not in [self.Status.MEETING, self.Status.CLOSED]:
+            self.status = self.Status.REPLIED
+            
+        self.telemetry_data['nlp_engine'] = {
+            'intent': intent,
+            'sentiment_score': sentiment_score,
+            'processed_at': timezone.now().isoformat()
+        }
+        
+        self.save(update_fields=['message_received', 'replied', 'status', 'telemetry_data', 'updated_at'])
 
 # ==========================================
 # 4. DATA WAREHOUSE & DASHBOARD MANAGER
