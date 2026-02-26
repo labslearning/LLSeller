@@ -3,6 +3,10 @@ import logging
 import uuid
 from typing import Any, Dict
 from django.db.models import FloatField
+from .models import Interaction
+
+from django.utils.html import format_html, mark_safe
+from django.db.models import F
 
 from django.contrib import admin, messages
 from django.core.cache import cache
@@ -788,3 +792,300 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
         table_rows = "".join([f'<tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors"><td class="p-4 text-xs font-bold text-white uppercase">{i.name}</td><td class="p-4 text-[10px] text-slate-500 font-mono uppercase">{i.city}</td><td class="p-4 text-right"><a href="{reverse("admin:sales_globalpipeline_change", args=[i.id])}" class="bg-white text-black px-3 py-1 rounded text-[9px] font-black hover:bg-purple-600 hover:text-white transition-all uppercase">Ver Perfil</a></td></tr>' for i in results])
         table_html = f'<table class="w-full text-left"><thead><tr class="bg-[#0d0d0d] text-[10px] uppercase text-slate-500 font-black"><th class="p-4 text-xs">Institución</th><th class="p-4 text-xs">Ciudad</th><th class="p-4 text-right text-xs">Acción</th></tr></thead><tbody>{table_rows}</tbody></table>'
         return HttpResponse(f'{html_counter}{table_html}')
+
+    # ==========================================
+# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES)
+# ==========================================
+# ==========================================
+# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES)
+# ==========================================
+
+# ==========================================
+# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES)
+# ==========================================
+# ==========================================
+# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES)
+# ==========================================
+# ==========================================
+# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES / FULL THREAD)
+# ==========================================
+from django.db.models import F
+from django.utils.html import format_html, mark_safe
+from django.utils.translation import gettext_lazy as _
+from .models import Interaction
+
+class EngagementFilter(admin.SimpleListFilter):
+    """Filtro Heurístico de Temperatura Operativa."""
+    title = '🔥 Temperatura del Lead'
+    parameter_name = 'engagement_temp'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('critical', '🔥 HOT (Respondido / Agendado)'),
+            ('active', '👀 WARM (Leído / Monitoreado)'),
+            ('dormant', '🧊 COLD (Enviado / Ignorado)'),
+            ('compromised', '💀 DEAD (Rebotado / Fallido)'),
+        )
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if val == 'critical': return queryset.filter(status__in=['REPLIED', 'MEETING'])
+        if val == 'active': return queryset.filter(status='OPENED')
+        if val == 'dormant': return queryset.filter(status__in=['NEW', 'SENT'])
+        if val == 'compromised': return queryset.filter(status__in=['BOUNCED', 'FAILED'])
+        return queryset
+
+
+@admin.register(Interaction)
+class InteractionAdmin(ModelAdmin):
+    """
+    [GOD TIER ZENITH MAX] Bóveda Forense de Comunicación.
+    Renderiza el historial completo (Thread) con motor O(1) y UI de Ciberseguridad.
+    """
+    list_display = (
+        'display_hash_id', 
+        'target_identity', 
+        'display_channel_tag', 
+        'display_payload_preview', 
+        'display_tactical_status', 
+        'timeline_telemetry'
+    )
+    list_filter = (EngagementFilter, 'status', 'created_at')
+    search_fields = ('institution__name', 'contact__email', 'subject', 'message_sent')
+    search_help_text = _("Búsqueda Vectorial: Nombre, Email, UUID, o Texto del Payload.")
+    
+    # ⚡ HYPER-OPTIMIZATION: Pre-fetch y proyección estricta
+    list_select_related = ('institution', 'contact')
+    list_per_page = 30
+    show_full_result_count = True
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related(
+            'institution', 'contact'
+        ).only(
+            'id', 'status', 'subject', 'message_sent', 
+            'created_at', 'updated_at', 
+            'institution__name', 'contact__email'
+        )
+    
+    # 🔒 ZERO-TRUST SECURITY
+    def has_add_permission(self, request): return False
+    def has_change_permission(self, request, obj=None): return False
+    def has_delete_permission(self, request, obj=None): return False
+
+    # 🖥️ COMMAND CENTER (DETAIL VIEW)
+    fieldsets = (
+        ('📡 TELEMETRÍA DE LA OPERACIÓN', {
+            'classes': ('collapse', 'wide'),
+            'fields': (('institution', 'contact'), ('status', 'created_at', 'updated_at'))
+        }),
+        ('🕵️‍♂️ HISTORIAL DE COMUNICACIÓN (HILO COMPLETO)', {
+            'classes': ('wide',),
+            'fields': ('communication_thread',)
+        }),
+    )
+    readonly_fields = ('institution', 'contact', 'status', 'created_at', 'updated_at', 'communication_thread')
+    
+    @display(description='HASH ID', ordering='id')
+    def display_hash_id(self, obj):
+        short_id = str(obj.id).split('-')[0]
+        return format_html(
+            '<div title="UUID: {}" class="flex flex-col gap-0.5 group cursor-crosshair">'
+            '  <div class="flex items-center gap-1">'
+            '    <svg class="w-3 h-3 text-slate-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>'
+            '    <span class="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 group-hover:text-blue-500 transition-colors">{}</span>'
+            '  </div>'
+            '  <span class="text-[8px] font-mono text-slate-400 dark:text-slate-500 tracking-[0.2em] uppercase pl-4">SHA-256</span>'
+            '</div>', 
+            str(obj.id), short_id
+        )
+
+    @display(description='TARGET IDENTITY', ordering='institution__name')
+    def target_identity(self, obj):
+        inst_name = obj.institution.name if obj.institution else "GHOST_TARGET"
+        email = obj.contact.email if obj.contact else "NULL_VECTOR"
+        return format_html(
+            '<div class="flex flex-col justify-center leading-tight min-w-[180px] max-w-[250px]">'
+            '  <strong class="text-[13px] text-slate-900 dark:text-white truncate font-black tracking-tight flex items-center gap-1">{}</strong>'
+            '  <span class="text-[10px] text-blue-600 dark:text-blue-400 font-mono mt-1 truncate bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded w-fit border border-blue-100 dark:border-blue-800/30">{}</span>'
+            '</div>', inst_name, email
+        )
+
+    @display(description='VECTOR', ordering='subject')
+    def display_channel_tag(self, obj):
+        subject = obj.subject.upper() if obj.subject else ""
+        if "[EMAIL]" in subject:
+            svg = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>'
+            protocol, style = 'SMTP/TLS', 'bg-blue-500/10 text-blue-600 border-blue-500/20 shadow-inner'
+        elif "[WHATSAPP]" in subject:
+            svg = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>'
+            protocol, style = 'WABA_API', 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 shadow-inner'
+        else:
+            svg = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>'
+            protocol, style = 'UNKNOWN', 'bg-slate-500/10 text-slate-500 border-slate-500/20'
+        
+        return format_html(
+            '<div class="flex items-center gap-1.5 w-fit px-2 py-1 rounded border {}">'
+            '  {} <span class="text-[9px] font-black uppercase tracking-[0.15em]">{}</span>'
+            '</div>', style, mark_safe(svg), protocol
+        )
+
+    @display(description='TACTICAL STATUS', ordering='status')
+    def display_tactical_status(self, obj):
+        styles = {
+            'NEW': ('bg-slate-800 text-slate-300 border-slate-600', ''),
+            'SENT': ('bg-blue-900/50 text-blue-400 border-blue-500/50', ''),
+            'OPENED': ('bg-purple-900/50 text-purple-400 border-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.2)]', 'animate-pulse'),
+            'REPLIED': ('bg-[#022c22] text-[#34d399] border-[#10b981] shadow-[0_0_15px_rgba(16,185,129,0.5)] font-extrabold', 'animate-pulse'),
+            'MEETING': ('bg-amber-900/50 text-amber-400 border-amber-500/50 shadow-[0_0_10px_rgba(251,191,36,0.2)]', ''),
+            'BOUNCED': ('bg-red-900/50 text-red-400 border-red-500/50', ''),
+            'FAILED': ('bg-red-600 text-white border-red-800 shadow-[0_0_10px_rgba(220,38,38,0.5)]', '')
+        }
+        style, animation = styles.get(obj.status, styles['NEW'])
+        
+        ping_html = ""
+        if obj.status in ['REPLIED', 'MEETING', 'OPENED']:
+            c_ping = "bg-[#10b981]" if obj.status != 'OPENED' else "bg-purple-500"
+            ping_html = f'<span class="absolute -top-1 -right-1 flex h-2.5 w-2.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full {c_ping} opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 {c_ping}"></span></span>'
+
+        return format_html(
+            '<div class="relative w-fit">'
+            '  <span class="px-3 py-1.5 rounded text-[10px] uppercase tracking-[0.2em] border {} {}">{}</span>{}'
+            '</div>', style, animation, obj.status, mark_safe(ping_html)
+        )
+
+    @display(description='RESUMEN DEL HILO (PAYLOAD)')
+    def display_payload_preview(self, obj):
+        subject_clean = obj.subject.replace('[EMAIL] ', '').replace('[WHATSAPP] ', '') if obj.subject else "NULL_SUBJECT"
+        body_clean = obj.message_sent[:85] + "..." if obj.message_sent and len(obj.message_sent) > 85 else (obj.message_sent or "NO_DATA")
+        
+        # Si el cliente respondió, mostramos un tag visual en la tabla
+        reply_badge = ""
+        if obj.status == 'REPLIED':
+            reply_badge = '<span class="inline-block mt-1 bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[9px] px-1 rounded font-bold tracking-widest uppercase">Respuesta Capturada</span>'
+
+        return format_html(
+            '<div class="min-w-[280px] max-w-[450px] group">'
+            '  <div title="{}" class="text-[12px] text-slate-900 dark:text-slate-100 font-bold truncate group-hover:text-blue-500 transition-colors">{}</div>'
+            '  <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-1 font-serif italic border-l-2 border-slate-300 dark:border-slate-700 pl-2">{}</div>'
+            '  {}'
+            '</div>', subject_clean, subject_clean, body_clean, mark_safe(reply_badge)
+        )
+
+    @display(description='TELEMETRÍA & TTR', ordering='updated_at')
+    def timeline_telemetry(self, obj):
+        created = obj.created_at.strftime("%d %b, %H:%M") if obj.created_at else "-"
+        
+        ttr_html = ""
+        if obj.status in ['OPENED', 'REPLIED', 'MEETING'] and obj.updated_at and obj.created_at:
+            delta = obj.updated_at - obj.created_at
+            hours, remainder = divmod(delta.total_seconds(), 3600)
+            minutes, _ = divmod(remainder, 60)
+            
+            if hours == 0 and minutes < 60:
+                ttr_text = f"{int(minutes)}m"
+                color = "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" if obj.status == 'REPLIED' else "text-purple-400 border-purple-500/30 bg-purple-500/10"
+            else:
+                ttr_text = f"{int(hours)}h {int(minutes)}m"
+                color = "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" if obj.status == 'REPLIED' else "text-purple-500 border-purple-500/20 bg-purple-500/5"
+            
+            ttr_html = f'<div class="mt-1 {color} font-black px-1.5 py-0.5 rounded w-fit text-[9px] border uppercase tracking-widest flex items-center gap-1"><svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>TTR: {ttr_text}</div>'
+
+        return format_html(
+            '<div class="text-[10px] font-mono text-slate-500 dark:text-slate-400 min-w-[120px]">'
+            '  <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-0.5 mb-0.5">'
+            '    <span class="font-bold tracking-widest uppercase text-[8px]">OUT</span> <span class="text-slate-700 dark:text-slate-300">{}</span>'
+            '  </div>'
+            '  {}'
+            '</div>', created, mark_safe(ttr_html)
+        )
+
+    @display(description='HISTORIAL DEL HILO (THREAD HISTORY)')
+    def communication_thread(self, obj):
+        """
+        [MAX LEVEL] Renderiza toda la comunicación en formato CRM Dual-Pane.
+        Detecta y muestra qué envió la IA y qué respondió el humano.
+        """
+        outbound_content = obj.message_sent.replace('\n', '<br>') if obj.message_sent else "Sin contenido."
+        subject_clean = obj.subject.replace('[EMAIL] ', '').replace('[WHATSAPP] ', '') if obj.subject else "Sin Asunto"
+        target_email = obj.contact.email if obj.contact else "unknown@target.com"
+        target_name = obj.contact.name if obj.contact else "Contacto"
+        out_time = obj.created_at.strftime("%d %b %Y, %H:%M:%S UTC") if obj.created_at else "---"
+        
+        # Extracción dinámica del mensaje de respuesta (INBOUND)
+        # Busca posibles campos en tu modelo de base de datos donde se guarde la respuesta
+        inbound_content = getattr(obj, 'message_received', getattr(obj, 'reply_text', getattr(obj, 'inbound_payload', None)))
+        in_time = obj.updated_at.strftime("%d %b %Y, %H:%M:%S UTC") if obj.updated_at else "---"
+
+        # BLOQUE 1: MENSAJE DE SALIDA (OUTBOUND - SOVEREIGN AI)
+        outbound_html = f"""
+        <div class="bg-[#0f172a] border border-slate-700/50 rounded-xl overflow-hidden shadow-lg mb-6 relative">
+            <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+            <div class="px-5 py-3 bg-[#1e293b]/50 border-b border-slate-700/50 flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <span class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white font-black text-xs">AI</span>
+                    <div>
+                        <div class="text-[11px] font-black tracking-widest text-blue-400 uppercase">Sovereign Engine <span class="text-slate-500 lowercase font-normal">envió a</span> <span class="text-slate-300">{target_email}</span></div>
+                        <div class="text-xs text-slate-300 font-bold mt-0.5">Asunto: {subject_clean}</div>
+                    </div>
+                </div>
+                <div class="text-[10px] font-mono text-slate-500">{out_time}</div>
+            </div>
+            <div class="p-5 text-[13px] text-slate-300 font-sans leading-relaxed">
+                {outbound_content}
+            </div>
+        </div>
+        """
+
+        # BLOQUE 2: RESPUESTA DEL CLIENTE (INBOUND - HUMANO)
+        inbound_html = ""
+        if obj.status in ['REPLIED', 'MEETING']:
+            # Si no hay un campo dedicado a guardar el texto exacto, mostramos una alerta forense
+            display_reply = inbound_content.replace('\n', '<br>') if inbound_content else "<i>[El texto de respuesta fue procesado por el Neural Engine, pero no se almacenó el payload crudo en la base de datos de Interacciones. El sistema determinó que el Lead es positivo.]</i>"
+            
+            inbound_html = f"""
+            <div class="ml-8 md:ml-12 bg-[#022c22] border border-emerald-700/50 rounded-xl overflow-hidden shadow-[0_0_20px_rgba(16,185,129,0.1)] relative">
+                <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                <div class="px-5 py-3 bg-[#064e3b]/50 border-b border-emerald-700/50 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-black font-black text-xs uppercase">{target_name[:2]}</span>
+                        <div>
+                            <div class="text-[11px] font-black tracking-widest text-emerald-400 uppercase">{target_name} <span class="text-emerald-700 lowercase font-normal">respondió</span></div>
+                            <div class="text-[10px] text-emerald-500 font-mono mt-0.5">INTENT DETECTADO: 🟢 POSITIVE / INTERESTED</div>
+                        </div>
+                    </div>
+                    <div class="text-[10px] font-mono text-emerald-600">{in_time}</div>
+                </div>
+                <div class="p-5 text-[14px] text-emerald-100 font-sans leading-relaxed">
+                    {display_reply}
+                </div>
+            </div>
+            """
+        elif obj.status == 'OPENED':
+            inbound_html = f"""
+            <div class="ml-12 flex items-center gap-3 opacity-60">
+                <div class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></div>
+                <div class="text-[11px] font-mono text-purple-400 tracking-widest uppercase">Pixel Tracking: El objetivo abrio el archivo ({in_time})</div>
+            </div>
+            """
+        else:
+            inbound_html = f"""
+            <div class="ml-12 flex items-center gap-3 opacity-40">
+                <div class="w-2 h-2 rounded-full bg-slate-600"></div>
+                <div class="text-[10px] font-mono text-slate-500 tracking-widest uppercase">Esperando transmisión de retorno...</div>
+            </div>
+            """
+
+        # ENSAMBLAJE DEL COMUNICADOR
+        return format_html(
+            '<div class="bg-[#050505] p-6 rounded-2xl border border-white/5 max-w-4xl mx-auto shadow-2xl">'
+            '  <div class="mb-4 flex items-center gap-2 border-b border-white/5 pb-3">'
+            '    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path></svg>'
+            '    <span class="text-[10px] font-black text-slate-500 tracking-[0.3em] uppercase">Log de Comunicaciones Encriptadas</span>'
+            '  </div>'
+            '  {}'
+            '  <div class="h-6 border-l-2 border-dashed border-slate-700/50 ml-16 md:ml-20 my-2"></div>'
+            '  {}'
+            '</div>', 
+            mark_safe(outbound_html), mark_safe(inbound_html)
+        )

@@ -31,7 +31,7 @@ class Institution(TimeStampedModel):
     de enrutamiento básico (Identity & Routing). Los datos pesados se delegan a los perfiles OneToOne.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    mission_id = models.UUIDField(null=True, blank=True, db_index=True, verbose_name="ID de Misión") #
+    mission_id = models.UUIDField(null=True, blank=True, db_index=True, verbose_name="ID de Misión")
     
     class InstitutionType(models.TextChoices):
         KINDERGARTEN = 'kindergarten', 'Jardín Infantil / Preescolar'
@@ -70,7 +70,7 @@ class Institution(TimeStampedModel):
     latitude = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True, verbose_name="Latitud")
     longitude = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True, verbose_name="Longitud")
 
-    # --- TRAZABILIDAD (CRM ROUTING) ---
+    # --- TRAZABILIDAD Y CRM ROUTING ---
     discovery_source = models.CharField(
         max_length=20, 
         choices=DiscoverySource.choices, 
@@ -78,15 +78,22 @@ class Institution(TimeStampedModel):
         verbose_name="Origen del Dato"
     )
     is_active = models.BooleanField(default=True, db_index=True, verbose_name="Activo en CRM")
-    contacted = models.BooleanField(default=False, db_index=True, verbose_name="Contactado")
     
     # Conservamos el Score y Last Scanned aquí porque se usan agresivamente para Order By y Filtros Rápidos
     last_scored_at = models.DateTimeField(blank=True, null=True, verbose_name="Último Escaneo")
+    
     lead_score = models.IntegerField(
         default=0, 
         db_index=True,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         verbose_name="Score de Venta (0-100)"
+    )
+    
+    # [KILL-SWITCH] Freno para que la Cadencia 2 no le siga escribiendo si ya se contactó/respondió
+    contacted = models.BooleanField(
+        default=False, 
+        db_index=True, 
+        verbose_name="Fase 1 Completada"
     )
 
     class Meta:
@@ -208,7 +215,13 @@ class Interaction(TimeStampedModel):
     message_sent = models.TextField(blank=True, null=True)
     
     opened_count = models.IntegerField(default=0)
-    replied = models.BooleanField(default=False)
+    
+    # [FEEDBACK LOOP IA] Le dice al modelo de Machine Learning que este intento fue un ÉXITO
+    replied = models.BooleanField(
+        default=False, 
+        db_index=True,
+        verbose_name="Prospecto Respondió"
+    )
     
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW, db_index=True)
     meeting_date = models.DateTimeField(blank=True, null=True)
@@ -250,7 +263,7 @@ class CommandCenterManager(models.Manager):
 
 
 # ==========================================
-# 5. THE FACADE PATTERN (PROXY MODEL)
+# 5. THE FACADE PATTERN (PROXY MODELS)
 # ==========================================
 
 class CommandCenter(Institution):
@@ -278,7 +291,7 @@ class CommandCenter(Institution):
     def __str__(self):
         return "B2B Growth Engine Operations"
 
-# 2. Al FINAL del archivo sales/models.py, agrega los Proxy Models:
+
 class GlobalPipeline(Institution):
     class Meta:
         proxy = True
@@ -286,12 +299,14 @@ class GlobalPipeline(Institution):
         verbose_name = "1. 🌐 Global Database"
         verbose_name_plural = "1. 🌐 Global Database"
 
+
 class SniperConsole(Institution):
     class Meta:
         proxy = True
         app_label = 'sales'
         verbose_name = "2. 🎯 Sniper Console"
         verbose_name_plural = "2. 🎯 Sniper Console"
+
 
 class GeoRadarWorkspace(Institution):
     class Meta:

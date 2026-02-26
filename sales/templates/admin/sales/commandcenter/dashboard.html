@@ -2,359 +2,405 @@
 {% load i18n unfold static %}
 
 {% block content %}
-<main class="min-h-screen p-6 lg:p-12 font-sans antialiased text-slate-900 bg-slate-50 dark:bg-[#0a0a0a] dark:text-slate-200 transition-colors duration-300">
-
-    <header class="max-w-[1600px] mx-auto mb-12 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-8 border-b border-slate-200 dark:border-slate-800/60">
-        <div>
-            <div class="flex items-center gap-4 mb-3">
-                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 dark:bg-white">
-                    <span class="text-white material-symbols-outlined dark:text-slate-900 text-base">terminal</span>
+<main class="min-h-screen p-4 lg:p-8 font-sans antialiased text-slate-900 bg-[#f8fafc] dark:bg-[#050505] dark:text-slate-200 transition-all duration-500 overflow-x-hidden">
+    
+    <div class="max-w-[1600px] mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/80 dark:bg-[#111111]/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-2xl shadow-slate-200/40 dark:shadow-none z-10 sticky top-4">
+        <div class="flex items-center gap-6">
+            <div class="relative group cursor-default">
+                <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-violet-600 rounded-lg blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+                <div class="relative flex items-center justify-center w-12 h-12 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-inner">
+                    <span class="material-symbols-outlined text-2xl animate-[spin_4s_linear_infinite]">radar</span>
                 </div>
-                <h1 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-                    Sovereign <span class="text-slate-500 font-normal">Engine</span>
+            </div>
+            <div>
+                <h1 class="text-2xl font-black tracking-tighter text-slate-900 dark:text-white uppercase italic flex items-center gap-2">
+                    SOVEREIGN<span class="text-blue-600 dark:text-blue-500">.OPS</span>
+                    <span class="px-2 py-0.5 text-[9px] font-bold tracking-widest text-emerald-700 bg-emerald-100 rounded dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 not-italic">V4.1.0</span>
                 </h1>
-                <span class="px-2.5 py-1 text-xs font-semibold tracking-wide text-blue-700 bg-blue-100 rounded-md dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50">
-                    CORE V4.1.0
-                </span>
-            </div>
-            <p class="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 font-mono">
-                <span class="relative flex h-2.5 w-2.5">
-                    <span class="absolute inline-flex w-full h-full rounded-full opacity-75 animate-ping bg-emerald-500"></span>
-                    <span class="relative inline-flex w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                </span>
-                Distributed Intelligence Network &bull; <span id="sys-clock" class="text-slate-700 dark:text-slate-300">Initializing...</span>
-            </p>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-4">
-            <div class="px-5 py-3 transition-shadow bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md dark:bg-[#111111] dark:border-slate-800">
-                <p class="mb-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Avg Lead Potential</p>
-                <div class="flex items-center gap-2">
-                    <span class="text-2xl font-semibold font-mono text-slate-900 dark:text-white">{{ avg_score|default:"0.0"|floatformat:1 }}</span>
-                    <span class="text-emerald-500 material-symbols-outlined text-sm">trending_up</span>
-                </div>
-            </div>
-            <div class="px-5 py-3 transition-shadow bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md dark:bg-[#111111] dark:border-slate-800 border-l-4 border-l-blue-600">
-                <p class="mb-1 text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Pipeline</p>
-                <div class="flex items-baseline gap-2">
-                    <span class="text-2xl font-semibold font-mono text-blue-600 dark:text-blue-400">{{ total_leads }}</span>
-                    <span class="text-xs font-medium text-slate-400 uppercase tracking-wide">Entities</span>
+                <div class="flex items-center gap-3 text-[10px] font-bold tracking-widest uppercase text-slate-500 dark:text-slate-400 mt-0.5">
+                    <span class="flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+                    <span id="sys-clock" class="font-mono">LOADING PROTOCOLS...</span>
+                    <span class="text-slate-300 dark:text-slate-700">|</span>
+                    <span>NET: ENCRYPTED</span>
                 </div>
             </div>
         </div>
-    </header>
 
-    <section class="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 animate-fade-in-up">
+        <div class="flex items-center gap-4 w-full md:w-auto bg-slate-50 dark:bg-[#0a0a0a] px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div class="flex -space-x-2 overflow-hidden">
+                <div class="inline-block h-8 w-8 rounded-full ring-2 ring-slate-50 dark:ring-[#0a0a0a] bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">AI</div>
+                <div class="inline-block h-8 w-8 rounded-full ring-2 ring-slate-50 dark:ring-[#0a0a0a] bg-emerald-500 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">OSM</div>
+                <div class="inline-block h-8 w-8 rounded-full ring-2 ring-slate-50 dark:ring-[#0a0a0a] bg-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">PX</div>
+            </div>
+            <div class="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
+            <div class="text-right">
+                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sys Latency</p>
+                <p class="text-sm font-mono font-bold text-emerald-500 flex items-center gap-1 justify-end">
+                    <span class="material-symbols-outlined text-[12px]">bolt</span>14ms
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <section class="max-w-[1600px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 sys-panel">
         
-        <article class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:bg-[#111111] dark:border-slate-800">
-            <header class="flex items-center justify-between mb-8">
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                        <span class="material-symbols-outlined">biotech</span>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Phase 01</p>
-                        <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Raw Discovery</h3>
-                    </div>
-                </div>
-            </header>
-            <div class="mb-6">
-                <p class="text-sm font-medium text-slate-500 mb-1">Leads Ciegos</p>
-                <div class="flex items-baseline gap-2">
-                    <span class="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">{{ blind_leads }}</span>
-                    <span class="text-sm font-medium text-slate-400">/ {{ total_leads }}</span>
-                </div>
+        <article class="relative group p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
+            <div class="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-110 transition-all duration-500">
+                <span class="material-symbols-outlined text-8xl">public</span>
             </div>
-            <div>
-                <div class="flex justify-between mb-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-                    <span>Penetration</span>
-                    <span class="font-mono">{{ p_blind }}%</span>
-                </div>
-                <div class="w-full h-2 overflow-hidden bg-slate-100 rounded-full dark:bg-slate-800">
-                    <div class="h-full transition-all duration-1000 bg-slate-900 dark:bg-white" style="width: {{ p_blind }}%"></div>
+            <div class="relative z-10">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Global Pipeline
+                </p>
+                <h3 class="text-5xl font-black text-slate-900 dark:text-white mb-4 font-mono tracking-tighter crypto-text" data-val="{{ total_leads }}">0</h3>
+                <div class="flex items-center gap-2 py-1.5 px-3 w-fit bg-emerald-50 dark:bg-emerald-500/10 rounded-lg border border-emerald-100 dark:border-emerald-500/20">
+                    <span class="material-symbols-outlined text-[14px] text-emerald-600 dark:text-emerald-400">trending_up</span>
+                    <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">High Potential</span>
                 </div>
             </div>
         </article>
 
-        <article class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:bg-[#111111] dark:border-slate-800 relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
-            <header class="flex items-center justify-between mb-8">
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
-                        <span class="material-symbols-outlined">satellite_alt</span>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Phase 02</p>
-                        <h3 class="text-sm font-semibold text-slate-900 dark:text-white">DNS Resolution</h3>
-                    </div>
-                </div>
-            </header>
-            <div class="mb-6">
-                <p class="text-sm font-medium text-slate-500 mb-1">Pendientes Scan</p>
-                <div class="flex items-baseline gap-2">
-                    <span class="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">{{ ready_to_scan }}</span>
-                    <span class="text-sm font-medium text-slate-400">Targets</span>
-                </div>
-            </div>
+        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm hover:border-blue-500/50 transition-all duration-300 flex flex-col justify-between">
             <div>
-                <div class="flex justify-between mb-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-                    <span>Readiness</span>
-                    <span class="font-mono text-blue-600 dark:text-blue-400">{{ p_ready }}%</span>
+                <div class="flex justify-between items-center mb-2">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Discovery Phase
+                    </p>
+                    <span class="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded">{{ p_blind }}%</span>
                 </div>
-                <div class="w-full h-2 overflow-hidden bg-slate-100 rounded-full dark:bg-slate-800">
-                    <div class="h-full transition-all duration-1000 bg-blue-500" style="width: {{ p_ready }}%"></div>
+                <h3 class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter crypto-text" data-val="{{ blind_leads }}">0</h3>
+            </div>
+            <div class="mt-4">
+                <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full bg-blue-600 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(37,99,235,0.5)]" style="width: {{ p_blind }}%"></div>
                 </div>
+                <p class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Unresolved Footprints</p>
             </div>
         </article>
 
-        <article class="p-6 bg-white border border-slate-200 rounded-2xl shadow-sm dark:bg-[#111111] dark:border-slate-800 relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
-            <header class="flex items-center justify-between mb-8">
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
-                        <span class="material-symbols-outlined">psychology</span>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Phase 03</p>
-                        <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Enriched Data</h3>
-                    </div>
+        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm hover:border-violet-500/50 transition-all duration-300 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-violet-500"></span> Infiltration Ready
+                    </p>
+                    <span class="text-xs font-mono font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-2 py-0.5 rounded">{{ p_ready }}%</span>
                 </div>
-            </header>
-            <div class="mb-6">
-                <p class="text-sm font-medium text-slate-500 mb-1">Enriquecidos</p>
-                <div class="flex items-baseline gap-2">
-                    <span class="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">{{ enriched_leads }}</span>
-                    <span class="text-sm font-medium text-slate-400">Valid Leads</span>
+                <h3 class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter crypto-text" data-val="{{ ready_to_scan }}">0</h3>
+            </div>
+            <div class="mt-4">
+                <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full bg-violet-600 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(124,58,237,0.5)]" style="width: {{ p_ready }}%"></div>
+                </div>
+                <p class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Verified DNS Contexts</p>
+            </div>
+        </article>
+
+        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm border-b-4 border-b-emerald-500 transition-all duration-300 flex flex-col justify-between relative overflow-hidden">
+            <div class="absolute -bottom-6 -right-6 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
+            <div>
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2 relative z-10">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span> Intelligence Integrity
+                </p>
+                <div class="flex items-end gap-2 relative z-10">
+                    <h3 class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter">{{ avg_score|default:"0.0"|floatformat:1 }}</h3>
+                    <span class="text-sm font-bold text-slate-400 mb-1">/100</span>
                 </div>
             </div>
-            <div>
-                <div class="flex justify-between mb-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-                    <span>Deployment Coverage</span>
-                    <span class="font-mono text-emerald-600 dark:text-emerald-400">{{ p_enriched }}%</span>
+            <div class="mt-4 relative z-10">
+                <div class="flex gap-1">
+                    {% for i in "12345" %}
+                    <div class="h-1.5 flex-1 rounded-full {% if forloop.counter <= 4 %}bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.4)]{% else %}bg-slate-200 dark:bg-slate-800{% endif %}"></div>
+                    {% endfor %}
                 </div>
-                <div class="w-full h-2 overflow-hidden bg-slate-100 rounded-full dark:bg-slate-800">
-                    <div class="h-full transition-all duration-1000 bg-emerald-500" style="width: {{ p_enriched }}%"></div>
-                </div>
+                <p class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">auto_awesome</span> Augmented via DeepSeek
+                </p>
             </div>
         </article>
     </section>
 
-    <section class="max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch engine-panels">
+    <div class="max-w-[1600px] mx-auto grid grid-cols-1 xl:grid-cols-3 gap-8">
         
-        <article class="flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm dark:bg-[#111111] dark:border-slate-800">
-            <div class="p-6 border-b border-slate-100 dark:border-slate-800/60">
-                <h2 class="flex items-center gap-2 mb-2 text-lg font-semibold text-slate-900 dark:text-white">
-                    <span class="material-symbols-outlined text-slate-400">explore</span> OSM Radar
-                </h2>
-                <p class="text-sm text-slate-500 dark:text-slate-400">Inyección geolocalizada de leads. Extrae nombres y coordenadas vía satélite.</p>
-            </div>
-            <form method="POST" class="flex flex-col flex-1 p-6 space-y-6" onsubmit="return UXController.handleDeployment(this, 'RADAR BARRAGE')">
-                {% csrf_token %}
-                <input type="hidden" name="action_type" value="radar">
-                
-                <div class="space-y-4 flex-1">
-                    <div>
-                        <label for="country" class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">Target Territory</label>
-                        <input type="text" id="country" name="country" value="España" required 
-                               class="w-full px-4 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-[#0a0a0a] dark:border-slate-700 dark:text-white transition-shadow">
-                    </div>
-                    <div>
-                        <label for="city" class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">Operational Area</label>
-                        <input type="text" id="city" name="city" value="Madrid" required 
-                               class="w-full px-4 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:bg-[#0a0a0a] dark:border-slate-700 dark:text-white transition-shadow">
-                    </div>
-                </div>
-                
-                <button type="submit" class="flex items-center justify-center w-full gap-2 px-4 py-3 text-sm font-semibold text-white transition-colors rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 dark:focus:ring-offset-[#111111]">
-                    Launch Scanning <span class="material-symbols-outlined text-sm">arrow_forward</span>
-                </button>
-            </form>
-        </article>
-
-        <article class="flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm dark:bg-[#111111] dark:border-slate-800 relative overflow-hidden">
-            <div class="p-6 border-b border-slate-100 dark:border-slate-800/60 bg-blue-50/30 dark:bg-blue-500/5">
-                <h2 class="flex items-center gap-2 mb-2 text-lg font-semibold text-blue-700 dark:text-blue-400">
-                    <span class="material-symbols-outlined">language</span> SERP Tracker
-                </h2>
-                <p class="text-sm text-slate-500 dark:text-slate-400">Conversión heurística de nombres a URLs reales mediante clústers de búsqueda.</p>
-            </div>
-            <form method="POST" class="flex flex-col flex-1 p-6 space-y-6" onsubmit="return UXController.handleDeployment(this, 'SERP CLUSTER EXECUTION')">
-                {% csrf_token %}
-                <input type="hidden" name="action_type" value="serp">
-                
-                <fieldset class="flex-1">
-                    <legend class="block mb-3 text-xs font-semibold text-slate-700 dark:text-slate-300">Infiltration Batch Size</legend>
-                    <div class="grid grid-cols-2 gap-3">
-                        <label class="relative flex flex-col items-start p-4 cursor-pointer border border-slate-200 rounded-xl hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-500/10 has-[:checked]:ring-1 has-[:checked]:ring-blue-500">
-                            <input type="radio" name="limit" value="50" checked class="sr-only peer">
-                            <span class="text-lg font-bold text-slate-900 dark:text-white">50</span>
-                            <span class="text-xs font-medium text-slate-500">Precision Mode</span>
-                        </label>
-                        <label class="relative flex flex-col items-start p-4 cursor-pointer border border-slate-200 rounded-xl hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/50 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-500/10 has-[:checked]:ring-1 has-[:checked]:ring-blue-500">
-                            <input type="radio" name="limit" value="200" class="sr-only peer">
-                            <span class="text-lg font-bold text-slate-900 dark:text-white">200</span>
-                            <span class="text-xs font-medium text-slate-500">Balanced Mode</span>
-                        </label>
-                    </div>
-                </fieldset>
-                
-                <button type="submit" class="flex items-center justify-center w-full gap-2 px-4 py-3 text-sm font-semibold text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 dark:focus:ring-offset-[#111111]">
-                    Execute Resolver <span class="material-symbols-outlined text-sm">search</span>
-                </button>
-            </form>
-        </article>
-
-        <article class="flex flex-col bg-white border border-slate-200 rounded-2xl shadow-sm dark:bg-[#111111] dark:border-slate-800">
-            <div class="p-6 border-b border-slate-100 dark:border-slate-800/60 bg-violet-50/30 dark:bg-violet-500/5">
-                <h2 class="flex items-center gap-2 mb-2 text-lg font-semibold text-violet-700 dark:text-violet-400">
-                    <span class="material-symbols-outlined">radar</span> Ghost Sniper
-                </h2>
-                <p class="text-sm text-slate-500 dark:text-slate-400">Extracción forense profunda. Captura el stack tecnológico, LMS y correos del Rector.</p>
-            </div>
-            <form method="POST" class="flex flex-col flex-1 p-6 space-y-6" onsubmit="return UXController.handleDeployment(this, 'DEPLOYING STEALTH BOT')">
-                {% csrf_token %}
-                <input type="hidden" name="action_type" value="sniper">
-                
-                <div class="flex-1 space-y-4">
-                    <div>
-                        <label for="sniper_limit" class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">Payload Intensity</label>
-                        <select id="sniper_limit" name="limit" class="w-full px-4 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 dark:bg-[#0a0a0a] dark:border-slate-700 dark:text-white transition-shadow appearance-none cursor-pointer">
-                            <option value="10">Targeted (10 Targets)</option>
-                            <option value="30" selected>Standard Aggressive (30 Targets)</option>
-                            <option value="100">C-Suite Massive (100 Targets)</option>
-                        </select>
+        <div class="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <article class="sys-panel group flex flex-col bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-[2rem] overflow-hidden shadow-xl transition-all hover:ring-2 hover:ring-blue-600/30 hover:shadow-blue-900/20 relative">
+                <div class="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-900/10 pointer-events-none"></div>
+                <div class="p-8 pb-6 flex-1 relative z-10">
+                    <div class="flex items-center gap-4 mb-8">
+                        <div class="p-3.5 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/20">
+                            <span class="material-symbols-outlined">satellite_alt</span>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">OSM.RADAR</h2>
+                            <p class="text-[10px] font-bold text-blue-600 dark:text-blue-400 tracking-widest uppercase mt-0.5">Geospatial Harvesting</p>
+                        </div>
                     </div>
                     
-                    <div class="flex items-start gap-2 p-3 rounded-lg bg-slate-50 border border-slate-200 dark:bg-slate-800/50 dark:border-slate-700/50">
-                        <span class="material-symbols-outlined text-slate-400 text-sm mt-0.5">shield</span>
-                        <p class="text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
-                            Bypassing: Cloudflare, Akamai, Datadome. Routing via Resident Proxy Cluster.
-                        </p>
+                    <form method="POST" class="space-y-6" onsubmit="return UX.launch(this, 'RADAR BARRAGE')">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="radar">
+                        <div class="space-y-5">
+                            <div class="relative">
+                                <label class="absolute -top-2.5 left-4 px-1.5 bg-white dark:bg-[#111111] text-[10px] font-black text-slate-500 uppercase tracking-wider z-10 transition-colors group-focus-within:text-blue-500">Territory</label>
+                                <input type="text" name="country" value="España" required class="w-full px-5 py-3.5 bg-transparent border-2 border-slate-200 dark:border-slate-800 rounded-xl focus:border-blue-500 dark:focus:border-blue-500 transition-all outline-none font-bold text-sm text-slate-900 dark:text-white shadow-sm">
+                            </div>
+                            <div class="relative">
+                                <label class="absolute -top-2.5 left-4 px-1.5 bg-white dark:bg-[#111111] text-[10px] font-black text-slate-500 uppercase tracking-wider z-10 transition-colors group-focus-within:text-blue-500">Area Code / City</label>
+                                <input type="text" name="city" value="Madrid" required class="w-full px-5 py-3.5 bg-transparent border-2 border-slate-200 dark:border-slate-800 rounded-xl focus:border-blue-500 dark:focus:border-blue-500 transition-all outline-none font-bold text-sm text-slate-900 dark:text-white shadow-sm">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="group/btn relative w-full py-4 mt-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-black uppercase tracking-widest text-xs overflow-hidden transition-transform active:scale-[0.98] shadow-lg">
+                            <span class="relative z-10 flex items-center justify-center gap-2">
+                                Engage Orbital Scan <span class="material-symbols-outlined text-[16px] group-hover/btn:translate-x-1 transition-transform">flight_takeoff</span>
+                            </span>
+                            <div class="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"></div>
+                        </button>
+                    </form>
+                </div>
+                <div class="p-4 bg-slate-50 dark:bg-[#0a0a0a] border-t border-slate-200 dark:border-slate-800 flex justify-between px-8 relative z-10">
+                    <div class="flex flex-col"><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Concurrency</span><span class="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">128/T</span></div>
+                    <div class="flex flex-col text-right"><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">API Priority</span><span class="text-xs font-mono font-bold text-emerald-500">ULTRA</span></div>
+                </div>
+            </article>
+
+            <article class="sys-panel group flex flex-col bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-[2rem] overflow-hidden shadow-xl transition-all hover:ring-2 hover:ring-indigo-600/30 hover:shadow-indigo-900/20 relative">
+                <div class="absolute inset-0 bg-gradient-to-b from-indigo-50/50 to-transparent dark:from-indigo-900/10 pointer-events-none"></div>
+                <div class="p-8 pb-6 flex-1 relative z-10">
+                    <div class="flex items-center gap-4 mb-8">
+                        <div class="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-white/20">
+                            <span class="material-symbols-outlined">language</span>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">SERP.CLUSTER</h2>
+                            <p class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 tracking-widest uppercase mt-0.5">DNS Footprint Resolver</p>
+                        </div>
                     </div>
+                    
+                    <form method="POST" class="space-y-6" onsubmit="return UX.launch(this, 'SERP CLUSTER RESOLUTION')">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="serp">
+                        
+                        <div class="space-y-3">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider pl-1">Infiltration Batch Size</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="cursor-pointer group/radio">
+                                    <input type="radio" name="limit" value="50" checked class="peer sr-only">
+                                    <div class="p-4 rounded-xl border-2 border-slate-200 dark:border-slate-800 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-500/10 transition-all text-center hover:border-slate-300 dark:hover:border-slate-700">
+                                        <span class="block text-xl font-black font-mono text-slate-900 dark:text-white mb-1">50</span>
+                                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Precision</span>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer group/radio">
+                                    <input type="radio" name="limit" value="200" class="peer sr-only">
+                                    <div class="p-4 rounded-xl border-2 border-slate-200 dark:border-slate-800 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 dark:peer-checked:bg-indigo-500/10 transition-all text-center hover:border-slate-300 dark:hover:border-slate-700">
+                                        <span class="block text-xl font-black font-mono text-slate-900 dark:text-white mb-1">200</span>
+                                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Aggressive</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="w-full py-4 mt-2 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                            Initialize Sequence <span class="material-symbols-outlined text-[16px]">travel_explore</span>
+                        </button>
+                    </form>
+                </div>
+            </article>
+        </div>
+
+        <article class="sys-panel bg-slate-900 dark:bg-[#0a0a0a] text-white rounded-[2rem] p-8 pb-0 relative overflow-hidden shadow-2xl flex flex-col group border border-slate-800">
+            <div class="absolute top-0 right-0 p-12 opacity-[0.05] group-hover:rotate-12 transition-transform duration-1000 ease-out pointer-events-none">
+                <span class="material-symbols-outlined text-[150px]">psychology</span>
+            </div>
+            
+            <div class="relative z-10 flex-1 flex flex-col">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 text-violet-400 text-[9px] font-black uppercase tracking-widest mb-8 w-fit backdrop-blur-sm">
+                    <span class="flex h-1.5 w-1.5 rounded-full bg-violet-400 animate-ping"></span>
+                    Cybernetic Extraction Active
                 </div>
                 
-                <button type="submit" class="flex items-center justify-center w-full gap-2 px-4 py-3 text-sm font-semibold text-white transition-colors bg-violet-600 rounded-lg hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-600 dark:focus:ring-offset-[#111111]">
-                    Engage Infiltration <span class="material-symbols-outlined text-sm">bolt</span>
-                </button>
-            </form>
-        </article>
+                <h2 class="text-3xl font-black uppercase tracking-tighter italic mb-3">GHOST<span class="text-violet-500">.SNIPER</span></h2>
+                <p class="text-slate-400 text-sm mb-10 leading-relaxed font-medium">Deep forensic analysis of institutional stacks. Defeating standard WAFs to extract decision-maker metrics.</p>
+                
+                <form method="POST" class="space-y-8 flex-1 flex flex-col" onsubmit="return UX.launch(this, 'GHOST SNIPER INFILTRATION')">
+                    {% csrf_token %}
+                    <input type="hidden" name="action_type" value="sniper">
+                    
+                    <div class="space-y-4">
+                        <div class="relative">
+                            <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider pl-1 mb-2">Payload Intensity</label>
+                            <div class="relative">
+                                <select name="limit" class="w-full bg-[#111] border border-slate-800 rounded-xl px-5 py-4 text-sm font-bold appearance-none cursor-pointer focus:ring-2 focus:ring-violet-500 outline-none text-white hover:border-slate-700 transition-colors">
+                                    <option value="10">Tactical Infiltration (10 Targets)</option>
+                                    <option value="30" selected>Sector Saturation (30 Targets)</option>
+                                    <option value="100">Global Overwrite (100 Targets)</option>
+                                </select>
+                                <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">expand_more</span>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 rounded-xl bg-black/40 border border-white/5 space-y-3 mt-4">
+                            <div class="flex justify-between items-center text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[14px]">vpn_lock</span> Proxy Mesh</span>
+                                <span class="text-emerald-500">Active</span>
+                            </div>
+                            <div class="h-px w-full bg-white/5"></div>
+                            <div class="flex justify-between items-center text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                                <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[14px]">fingerprint</span> Stealth JS</span>
+                                <span class="text-blue-500">Injected</span>
+                            </div>
+                        </div>
+                    </div>
 
-    </section>
+                    <div class="mt-auto pt-8 pb-8">
+                        <button type="submit" class="group/strike relative w-full py-5 bg-white text-slate-900 rounded-xl font-black uppercase tracking-widest text-xs overflow-hidden transition-transform active:scale-[0.98] shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+                            <span class="relative z-10 flex items-center justify-center gap-2 group-hover/strike:text-white transition-colors duration-300">
+                                Execute Infiltration <span class="material-symbols-outlined text-[16px]">token</span>
+                            </span>
+                            <div class="absolute inset-0 bg-violet-600 translate-y-full group-hover/strike:translate-y-0 transition-transform duration-300 ease-out"></div>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </article>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-3 w-full max-w-sm pointer-events-none"></div>
 
     <script>
-        const UXController = {
-            init: () => {
-                UXController.startClock();
-                UXController.animatePanels();
+        const UX = {
+            init() {
+                this.handleClock();
+                this.staggerEntry();
+                this.decodeCryptoText();
+                console.log("%c[SOVEREIGN.OPS] Core initialized. Protocol active.", "color: #10b981; font-weight: bold; font-family: monospace;");
             },
 
-            startClock: () => {
-                const clockEl = document.getElementById('sys-clock');
-                if (!clockEl) return;
-                
+            handleClock() {
+                const el = document.getElementById('sys-clock');
+                if (!el) return;
                 setInterval(() => {
                     const now = new Date();
-                    clockEl.textContent = `UTC ${now.toLocaleTimeString('en-US', { hour12: false })}`;
-                }, 1000);
+                    el.textContent = `UTC ${now.toISOString().substring(11, 19)}.${Math.floor(Math.random()*99)}`;
+                }, 100);
             },
 
-            animatePanels: () => {
-                const panels = document.querySelectorAll('.engine-panels > article');
-                panels.forEach((panel, index) => {
-                    panel.style.opacity = '0';
-                    panel.style.transform = 'translateY(15px)';
+            staggerEntry() {
+                const items = document.querySelectorAll('.sys-panel');
+                items.forEach((item, i) => {
+                    item.style.opacity = '0';
+                    item.style.transform = 'translateY(30px) scale(0.98)';
                     setTimeout(() => {
-                        panel.style.transition = 'all 0.5s ease-out';
-                        panel.style.opacity = '1';
-                        panel.style.transform = 'translateY(0)';
-                    }, 50 * index);
+                        item.style.transition = 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1)';
+                        item.style.opacity = '1';
+                        item.style.transform = 'translateY(0) scale(1)';
+                    }, i * 150);
                 });
             },
 
-            handleDeployment: (form, missionName) => {
+            decodeCryptoText() {
+                const chars = "0123456789";
+                document.querySelectorAll('.crypto-text').forEach(el => {
+                    const targetText = el.getAttribute('data-val') || el.innerText;
+                    let iterations = 0;
+                    const maxIterations = 20;
+                    
+                    const interval = setInterval(() => {
+                        el.innerText = targetText.split('')
+                            .map((letter, index) => {
+                                if(index < iterations / (maxIterations / targetText.length)) return letter;
+                                return chars[Math.floor(Math.random() * chars.length)];
+                            })
+                            .join('');
+                        
+                        if(iterations >= maxIterations) {
+                            clearInterval(interval);
+                            el.innerText = targetText;
+                        }
+                        iterations++;
+                    }, 40);
+                });
+            },
+
+            launch(form, protocol) {
                 const btn = form.querySelector('button[type="submit"]');
                 if(!btn) return true;
 
-                // Disable button cleanly
+                // Visual Lock
                 btn.disabled = true;
-                btn.classList.add('opacity-75', 'cursor-wait');
-                btn.innerHTML = `<span class="material-symbols-outlined animate-spin text-sm">sync</span> Processing...`;
-                
-                UXController.showToast(missionName);
-                return true; // Permitir submit
+                btn.classList.add('cursor-wait');
+                const span = btn.querySelector('span.z-10');
+                if(span) {
+                    span.innerHTML = `<span class="material-symbols-outlined animate-spin text-[16px]">sync</span> SYNCING MATRIX`;
+                }
+
+                this.showToast(protocol);
+                return true;
             },
 
-            showToast: (missionName) => {
-                // Eliminar toast anterior si existe
-                const existingToast = document.getElementById('sys-toast');
-                if (existingToast) existingToast.remove();
-
+            showToast(name) {
                 const toast = document.createElement('div');
-                toast.id = 'sys-toast';
-                toast.className = 'fixed bottom-6 right-6 flex items-center gap-4 px-5 py-4 bg-slate-900 text-white rounded-xl shadow-xl z-50 animate-slide-up border border-slate-700';
-                
+                toast.className = 'pointer-events-auto flex items-center gap-4 px-5 py-4 bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 rounded-xl shadow-2xl backdrop-blur-xl border border-white/10 dark:border-black/10 transform transition-all duration-500 translate-y-10 opacity-0';
                 toast.innerHTML = `
-                    <span class="relative flex h-3 w-3">
-                        <span class="absolute inline-flex w-full h-full rounded-full opacity-75 animate-ping bg-blue-400"></span>
-                        <span class="relative inline-flex w-3 h-3 rounded-full bg-blue-500"></span>
-                    </span>
-                    <div>
-                        <p class="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Executing Protocol</p>
-                        <p class="text-sm font-semibold">${missionName}</p>
+                    <div class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                    </div>
+                    <div class="flex-1">
+                        <p class="text-[9px] font-black uppercase tracking-widest opacity-60 mb-0.5">Protocol Engaged</p>
+                        <p class="text-sm font-black uppercase tracking-tight">${name}</p>
                     </div>
                 `;
                 
-                document.body.appendChild(toast);
+                const container = document.getElementById('toast-container');
+                container.appendChild(toast);
+                
+                // Trigger entry animation
+                requestAnimationFrame(() => {
+                    toast.classList.remove('translate-y-10', 'opacity-0');
+                });
+
+                // Trigger exit animation and remove
+                setTimeout(() => {
+                    toast.classList.add('translate-y-4', 'opacity-0');
+                    setTimeout(() => toast.remove(), 500);
+                }, 4000);
             }
         };
 
-        document.addEventListener('DOMContentLoaded', UXController.init);
+        document.addEventListener('DOMContentLoaded', () => UX.init());
     </script>
 
     <style>
-        /* Tipografía Limpia (Adiós tracking negativo extremo) */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        /* Typography: Inter for UI, JetBrains Mono for Data */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@400;700;800&display=swap');
         
         :root { 
-            font-family: 'Inter', system-ui, sans-serif; 
-        }
-        
-        /* Animaciones Sutiles y fluidas */
-        @keyframes fade-in-up {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
-        
-        @keyframes slide-up {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-
-        /* Reseteo para inputs escondidos pero accesibles (Radio Buttons) */
-        .sr-only {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border-width: 0;
+            --font-sans: 'Inter', system-ui, sans-serif; 
+            --font-mono: 'JetBrains Mono', monospace; 
         }
 
-        /* Scrollbar Discreto */
-        ::-webkit-scrollbar { width: 8px; }
+        /* Material Symbols Outline Reset */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+        }
+
+        /* Custom Input Styling */
+        input::placeholder { color: #94a3b8; font-weight: 600; }
+        .dark input { background: rgba(255,255,255,0.02); }
+        .dark input:focus { background: rgba(0,0,0,0.5); }
+        
+        /* Tactical Radio Buttons */
+        .peer:checked + div { border-color: inherit !important; box-shadow: inset 0 0 0 1px inherit; }
+
+        /* Scrollbar Stealth */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        
-        @media (prefers-color-scheme: dark) {
-            ::-webkit-scrollbar-thumb { background: #333333; }
-            ::-webkit-scrollbar-thumb:hover { background: #444444; }
-        }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
 </main>
 {% endblock %}
