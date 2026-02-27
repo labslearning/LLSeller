@@ -211,7 +211,8 @@ class SniperSearchView(View):
                 html_lower = html.lower()
                 
                 score = 0
-                title = soup.title.string.strip() if soup.title and soup.title.string else ""
+                #title = soup.title.string.strip() if soup.title and soup.title.string else ""
+                title = soup.title.get_text(strip=True) if soup.title else ""
                 
                 # 1. Puntuación de Coincidencia de Nombre (Title y Body)
                 for word in target_words:
@@ -316,7 +317,8 @@ class SniperSearchView(View):
                 html = resp.text
                 soup = BeautifulSoup(html, 'html.parser')
                 data['dom'] = resp.url
-                data['name'] = soup.title.string.strip() if soup.title else target
+                #data['name'] = soup.title.string.strip() if soup.title else target
+                data['name'] = soup.title.get_text(strip=True) if soup.title else target
                 data['pages_scanned'] += 1
 
             # ==========================================

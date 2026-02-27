@@ -176,3 +176,74 @@ volumes:
   postgres_data:
   redis_data:
   static_volume:
+
+  # ==========================================
+  # 7. THE GHOST ROUTER (Tor Proxy Network - GOD TIER)
+  # ==========================================
+  tor_proxy:
+    image: dperson/torproxy
+    container_name: sovereign_tor
+    restart: always
+    network_mode: "host"
+    <<: *default-security
+    
+    # [1. INMUNIDAD DEL SISTEMA]: Bloqueamos el sistema de archivos principal. 
+    # Evita persistencia de malware o escalada de privilegios si el contenedor es vulnerado.
+    read_only: true
+    
+    # [2. ULTRA SPEED I/O]: Tor realiza lecturas/escrituras agresivas para sus circuitos. 
+    # Movemos su estado y caché directo a la memoria RAM (tmpfs) para latencia CERO.
+    tmpfs:
+      - /var/lib/tor
+      - /tmp
+      - /run
+
+    environment:
+      - PASSWORD=sovereign_tor_secret
+      - TZ="America/Bogota"
+
+    # [3. DESBLOQUEO DE KERNEL]: Permite a Tor manejar hasta 65,536 conexiones 
+    # concurrentes sin colapsar por falta de descriptores de red (File Descriptors).
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+    # [4. SINTONIZACIÓN DEL MOTOR SCRAPER]: Inyección directa al Daemon de Tor.
+    command: 
+      # CORRECCIÓN DE SEGURIDAD: Forzamos el bind SOLO al localhost interno. 
+      # Evita que tu servidor se convierta en un proxy abierto en internet.
+      - "-SocksPort"
+      - "127.0.0.1:9050"
+      - "-ControlPort"
+      - "127.0.0.1:9051"
+      # OPTIMIZACIÓN: Minimiza escrituras innecesarias (ya estamos en RAM, pero reduce ciclos de CPU)
+      - "-AvoidDiskWrites"
+      - "1"
+      # ROTACIÓN AGRESIVA: Tor cambiará tu IP automáticamente cada 15 segundos (por defecto son 10 mins).
+      # Esto actúa como red de seguridad por si tu código en Celery falla al enviar la señal NEWNYM.
+      - "-MaxCircuitDirtiness"
+      - "15"
+      # DESCARTE RÁPIDO: Si un nodo de Tor tarda más de 10 segundos en responder, lo descarta al instante.
+      - "-CircuitBuildTimeout"
+      - "10"
+      # ANCHO DE BANDA: Aumenta los nodos de entrada para maximizar el throughput concurrente.
+      - "-NumEntryGuards"
+      - "8"
+
+    # [5. OBSERVABILIDAD Y CONTROL DE RECURSOS]
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9050 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 128M

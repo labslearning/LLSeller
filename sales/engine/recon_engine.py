@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 import re
@@ -28,6 +29,9 @@ import tldextract
 # Importamos el modelo desde su lugar correcto en la arquitectura de Django
 from sales.models import Institution
 
+# [APT INTEGRATION]: Importación del controlador maestro de evasión
+from sales.engine.tor_controller import async_force_new_tor_identity 
+
 # ==========================================
 # CONFIGURACIÓN DE LOGGING FORENSE Y TELEMETRÍA
 # ==========================================
@@ -40,7 +44,8 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-logger = logging.getLogger("ReconIntelligenceEngine")
+# Cambiamos el nombre para reflejar su nueva capacidad
+logger = logging.getLogger("Sovereign.OmniSniper")
 logger.setLevel(logging.DEBUG)
 
 # ==========================================
@@ -80,9 +85,6 @@ class ReconConfig:
         {'width': 390, 'height': 844},    # iPhone 12/13/14
         {'width': 414, 'height': 896}     # iPhone 11 Pro Max
     ])
-
-    # Infraestructura de Proxies (Para futuras implementaciones residenciales)
-    PROXIES: List[str] = field(default_factory=lambda: [])
 
     # Cabeceras (Headers) diseñadas para pasar análisis heurístico de Cloudflare
     CUSTOM_HEADERS: Dict[str, str] = field(default_factory=lambda: {
@@ -399,18 +401,19 @@ class AIInsightsGenerator:
 
 
 # ==========================================
-# NÚCLEO DE EXTRACCIÓN (THE GHOST SNIPER)
+# NÚCLEO DE EXTRACCIÓN (THE GHOST SNIPER - OMNI SNIPER)
 # ==========================================
 
 class B2BReconEngine:
     """
+    [GOD TIER - APT LEVEL]
     Motor de Inteligencia de Mercado (OSINT) Asíncrono.
     Incluye evasión extrema de WAFs, gestión de memoria y heurísticas DOM.
+    Ahora con Resiliencia de Red Distribuida vía Tor.
     """
 
     def __init__(self, config: ReconConfig = ReconConfig()):
         self.config = config
-        # Semáforo asíncrono para limitar la concurrencia y no saturar CPU/RAM ni IPs.
         self.semaphore = asyncio.Semaphore(config.MAX_CONCURRENT)
 
     async def _check_dns_resolution(self, hostname: str) -> bool:
@@ -547,6 +550,47 @@ class B2BReconEngine:
         }""")
         # Pausa aleatoria para engañar a los WAF basados temporalmente
         await asyncio.sleep(random.uniform(1.2, 3.5))
+
+    # ==========================================
+    # [APT TACTIC]: NAVEGACIÓN RESILIENTE
+    # ==========================================
+    async def _navigate_with_stealth(self, page: Page, url: str) -> bool:
+        """
+        Navegación quirúrgica. Si detecta WAF, muta el clúster entero.
+        """
+        for attempt in range(self.config.MAX_RETRIES):
+            try:
+                logger.info(f"🎯 [TARGET] {url} | Intento {attempt + 1}")
+                # Ajustamos la estrategia de carga según el intento
+                strategy = "networkidle" if attempt == self.config.MAX_RETRIES - 1 else "domcontentloaded"
+                response = await page.goto(url, wait_until=strategy, timeout=self.config.PAGE_LOAD_TIMEOUT_MS)
+                
+                content = await page.content()
+                # Detección de muros de fuego (WAF)
+                is_blocked = any(term in content.lower() for term in [
+                    "access denied", "cloudflare", "captcha", "checking your browser",
+                    "403 forbidden", "ip has been blocked"
+                ])
+                
+                if (response and response.status in [403, 429]) or is_blocked:
+                    logger.warning(f"🚫 [BLOCKED] {url}. Rotando Identidad Global...")
+                    # LLAMADA AL CONTROLADOR APT
+                    await async_force_new_tor_identity(strict_verification=True)
+                    continue 
+                
+                return True
+            except PlaywrightTimeoutError:
+                 logger.debug(f"⏳ [{url}] Timeout (Att: {attempt+1}). Analizando DOM parcial.")
+                 # Si hay timeout pero tenemos página, intentamos extraer lo que haya
+                 return True 
+            except Exception as e:
+                logger.error(f"⚠️ [NET ERROR] {url}: {str(e)}")
+                # Si falla por red cruda, intentamos rotar sin verificación estricta para ser más rápidos
+                await async_force_new_tor_identity(strict_verification=False)
+                await asyncio.sleep(random.uniform(2.0, 5.0))
+                
+        return False
+
 
     async def _extract_deep_links(self, page: Page, base_url: str) -> List[str]:
         """Estrategia 'Spelunking': Busca páginas internas ricas en datos (Contacto, Staff, Admisión)."""
@@ -899,64 +943,51 @@ class B2BReconEngine:
             }
 
             try:
-                # --- NAVEGACIÓN Y RESILIENCIA DE RED ---
-                success = False
-                for attempt in range(self.config.MAX_RETRIES):
-                    try:
-                        strategy = "networkidle" if attempt == self.config.MAX_RETRIES - 1 else "domcontentloaded"
-                        response = await page.goto(target_url, timeout=self.config.PAGE_LOAD_TIMEOUT_MS, wait_until=strategy)
-                        success = True
-                        break
-                    except PlaywrightTimeoutError:
-                        logger.debug(f"⏳ [{domain}] Timeout (Att: {attempt+1}). Analizando DOM parcial.")
-                        success = True # Usamos lo que haya descargado
-                        break
-                    except PlaywrightError as e:
-                        await asyncio.sleep(random.uniform(2.0, 5.0))
+                # --- NAVEGACIÓN RESILIENTE CON TOR ---
+                if await self._navigate_with_stealth(page, target_url):
+                    await self._simulate_human_behavior(page)
 
-                if not success:
-                    raise Exception("Fallo de conexión persistente.")
+                    # --- EJECUCIÓN DEL BARRIDO FORENSE ---
+                    tech_data = await self._detect_technologies(page, domain)
+                    bi_data['seo_profile'] = await self._extract_seo_metadata(page)
+                    bi_data['education_levels'] = await self._extract_education_levels(page)
 
-                await self._simulate_human_behavior(page)
+                    business_signals = await self._extract_business_signals(page)
+                    bi_data['premium_flags'] = [k for k, v in business_signals.items() if v and k != 'foundation_year']
+                    if 'foundation_year' in business_signals: bi_data['foundation_year'] = business_signals['foundation_year']
 
-                # --- EJECUCIÓN DEL BARRIDO FORENSE ---
-                tech_data = await self._detect_technologies(page, domain)
-                bi_data['seo_profile'] = await self._extract_seo_metadata(page)
-                bi_data['education_levels'] = await self._extract_education_levels(page)
+                    contacts = await self._extract_contact_info(page)
+                    for k in master_contacts: master_contacts[k].update(contacts.get(k, set()))
 
-                business_signals = await self._extract_business_signals(page)
-                bi_data['premium_flags'] = [k for k, v in business_signals.items() if v and k != 'foundation_year']
-                if 'foundation_year' in business_signals: bi_data['foundation_year'] = business_signals['foundation_year']
+                    bi_data['google_maps_intel'] = await self._extract_google_maps_data(page)
+                    bi_data['social_media'] = await self._extract_social_media(page)
 
-                contacts = await self._extract_contact_info(page)
-                for k in master_contacts: master_contacts[k].update(contacts.get(k, set()))
+                    # --- SPELUNKING (ESCANEO DE SUBSITIOS) ---
+                    deep_links = await self._extract_deep_links(page, target_url)
+                    for link in deep_links:
+                        try:
+                            # Reutilizamos la navegación resiliente para los enlaces profundos
+                            if await self._navigate_with_stealth(page, link):
+                                await self._simulate_human_behavior(page)
+                                sub_contacts = await self._extract_contact_info(page)
+                                for k in master_contacts: master_contacts[k].update(sub_contacts.get(k, set()))
+                        except Exception:
+                            pass # Silenciar fallos de sub-páginas rotas
 
-                bi_data['google_maps_intel'] = await self._extract_google_maps_data(page)
-                bi_data['social_media'] = await self._extract_social_media(page)
+                    # --- ENRIQUECIMIENTO BACKEND Y TRIGGERS ---
+                    bi_data['sales_triggers'] = self._generate_sales_triggers(tech_data, bi_data)
 
-                # --- SPELUNKING (ESCANEO DE SUBSITIOS) ---
-                deep_links = await self._extract_deep_links(page, target_url)
-                for link in deep_links:
-                    try:
-                        await page.goto(link, timeout=12000, wait_until="domcontentloaded")
-                        await self._simulate_human_behavior(page)
-                        sub_contacts = await self._extract_contact_info(page)
-                        for k in master_contacts: master_contacts[k].update(sub_contacts.get(k, set()))
-                    except Exception:
-                        pass # Silenciar fallos de sub-páginas rotas
+                    # --- GUARDADO EN DB A TRAVÉS DE ADAPTADOR SEGURO ---
+                    inst_name, found_lms = await self._save_intelligence_to_db(
+                        inst_id=target['id'],
+                        master_contacts=master_contacts,
+                        tech_data=tech_data,
+                        bi_data=bi_data
+                    )
 
-                # --- ENRIQUECIMIENTO BACKEND Y TRIGGERS ---
-                bi_data['sales_triggers'] = self._generate_sales_triggers(tech_data, bi_data)
-
-                # --- GUARDADO EN DB A TRAVÉS DE ADAPTADOR SEGURO ---
-                inst_name, found_lms = await self._save_intelligence_to_db(
-                    inst_id=target['id'],
-                    master_contacts=master_contacts,
-                    tech_data=tech_data,
-                    bi_data=bi_data
-                )
-
-                logger.info(f"✅ [{domain}] | LMS: {str(found_lms).upper() or 'NINGUNO'} | E-mails Hallados: {len(master_contacts['emails'])}")
+                    logger.info(f"✅ [{domain}] | LMS: {str(found_lms).upper() or 'NINGUNO'} | E-mails Hallados: {len(master_contacts['emails'])}")
+                else:
+                    raise Exception("Fallo de conexión persistente tras reintentos.")
 
             except Exception as e:
                 logger.error(f"❌ [{domain}] Colapso en Scraper: {str(e)}")
@@ -975,10 +1006,15 @@ async def _orchestrate(targets: Optional[List[Dict]] = None):
     """
     config = ReconConfig()
     engine = B2BReconEngine(config)
+    
+    # [APT TACTIC]: Configuración del proxy para el navegador
+    # Asumimos que Tor expone su proxy SOCKS5 en el host
+    tor_proxy = {"server": f"socks5://{os.getenv('TOR_PROXY_HOST', '127.0.0.1')}:{os.getenv('TOR_PROXY_PORT', 9050)}"}
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
+            proxy=tor_proxy, # Todo el tráfico del orquestador pasa por Tor
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -1001,7 +1037,8 @@ async def _orchestrate(targets: Optional[List[Dict]] = None):
             bypass_csp=True,
             java_script_enabled=True,
             geolocation={'latitude': 4.7110, 'longitude': -74.0721},  
-            permissions=['geolocation']
+            permissions=['geolocation'],
+            proxy=tor_proxy
         )
 
         await context.set_extra_http_headers(config.CUSTOM_HEADERS)
