@@ -114,14 +114,15 @@ REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
 REDIS_PORT = os.getenv('REDIS_PORT', '6379')
 
 # CRÍTICO: Sin esto, los `cache.add()` de tus Mutex Locks en Celery no funcionarán entre múltiples workers.
+
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}/1", # Base de datos 1 para Cache
         "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "SOCKET_CONNECT_TIMEOUT": 5,
-            "SOCKET_TIMEOUT": 5,
+            # 🔥 Cambiamos a minúsculas para que redis-py los entienda
+            "socket_connect_timeout": 5,
+            "socket_timeout": 5,
         }
     }
 }
