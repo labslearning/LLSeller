@@ -133,7 +133,9 @@ class GlobalPipelineAdmin(ModelAdmin):
     show_full_result_count = True
 
     class Media:
-        js = ('js/websocket_handler.js',)
+        js = (
+            'https://unpkg.com/htmx.org@1.9.10',
+            'js/websocket_handler.js',)
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(
@@ -168,12 +170,13 @@ class GlobalPipelineAdmin(ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
+            path('auto-sniper/<str:inst_id>/', self.admin_site.admin_view(self.run_auto_sniper), name='sales_globalpipeline_auto_sniper'),
             path('resolve-url/<str:inst_id>/', self.admin_site.admin_view(self.run_resolve_url), name='sales_globalpipeline_resolve_url'),
             path('scan-lms/<str:inst_id>/', self.admin_site.admin_view(self.run_scan_lms), name='sales_globalpipeline_scan_lms'),
             path('scan-deep/<str:inst_id>/', self.admin_site.admin_view(self.run_scan_deep), name='sales_globalpipeline_scan_deep'),
             path('check-scan/<str:inst_id>/', self.admin_site.admin_view(self.check_scan_status), name='sales_globalpipeline_check_scan'),
             path('ws/status/<str:inst_id>/', self.admin_site.admin_view(self.ws_status), name='ws_status'),
-        ]
+        ]   
         return custom_urls + urls
 
     def _get_polling_html(self, inst_id):
@@ -270,27 +273,87 @@ class GlobalPipelineAdmin(ModelAdmin):
         )
 
     @display(description="Mando")
-    def advanced_recon_trigger(self, obj):
-        url_resolve = reverse('admin:sales_globalpipeline_resolve_url', args=[obj.pk])
-        url_lms = reverse('admin:sales_globalpipeline_scan_lms', args=[obj.pk])
-        url_deep = reverse('admin:sales_globalpipeline_scan_deep', args=[obj.pk])
-
-        btn_base = "inline-block px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider text-white"
-
-        if not obj.website:
-            return format_html(
-                '<div id="recon-panel-{}" class="whitespace-nowrap min-w-[120px]">'
-                '  <a href="{}" class="{} bg-blue-600 hover:bg-blue-700">🌐 Buscar URL</a>'
-                '</div>', obj.pk, url_resolve, btn_base
-            )
-
-        return format_html(
-            '<div id="recon-panel-{}" class="whitespace-nowrap min-w-[120px] leading-loose">'
-            '  <button hx-post="{}" hx-target="#recon-panel-{}" hx-swap="outerHTML" class="{} bg-purple-600 hover:bg-purple-700 mb-1 w-full text-left">📡 Scan LMS</button><br>'
-            '  <button hx-post="{}" hx-target="#recon-panel-{}" hx-swap="outerHTML" class="{} bg-gray-900 dark:bg-gray-100 dark:text-gray-900 w-full text-left">🧠 Deep Recon</button>'
-            '</div>', obj.pk, url_lms, obj.pk, btn_base, url_deep, obj.pk, btn_base
+    def advanced_recon_trigger(self, obj) -> str:
+        """
+        [GOD TIER - APT LEVEL UI - ULTRA-STABLE]
+        Renderiza el panel de control táctico blindado contra bloqueos de Unfold/Django.
+        Optimizado para evasión de Form Hijacking, CSRF Blocks y DOM Layering.
+        """
+        from django.urls import reverse
+        from django.utils.html import format_html
+        
+        # Generación segura de URLs para HTMX (vía GET para máxima compatibilidad)
+        url_sniper = reverse('admin:sales_globalpipeline_auto_sniper', args=[obj.pk])
+        
+        # Clases base Tailwind con microinteracciones de grado militar
+        btn_base = (
+            "group relative inline-flex w-full items-center justify-start gap-2 px-3 py-1.5 mb-1.5 "
+            "text-[10px] font-black uppercase tracking-[0.15em] rounded shadow-sm transition-all "
+            "duration-300 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
         )
 
+        # ==========================================
+        # 1. BOTÓN MAESTRO: OMNI SNIPER (Siempre Activo)
+        # ==========================================
+        # 🛠️ FIX: type="button" + hx-get + pointer-events-none
+        sniper_btn = format_html(
+            '<button type="button" hx-get="{url}" hx-target="#recon-panel-{pk}" hx-swap="outerHTML" '
+            'hx-disabled-elt="this" '
+            'class="{classes} text-white bg-gradient-to-r from-red-600 via-red-500 to-purple-700 '
+            'hover:from-red-500 hover:to-purple-500 shadow-[0_0_15px_rgba(220,38,38,0.4)] ring-1 ring-white/10">'
+            '<span class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent '
+            '-translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none"></span>'
+            '<span class="material-symbols-outlined text-[13px] group-active:scale-90 transition-transform '
+            'drop-shadow-md pointer-events-none">my_location</span>'
+            '<span class="relative z-10 drop-shadow-md pointer-events-none">FULL SNIPER</span>'
+            '</button>',
+            url=url_sniper,
+            pk=obj.pk,
+            classes=btn_base
+        )
+
+        # ==========================================
+        # 2. BOTONES SECUNDARIOS TÁCTICOS (Condicionales)
+        # ==========================================
+        secondary_btns = ""
+        if obj.website:
+            url_lms = reverse('admin:sales_globalpipeline_scan_lms', args=[obj.pk])
+            url_deep = reverse('admin:sales_globalpipeline_scan_deep', args=[obj.pk])
+            
+            secondary_btns = format_html(
+                '<button type="button" hx-get="{url_lms}" hx-target="#recon-panel-{pk}" hx-swap="outerHTML" '
+                'hx-disabled-elt="this" '
+                'class="{classes} bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white '
+                'ring-1 ring-slate-700/50 dark:bg-slate-200 dark:text-slate-800 dark:hover:bg-white dark:ring-slate-300">'
+                '<span class="material-symbols-outlined text-[13px] pointer-events-none">radar</span> '
+                '<span class="pointer-events-none">SCAN LMS</span>'
+                '</button>'
+                '<button type="button" hx-get="{url_deep}" hx-target="#recon-panel-{pk}" hx-swap="outerHTML" '
+                'hx-disabled-elt="this" '
+                'class="{classes} bg-[#050505] text-slate-500 hover:bg-[#111] hover:text-emerald-400 ring-1 ring-white/5">'
+                '<span class="material-symbols-outlined text-[13px] pointer-events-none">memory</span> '
+                '<span class="pointer-events-none">DEEP RECON</span>'
+                '</button>',
+                url_lms=url_lms,
+                url_deep=url_deep,
+                pk=obj.pk,
+                classes=btn_base
+            )
+
+        # ==========================================
+        # 3. ENSAMBLAJE DEL PANEL (Anti-Layout Shift)
+        # ==========================================
+        return format_html(
+            '<div id="recon-panel-{pk}" class="whitespace-nowrap min-w-[140px] flex flex-col '
+            'animate-in fade-in zoom-in-95 duration-300 ease-out">'
+            '{sniper_btn}'
+            '{secondary_btns}'
+            '</div>',
+            pk=obj.pk,
+            sniper_btn=sniper_btn,
+            secondary_btns=secondary_btns
+        )
+        
     @display(description='Tecnología')
     def display_intelligence_radar(self, obj):
         if not hasattr(obj, 'tech_profile') or not obj.tech_profile:
@@ -424,6 +487,17 @@ class GlobalPipelineAdmin(ModelAdmin):
         ('🧠 Sales Intelligence (AI Tier 2)', {'classes': ('tab',), 'fields': ('ai_executive_panel', 'ai_tactical_panel', 'ai_copywriting_panel')}),
         ('🔬 Analítica Base', {'classes': ('tab',), 'fields': (('lead_score', 'last_scored_at', 'discovery_source'),),}),
     )
+
+    def run_auto_sniper(self, request, inst_id):
+        # 1. Bloqueamos la interfaz localmente
+        cache.set(f"scan_in_progress_{inst_id}", True, timeout=300)
+        
+        # 2. Importamos y lanzamos la tarea que creamos en el Paso 1
+        from .tasks import task_run_omni_sniper
+        task_run_omni_sniper.delay(inst_id)
+        
+        # 3. Retornamos el snippet de HTMX que empezará a hacer "polling" automático
+        return HttpResponse(self._get_polling_html(inst_id))
 
 # ==========================================
 # 3. DASHBOARD CENTRAL (COMMAND CENTER)

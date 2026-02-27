@@ -6,6 +6,8 @@ import random
 import socket
 import json
 import uuid
+import math
+import time
 import dns.asyncresolver
 from typing import List, Optional, Dict, Any, Set, Tuple, Pattern, Union
 from dataclasses import dataclass, field
@@ -15,6 +17,7 @@ from datetime import datetime
 from django.utils import timezone
 from playwright.async_api import (
     async_playwright,
+    Browser,
     BrowserContext,
     Page,
     Error as PlaywrightError,
@@ -44,7 +47,7 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-# Cambiamos el nombre para reflejar su nueva capacidad
+# Cambiamos el nombre para reflejar su nueva capacidad (Nivel God Tier)
 logger = logging.getLogger("Sovereign.OmniSniper")
 logger.setLevel(logging.DEBUG)
 
@@ -55,17 +58,17 @@ logger.setLevel(logging.DEBUG)
 @dataclass
 class ReconConfig:
     """
-    Configuración inmutable para operaciones de alta disponibilidad.
+    Configuración Inmutable para Operaciones de Alta Disponibilidad (God Tier).
     Diseñada para evadir WAFs modernos (Cloudflare, Akamai, AWS Shield, Datadome).
     """
-    MAX_CONCURRENT: int = 1  # MODO FRANCOTIRADOR: 1 a la vez para máximo sigilo y cero baneos de IP
+    MAX_CONCURRENT: int = 5  # MODO ENJAMBRE: Balance perfecto entre velocidad y estabilidad de Tor
     GLOBAL_TIMEOUT_MS: int = 90000  # 90 segundos máximo por ciclo completo
     PAGE_LOAD_TIMEOUT_MS: int = 45000  # 45 segundos de paciencia para sitios lentos de LATAM
     MAX_RETRIES: int = 3
-    DEEP_SCAN_LIMIT: int = 12  # Aumentado para analizar más secciones (portal, admisiones, staff)
+    DEEP_SCAN_LIMIT: int = 12  # Límite de escaneo interno (portal, admisiones, staff)
     REQUEST_DELAY_MS: Tuple[int, int] = (4000, 12000)  # Jitter: Pausa pseudo-aleatoria
 
-    # User Agents rotativos (Tier 1 Desktop & Mobile - Actualizados)
+    # User Agents rotativos (Tier 1 Desktop & Mobile - Actualizados 2024)
     USER_AGENTS: List[str] = field(default_factory=lambda: [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
@@ -406,15 +409,18 @@ class AIInsightsGenerator:
 
 class B2BReconEngine:
     """
-    [GOD TIER - APT LEVEL]
+    [GOD TIER - APT LEVEL ARCHITECTURE]
     Motor de Inteligencia de Mercado (OSINT) Asíncrono.
-    Incluye evasión extrema de WAFs, gestión de memoria y heurísticas DOM.
-    Ahora con Resiliencia de Red Distribuida vía Tor.
+    Aislamiento absoluto de contextos V8, Circuit Breakers Mutex y Heurística DOM.
     """
 
     def __init__(self, config: ReconConfig = ReconConfig()):
         self.config = config
         self.semaphore = asyncio.Semaphore(config.MAX_CONCURRENT)
+        
+        # [APT MUTEX LOCK]: Blindaje contra ataques DDoS auto-infligidos al proxy Tor
+        self.tor_lock = asyncio.Lock()
+        self.last_tor_rotation_time = 0.0
 
     async def _check_dns_resolution(self, hostname: str) -> bool:
         """Verifica si el dominio existe antes de lanzar el navegador pesado."""
@@ -482,8 +488,8 @@ class B2BReconEngine:
 
     async def _intercept_resources(self, route: Route, request: Request):
         """
-        Optimización extrema: Bloquea recursos pesados e inútiles en memoria RAM.
-        Acelera el escaneo un 400% y previene crashes de OutOfMemory.
+        Optimización extrema y Bloqueo Quirúrgico.
+        Absorbe excepciones si la página cierra abruptamente (evita crashes de EventLoop).
         """
         blocked_types = {"image", "media", "font", "stylesheet", "websocket", "other", "eventsource"}
         blocked_domains = {
@@ -496,67 +502,94 @@ class B2BReconEngine:
         req_url = request.url.lower()
         resource_type = request.resource_type
 
-        if resource_type in blocked_types or any(domain in req_url for domain in blocked_domains):
-            await route.abort()
-        else:
-            await route.continue_()
+        try:
+            if resource_type in blocked_types or any(domain in req_url for domain in blocked_domains):
+                await route.abort()
+            else:
+                await route.continue_()
+        except Exception:
+            # Absorbe TargetClosedError silenciosamente si el WAF corta la conexión de golpe
+            pass
 
     async def _simulate_human_behavior(self, page: Page):
         """Inyecta eventos de movimiento de ratón y scroll suavizados usando Curvas de Bézier."""
-        await page.evaluate("""() => {
-            // Mouse Movement Simulation
-            const moveMouse = (x, y) => {
-                const event = new MouseEvent('mousemove', {
-                    clientX: x, clientY: y, bubbles: true, cancelable: true, view: window
-                });
-                document.dispatchEvent(event);
-            };
-
-            const humanLikeMove = () => {
-                const startX = Math.random() * window.innerWidth;
-                const startY = Math.random() * window.innerHeight;
-                const endX = Math.random() * window.innerWidth;
-                const endY = Math.random() * window.innerHeight;
-
-                for (let t = 0; t <= 1; t += 0.1) {
-                    const x = startX + (endX - startX) * t;
-                    const y = startY + (endY - startY) * t + Math.sin(t * Math.PI) * 20;
-                    moveMouse(x, y);
-                }
-            };
-
-            // Smooth Inercial Scrolling
-            const humanLikeScroll = () => {
-                const start = window.scrollY;
-                const target = Math.random() * (document.body.scrollHeight || window.innerHeight * 2);
-                const duration = 1000 + Math.random() * 2000; 
-
-                let startTime = null;
-                const scroll = (timestamp) => {
-                    if (!startTime) startTime = timestamp;
-                    const progress = timestamp - startTime;
-                    const percentage = Math.min(progress / duration, 1);
-
-                    window.scrollTo(0, start + (target - start) *
-                        (percentage < 0.5 ? 2 * Math.pow(percentage, 2) : -1 + (4 - 2 * percentage) * percentage));
-
-                    if (percentage < 1) requestAnimationFrame(scroll);
+        try:
+            await page.evaluate("""() => {
+                // Mouse Movement Simulation
+                const moveMouse = (x, y) => {
+                    const event = new MouseEvent('mousemove', {
+                        clientX: x, clientY: y, bubbles: true, cancelable: true, view: window
+                    });
+                    document.dispatchEvent(event);
                 };
-                requestAnimationFrame(scroll);
-            };
 
-            humanLikeMove();
-            humanLikeScroll();
-        }""")
-        # Pausa aleatoria para engañar a los WAF basados temporalmente
-        await asyncio.sleep(random.uniform(1.2, 3.5))
+                const humanLikeMove = () => {
+                    const startX = Math.random() * window.innerWidth;
+                    const startY = Math.random() * window.innerHeight;
+                    const endX = Math.random() * window.innerWidth;
+                    const endY = Math.random() * window.innerHeight;
+
+                    for (let t = 0; t <= 1; t += 0.1) {
+                        const x = startX + (endX - startX) * t;
+                        const y = startY + (endY - startY) * t + Math.sin(t * Math.PI) * 20;
+                        moveMouse(x, y);
+                    }
+                };
+
+                // Smooth Inercial Scrolling
+                const humanLikeScroll = () => {
+                    const start = window.scrollY;
+                    const target = Math.random() * (document.body.scrollHeight || window.innerHeight * 2);
+                    const duration = 1000 + Math.random() * 2000; 
+
+                    let startTime = null;
+                    const scroll = (timestamp) => {
+                        if (!startTime) startTime = timestamp;
+                        const progress = timestamp - startTime;
+                        const percentage = Math.min(progress / duration, 1);
+
+                        window.scrollTo(0, start + (target - start) *
+                            (percentage < 0.5 ? 2 * Math.pow(percentage, 2) : -1 + (4 - 2 * percentage) * percentage));
+
+                        if (percentage < 1) requestAnimationFrame(scroll);
+                    };
+                    requestAnimationFrame(scroll);
+                };
+
+                humanLikeMove();
+                humanLikeScroll();
+            }""")
+            # Pausa aleatoria para engañar a los WAF basados temporalmente
+            await asyncio.sleep(random.uniform(1.2, 3.5))
+        except Exception:
+            pass
+
+    async def _safe_tor_rotation(self, strict: bool):
+        """
+        [MUTEX GUARD TIER 1]: Centraliza las peticiones a Tor para evitar bloqueos TCP.
+        Garantiza que la red sobrevive a un evento Thundering Herd (Múltiples fallos simultáneos).
+        """
+        async with self.tor_lock:
+            current_time = time.time()
+            # Si alguien rotó la IP en los últimos 15 segundos, aprovechamos su circuito en lugar de tumbar Tor de nuevo
+            if current_time - self.last_tor_rotation_time > 15.0: 
+                logger.warning("🛡️ [C2 MUTEX] Ejecutando Rotación Vectorial Tor (Nueva Identidad)...")
+                try:
+                    await async_force_new_tor_identity(strict_verification=strict)
+                    self.last_tor_rotation_time = time.time()
+                    await asyncio.sleep(2.0) # Tiempo de estabilización de circuito
+                except Exception as e:
+                    logger.error(f"❌ [C2 FATAL] Daño en Backbone Tor. ¿El daemon está encendido? {e}")
+            else:
+                logger.debug("⏳ [C2 MUTEX] Absorbiendo pico de concurrencia. Compartiendo IP estabilizada...")
+                await asyncio.sleep(random.uniform(1.5, 3.5))
 
     # ==========================================
     # [APT TACTIC]: NAVEGACIÓN RESILIENTE
     # ==========================================
     async def _navigate_with_stealth(self, page: Page, url: str) -> bool:
         """
-        Navegación quirúrgica. Si detecta WAF, muta el clúster entero.
+        Navegación quirúrgica. Si detecta WAF, ejecuta el circuito de sanación Mutex.
         """
         for attempt in range(self.config.MAX_RETRIES):
             try:
@@ -573,24 +606,28 @@ class B2BReconEngine:
                 ])
                 
                 if (response and response.status in [403, 429]) or is_blocked:
-                    logger.warning(f"🚫 [BLOCKED] {url}. Rotando Identidad Global...")
-                    # LLAMADA AL CONTROLADOR APT
-                    await async_force_new_tor_identity(strict_verification=True)
+                    logger.warning(f"🚫 [WAF BLOCKED] {url}. Activando Escudo Mutex Tor...")
+                    await self._safe_tor_rotation(strict=True)
                     continue 
                 
                 return True
             except PlaywrightTimeoutError:
                  logger.debug(f"⏳ [{url}] Timeout (Att: {attempt+1}). Analizando DOM parcial.")
-                 # Si hay timeout pero tenemos página, intentamos extraer lo que haya
                  return True 
             except Exception as e:
-                logger.error(f"⚠️ [NET ERROR] {url}: {str(e)}")
-                # Si falla por red cruda, intentamos rotar sin verificación estricta para ser más rápidos
-                await async_force_new_tor_identity(strict_verification=False)
-                await asyncio.sleep(random.uniform(2.0, 5.0))
+                error_msg = str(e)
+                # [CRÍTICO]: Circuit Breaker de Red. Si Tor rechaza la conexión, damos un respiro general.
+                if "ERR_PROXY_CONNECTION_FAILED" in error_msg or "Connection refused" in error_msg:
+                    logger.critical(f"🚨 [PROXY DROP] {url}. Mitigando colapso de socket TCP (Pausa de 5s)...")
+                    await asyncio.sleep(5.0)
+                    await self._safe_tor_rotation(strict=False)
+                    continue
+                else:
+                    logger.debug(f"⚠️ [NET ERROR] {url}: {error_msg}")
+                    await self._safe_tor_rotation(strict=False)
+                    await asyncio.sleep(random.uniform(2.0, 4.0))
                 
         return False
-
 
     async def _extract_deep_links(self, page: Page, base_url: str) -> List[str]:
         """Estrategia 'Spelunking': Busca páginas internas ricas en datos (Contacto, Staff, Admisión)."""
@@ -909,10 +946,11 @@ class B2BReconEngine:
 
             return inst.name, tech_profile.lms_provider
 
-    async def scan_target(self, browser: BrowserContext, target: Dict[str, Any]):
+    async def scan_target(self, browser: Browser, target: Dict[str, Any]):
         """
-        Ejecución Atómica Principal.
-        Orquesta todas las subrutinas sobre un solo dominio con máxima protección de fallos.
+        [AISLAMIENTO TOTAL - GOD TIER]
+        Cada colegio recibe su propio Contexto (Sandbox). Si la web está envenenada, 
+        pesa 2GB en RAM, o tumba el proxy, el daño queda encapsulado y muere al terminar.
         """
         async with self.semaphore:
             target_url = target['url'].rstrip('/')
@@ -929,9 +967,28 @@ class B2BReconEngine:
                 logger.error(f"⚠️ ID no provisto en el target: {domain}")
                 return
 
-            page = await browser.new_page()
+            # [MEMORY LEAK PREVENTION]: Contexto fresco por cada target
+            tor_proxy = {"server": f"socks5://{os.getenv('TOR_PROXY_HOST', '127.0.0.1')}:{os.getenv('TOR_PROXY_PORT', 9050)}"}
+            context = await browser.new_context(
+                user_agent=random.choice(self.config.USER_AGENTS),
+                viewport=random.choice(self.config.VIEWPORTS),
+                locale="es-CO",
+                timezone_id="America/Bogota",
+                ignore_https_errors=True,
+                bypass_csp=True,
+                java_script_enabled=True,
+                proxy=tor_proxy
+            )
+            await context.set_extra_http_headers(self.config.CUSTOM_HEADERS)
+
+            page = await context.new_page()
             await self._apply_stealth(page)
-            await page.route("**/*", lambda route, request: self._intercept_resources(route, request))
+            
+            # Wrapper asíncrono para interceptación de rutas
+            async def route_handler(route: Route, request: Request):
+                await self._intercept_resources(route, request)
+            
+            await page.route("**/*", route_handler)
 
             # Estructuras maestras de recolección
             master_contacts = {'phones': set(), 'whatsapp': set(), 'emails': set(), 'addresses': set(), 'google_maps_links': set()}
@@ -987,12 +1044,19 @@ class B2BReconEngine:
 
                     logger.info(f"✅ [{domain}] | LMS: {str(found_lms).upper() or 'NINGUNO'} | E-mails Hallados: {len(master_contacts['emails'])}")
                 else:
-                    raise Exception("Fallo de conexión persistente tras reintentos.")
+                    logger.debug(f"❌ [{domain}] Abandonado (Fallo Crítico WAF/Red).")
 
             except Exception as e:
-                logger.error(f"❌ [{domain}] Colapso en Scraper: {str(e)}")
+                logger.error(f"❌ [{domain}] Colapso en Scraper: {str(e)[:100]}")
             finally:
-                await page.close()
+                # [DESTRUCCIÓN TÁCTICA]: Purgamos la memoria RAM cerrando página y contexto
+                try:
+                    await page.close()
+                except Exception: pass
+                
+                try:
+                    await context.close()
+                except Exception: pass
 
 
 # ==========================================
@@ -1001,20 +1065,21 @@ class B2BReconEngine:
 
 async def _orchestrate(targets: Optional[List[Dict]] = None):
     """
-    Inicializa el Motor Playwright y distribuye la carga de trabajo secuencialmente.
-    Controla el apagado correcto para evitar Zombies en Memoria (Memory Leaks).
+    [GOD TIER APT-ORCHESTRATOR: LEVIATHAN V20.0]
+    Inicializa el motor Playwright con aislamiento asíncrono profundo.
+    Implementa procesamiento por lotes (Chunking), paralelismo controlado anti-WAF,
+    Micro-Jittering para evasión heurística y destrucción agresiva de zombies en memoria.
     """
     config = ReconConfig()
     engine = B2BReconEngine(config)
     
-    # [APT TACTIC]: Configuración del proxy para el navegador
-    # Asumimos que Tor expone su proxy SOCKS5 en el host
+    # [APT TACTIC]: Configuración del proxy Base (Para la instancia del Navegador Maestro)
     tor_proxy = {"server": f"socks5://{os.getenv('TOR_PROXY_HOST', '127.0.0.1')}:{os.getenv('TOR_PROXY_PORT', 9050)}"}
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            proxy=tor_proxy, # Todo el tráfico del orquestador pasa por Tor
+            proxy=tor_proxy, 
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -1024,52 +1089,78 @@ async def _orchestrate(targets: Optional[List[Dict]] = None):
                 "--disable-dev-shm-usage",
                 "--disable-accelerated-2d-canvas",
                 "--disable-gpu",
-                "--window-size=1920,1080"
+                "--window-size=1920,1080",
+                # [GOD TIER TWEAK]: Expande la memoria del motor V8 a 4GB para evitar crashes masivos
+                "--js-flags=--max-old-space-size=4096" 
             ]
         )
 
-        context = await browser.new_context(
-            user_agent=random.choice(config.USER_AGENTS),
-            viewport=random.choice(config.VIEWPORTS),
-            locale="es-CO",
-            timezone_id="America/Bogota",
-            ignore_https_errors=True,
-            bypass_csp=True,
-            java_script_enabled=True,
-            geolocation={'latitude': 4.7110, 'longitude': -74.0721},  
-            permissions=['geolocation'],
-            proxy=tor_proxy
-        )
-
-        await context.set_extra_http_headers(config.CUSTOM_HEADERS)
-
-        # Sembrar cookies falsas para engañar a trackers simples
-        await context.add_init_script("""
-            window.localStorage.setItem('session', JSON.stringify({lastVisit: new Date().toISOString()}));
-            document.cookie = 'session=old_session_123; path=/; max-age=31536000';
-        """)
-
         try:
+            targets_to_process = []
+            
+            # 1. RESOLUCIÓN DE LA CARGA ÚTIL (PAYLOAD)
             if not targets:
-                logger.info("📡 Escaneando Toda la Base de Datos (Límite: 500)...")
+                logger.info("📡 [OMNI-SCAN] Iniciando Extracción Masiva desde BD (Límite: 500 nodos)...")
+                # Extraemos de forma asíncrona para no bloquear el Event Loop
                 count = 0
                 async for inst in Institution.objects.filter(is_active=True).order_by('-id'):
                     if count >= 500: break
-                    await engine.scan_target(context, {'id': inst.id, 'name': inst.name, 'url': inst.website, 'city': inst.city})
-                    await asyncio.sleep(random.uniform(config.REQUEST_DELAY_MS[0] / 1000, config.REQUEST_DELAY_MS[1] / 1000))
+                    targets_to_process.append({
+                        'id': inst.id, 
+                        'name': inst.name, 
+                        'url': inst.website, 
+                        'city': inst.city
+                    })
                     count += 1
             else:
-                logger.info(f"📡 Desplegando ataque focalizado sobre {len(targets)} dominios...")
-                for t in targets:
-                    await engine.scan_target(context, t)
-                    await asyncio.sleep(random.uniform(config.REQUEST_DELAY_MS[0] / 1000, config.REQUEST_DELAY_MS[1] / 1000))
+                targets_to_process = targets
+                logger.info(f"📡 [TACTICAL-SCAN] Desplegando enjambre sobre {len(targets_to_process)} objetivos geolocalizados...")
+
+            if not targets_to_process:
+                logger.warning("⚠️ No hay objetivos viables en la cola de escaneo. Abortando misión.")
+                return
+
+            # 2. ORQUESTACIÓN POR LOTES (CHUNK PROCESSING)
+            CHUNK_SIZE = 10  # Tamaño del escuadrón. Se regula con el config.MAX_CONCURRENT internamente.
+            total_targets = len(targets_to_process)
+            
+            for i in range(0, total_targets, CHUNK_SIZE):
+                chunk = targets_to_process[i:i + CHUNK_SIZE]
+                logger.info(f"⚙️ [SWARM BATCH] Desplegando Lote {i // CHUNK_SIZE + 1} de {math.ceil(total_targets / CHUNK_SIZE)} ({len(chunk)} targets concurrentes)...")
+                
+                chunk_tasks = []
+                
+                for t in chunk:
+                    # [APT TACTIC]: Micro-Jittering. Desfasa el inicio de cada hilo aleatoriamente.
+                    async def stealth_delayed_scan(target_data):
+                        jitter = random.uniform(0.1, 2.5)
+                        await asyncio.sleep(jitter)
+                        # Pasamos el BROWSER maestro, el contexto se crea adentro de la subrutina
+                        return await engine.scan_target(browser, target_data)
+
+                    chunk_tasks.append(asyncio.create_task(stealth_delayed_scan(t)))
+
+                # Ejecución en paralelo. return_exceptions=True es VITAL: si un colegio colapsa, no tumba el escuadrón.
+                resultados = await asyncio.gather(*chunk_tasks, return_exceptions=True)
+
+                # Auditoría de fallos internos del lote
+                for res in resultados:
+                    if isinstance(res, Exception):
+                        logger.error(f"⚠️ [NODE FAILURE] Falla aislada en el escuadrón manejada de forma segura: {str(res)}")
+
+                # 3. ENFRIAMIENTO TÁCTICO (COOLDOWN)
+                # Permite que la red Tor rote circuitos y que el Garbage Collector de Python libere RAM.
+                if i + CHUNK_SIZE < total_targets:
+                    cooldown = random.uniform(config.REQUEST_DELAY_MS[0] / 1000, config.REQUEST_DELAY_MS[1] / 1000)
+                    logger.debug(f"❄️ [THERMAL CONTROL] Pausa evasiva de {cooldown:.2f}s antes de lanzar el siguiente escuadrón...")
+                    await asyncio.sleep(cooldown)
 
         except Exception as e:
-            logger.error(f"❌ Error crítico en Orquestador: {e}")
+            logger.error(f"❌ [CRÍTICO] Colapso estructural en el Orquestador Maestro: {e}", exc_info=True)
         finally:
-            logger.info("🧹 Purgando contextos y liberando Memoria RAM...")
-            await context.close()
-            await browser.close()
+            logger.info("🧹 [PROTOCOL OMEGA] Destruyendo NAVEGADOR MAESTRO y liberando Memoria RAM...")
+            if browser:
+                await browser.close()
 
 
 def execute_recon(inst_id: Union[int, str, uuid.UUID, None] = None):

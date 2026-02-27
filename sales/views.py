@@ -31,6 +31,7 @@ from django.views.decorators.http import require_GET
 from django.db import transaction, IntegrityError
 from django.db.models import F
 from django.core.cache import cache
+from django.utils import timezone
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -425,26 +426,45 @@ class SniperSearchView(View):
                 
                 try:
                     with transaction.atomic():
-                        inst, created = Institution.objects.update_or_create(
-                            name=clean_name,
-                            city=city[:90],
-                            defaults={
-                                'country': country[:90] if country else "Colombia",
-                                'website': clean_domain,
-                                'email': main_email,
-                                'phone': main_phone,
-                                'discovery_source': 'Ghost_V20', 
-                                'is_private': True,
-                            }
-                        )
+                        # 1. BÚSQUEDA INTELIGENTE (EVITA COLISIONES)
+                        domain_core = clean_domain.replace('https://', '').replace('http://', '').replace('www.', '').strip('/')
+                        inst = Institution.objects.filter(website__icontains=domain_core).first()
                         
+                        if not inst:
+                            inst = Institution.objects.filter(name__iexact=clean_name).first()
+
+                        created = False
+                        if inst:
+                            # 2. ACTUALIZACIÓN QUIRÚRGICA (Mantiene datos antiguos, llena vacíos)
+                            if main_email and not inst.email: inst.email = main_email
+                            if main_phone and not inst.phone: inst.phone = main_phone
+                            if not inst.website: inst.website = clean_domain
+                            inst.last_scored_at = timezone.now()
+                            inst.save()
+                        else:
+                            # 3. CREACIÓN DESDE CERO
+                            created = True
+                            inst = Institution.objects.create(
+                                name=clean_name,
+                                city=city[:90],
+                                country=country[:90] if country else "Colombia",
+                                website=clean_domain,
+                                email=main_email,
+                                phone=main_phone,
+                                discovery_source='Ghost_V20', 
+                                is_private=True
+                            )
+                        
+                        # 4. ACTUALIZAR O CREAR PERFIL TECNOLÓGICO (INYECCIÓN DE LMS)
                         tech, _ = TechProfile.objects.get_or_create(institution=inst)
-                        tech.lms_provider = data['lms'][:90]
-                        tech.has_lms = (data['lms'] != "No detectado")
+                        if data['lms'] != "No detectado":
+                            tech.lms_provider = data['lms'][:90]
+                            tech.has_lms = True
                         tech.save()
 
+                    # 5. RENDERIZADO VISUAL
                     b_color = "emerald" if created else "blue"
-                    b_text = "NUEVO" if created else "ACTUALIZADO"
+                    b_text = "NUEVO" if created else "ACTUALIZADO (LMS INYECTADO)"
                     
                     soc_html = "".join([f"<a href='{s}' target='_blank' class='text-[8px] bg-[#111] border border-white/10 px-1.5 py-0.5 rounded text-blue-400 uppercase mr-1'>{s.split('.')[1] if '.' in s else 'SOCIAL'}</a>" for s in data['socs']])
 
@@ -487,8 +507,8 @@ class SniperSearchView(View):
                     results_html += f"""
                     <div class="bg-yellow-950/20 border border-yellow-700/50 rounded-xl p-4 relative">
                         <div class="absolute top-0 left-0 w-full h-1 bg-yellow-500/50"></div>
-                        <h4 class="text-yellow-500 font-black text-[10px] uppercase mb-1 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">warning</span> COLISIÓN EN DB</h4>
-                        <p class="text-[9px] font-mono text-slate-400">El dominio <span class="text-white font-bold">{clean_domain}</span> ya existe en el directorio.</p>
+                        <h4 class="text-yellow-500 font-black text-[10px] uppercase mb-1 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">warning</span> COLISIÓN EN DB MIGRADA</h4>
+                        <p class="text-[9px] font-mono text-slate-400">El dominio <span class="text-white font-bold">{clean_domain}</span> generó un conflicto inesperado.</p>
                     </div>
                     """
                 except Exception as e:

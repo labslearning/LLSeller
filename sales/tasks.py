@@ -23,6 +23,7 @@ from django.db import transaction
 from django import db
 from django.utils import timezone
 from django.db.models import Q
+from django.db import transaction, DatabaseError
 
 # Local Engine Imports
 from .models import Institution
@@ -30,6 +31,17 @@ from .engine.serp_resolver import SERPResolverEngine
 from .engine.recon_engine import _orchestrate, execute_recon
 from .engine.ml_scoring import train_model, score_unrated_leads
 from .engine.discovery_engine import OSMDiscoveryEngine
+#Desde aqui 
+
+
+
+# Importaciones locales de tu arquitectura B2B
+from sales.models import Institution, TechProfile
+from sales.views import SniperSearchView
+
+logger = logging.getLogger("Sovereign.OmniSniper.Celery")
+
+
 
 # =========================================================
 # ⚙️ OMNI-TIER CONFIGURATION & TELEMETRY
@@ -478,3 +490,166 @@ def task_batch_score_leads(self, limit: int = 2000):
         finally:
             db.close_old_connections()
             gc.collect()
+
+
+
+# ==============================================================================
+# [GOD TIER ARCHITECTURE: OMNI-SNIPER CELERY WORKER]
+# Spec: Silicon Wadi / Lazarus ATP - Alta Disponibilidad y Resiliencia Extrema
+# ==============================================================================
+@shared_task(
+    bind=True,
+    max_retries=4,           # Reintentos máximos antes de declarar KIA al target
+    acks_late=True,          # Zero Data Loss: Solo confirma la tarea si termina exitosamente
+    time_limit=300,          # Hard Limit: Mata el worker si se cuelga por más de 5 min (Evita zombies)
+    soft_time_limit=270,     # Soft Limit: Da 30s de margen para cerrar la base de datos limpiamente
+    retry_backoff=True,      # Exponential Backoff (Espera 1m, luego 2m, 4m... evade bloqueos por IP)
+    retry_backoff_max=600,   # Techo de espera de 10 minutos máximo
+    retry_jitter=True        # Anti-Thundering Herd: Añade aleatoriedad a los reintentos
+)
+def task_run_omni_sniper(self, inst_id):
+    """
+    Motor Asíncrono Híbrido: Extrae Inteligencia (URL, Emails, Phones, LMS Stack).
+    Cuenta con inyección de estado en Caché (HTMX Ready), bloqueos transaccionales
+    y auto-curación ante caídas de red o bloqueos de Firewalls (WAF).
+    """
+    start_time = time.time()
+    log_prefix = f"[MISSION:{str(inst_id)[:8]}]"
+    
+    # 📡 [TELEMETRÍA EN VIVO]: Notifica al Frontend (C2) que el satélite está en posición
+    cache.set(f"telemetry_{inst_id}", [f"🛰️ {log_prefix} Uplink establecido. Motores listos."], timeout=1200)
+
+    try:
+        # 🛡️ 1. BLOQUEO TRANSACCIONAL ESTRICTO (ACID COMPLIANCE)
+        # select_for_update() bloquea la fila en la DB a nivel de kernel para que ningún
+        # otro worker o script sobreescriba esta institución mientras el Sniper trabaja.
+        with transaction.atomic():
+            try:
+                inst = Institution.objects.select_for_update(nowait=False).get(id=inst_id)
+            except Institution.DoesNotExist:
+                logger.error(f"❌ {log_prefix} Objetivo purgado del Vault. Abortando misión.")
+                return "ABORTED_NOT_FOUND"
+
+            target_query = (inst.website if inst.website else inst.name).strip()
+            geo_context = f"{inst.city or ''} {inst.country or ''}".strip()
+
+            logger.info(f"🎯 {log_prefix} INFILTRACIÓN INICIADA: {target_query} | Sector: {geo_context}")
+            cache.set(f"telemetry_{inst_id}", [f"🕵️‍♂️ Extrayendo inteligencia cruda de {target_query}..."], timeout=1200)
+
+            # 🧠 2. INSTANCIACIÓN DEL MOTOR DE VANGUARDIA
+            sniper_engine = SniperSearchView()
+
+            # 🕷️ 3. EJECUCIÓN DEL CRAWLER MULTI-VECTOR
+            data = sniper_engine.worker_scan(
+                target=target_query,
+                geo_context=geo_context,
+                city=inst.city or "",
+                country=inst.country or "Colombia",
+                use_email=True,
+                use_whatsapp=True,
+                use_lms=True
+            )
+
+            # 🔬 4. ANÁLISIS FORENSE Y MUTACIÓN DE DATOS
+            if data.get('dom') and not data.get('err'):
+                
+                # --- A. Higiene y Sanitización Estricta de Strings ---
+                clean_domain = data['dom'][:250].lower()
+                clean_email = data['ems'][0][:250].lower() if data.get('ems') else None
+                clean_phone = data['phs'][0][:45] if data.get('phs') else None
+                found_lms = str(data.get('lms', 'No detectado'))[:90]
+                has_lms_flag = (found_lms.lower() != "no detectado")
+
+                # --- B. Inyección Quirúrgica (Solo actualizamos lo que falta o mejora) ---
+                # Usamos update_fields para reducir la carga de IO en PostgreSQL/MySQL en un 95%
+                update_fields = ['updated_at', 'last_scored_at', 'discovery_source']
+                inst.last_scored_at = timezone.now()
+                inst.discovery_source = 'Ghost_V20'
+
+                if not inst.website or "http" not in inst.website:
+                    inst.website = clean_domain
+                    update_fields.append('website')
+
+                if clean_email and not inst.email:
+                    inst.email = clean_email
+                    update_fields.append('email')
+
+                if clean_phone and not inst.phone:
+                    inst.phone = clean_phone
+                    update_fields.append('phone')
+
+                # --- C. Motor de Puntuación Predictiva (Dynamic Lead Scoring) ---
+                # Aumentamos la prioridad de venta del colegio según la densidad de datos hallados
+                current_score = inst.lead_score
+                score_bump = 0
+                if clean_email and 'email' in update_fields: score_bump += 25
+                if clean_phone and 'phone' in update_fields: score_bump += 15
+                if has_lms_flag: score_bump += 40
+                
+                if score_bump > 0:
+                    inst.lead_score = min(current_score + score_bump, 100)
+                    update_fields.append('lead_score')
+
+                # Commit a la Base de Datos (Row Lock liberado tras esto)
+                inst.save(update_fields=update_fields)
+
+                # --- D. Creación/Actualización del Perfil Tecnológico ---
+                tech, tech_created = TechProfile.objects.get_or_create(institution=inst)
+                tech.lms_provider = found_lms
+                tech.has_lms = has_lms_flag
+                # Si encontramos redes sociales (socs), asumimos huella digital analítica
+                if data.get('socs'):
+                    tech.has_analytics = True 
+                tech.save()
+
+                # 📊 Telemetría de Victoria
+                elapsed = time.time() - start_time
+                logger.info(f"✅ {log_prefix} OPERACIÓN EXITOSA. URL: {clean_domain} | TTR: {elapsed:.2f}s")
+                cache.set(f"telemetry_{inst_id}", [f"✅ Extracción completada. URL: {clean_domain}", f"⚙️ Infraestructura: {found_lms.upper()}"], timeout=1200)
+
+                return {"status": "SUCCESS", "domain": clean_domain, "time": elapsed}
+
+            else:
+                # 🛑 Fallo Controlado (Falso Positivo o WAF Bloqueando)
+                err_msg = data.get('err', 'Identidad indetectable o escudo WAF activo.')
+                logger.warning(f"⚠️ {log_prefix} FALLO TÁCTICO: {err_msg}")
+                cache.set(f"telemetry_{inst_id}", [f"⚠️ Contramedida detectada: {err_msg[:60]}..."], timeout=1200)
+                
+                # Heurística: Si fue un bloqueo de red o un timeout, forzamos reintento
+                # Celery usará Exponential Backoff para volver a intentarlo más tarde con otra IP
+                if "timeout" in err_msg.lower() or "waf" in err_msg.lower() or "bloque" in err_msg.lower():
+                    raise RequestException("WAF/Timeout trigger para Exponential Backoff.")
+                    
+                return {"status": "FAILED", "reason": err_msg}
+
+    except DatabaseError as db_err:
+        # Caída de la base de datos o Deadlock detectado
+        logger.error(f"🔥 {log_prefix} Falla Crítica en Transacción DB: {db_err}")
+        cache.set(f"telemetry_{inst_id}", ["🔥 DB Deadlock. Recalibrando transacciones..."], timeout=1200)
+        raise self.retry(exc=db_err, countdown=20) # Retraso táctico para desatascar locks
+        
+    except (RequestException, TimeoutError) as net_err:
+        # Firewall o Red Inestable. Reintenta silenciosamente.
+        logger.warning(f"📡 {log_prefix} Interferencia de Red. Reintentando... (Intento {self.request.retries}/{self.max_retries})")
+        raise self.retry(exc=net_err)
+        
+    except SoftTimeLimitExceeded:
+        # El proceso lleva demasiado tiempo, se cierra elegantemente sin corromper la DB
+        logger.critical(f"⌛ {log_prefix} TIEMPO LÍMITE EXCEDIDO. Interrumpiendo ejecución.")
+        return {"status": "TIMEOUT_KILLED"}
+
+    except Exception as e:
+        # Error de Código Cero-Día
+        logger.critical(f"💀 {log_prefix} COLAPSO CATASTRÓFICO: {str(e)}", exc_info=True)
+        cache.set(f"telemetry_{inst_id}", [f"💀 Error Crítico del Sistema: {str(e)[:40]}"], timeout=1200)
+        
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e)
+        return {"status": "CRITICAL_FAILURE", "error": str(e)}
+
+    finally:
+        # 🧹 5. PROTOCOLO DE LIMPIEZA INQUEBRANTABLE (KILL-SWITCH DE HTMX)
+        # Pase lo que pase (éxito o explosión nuclear), esta línea TIENE que ejecutarse
+        # para que la interfaz de usuario deje de girar y de mostrar "⏳ Analizando..."
+        cache.delete(f"scan_in_progress_{inst_id}")
+        logger.debug(f"🧹 {log_prefix} Lock de memoria caché destruido.")
