@@ -36,7 +36,7 @@ openai==2.22.0
 packaging==26.0
 playwright==1.58.0
 playwright-stealth==2.0.2
-primp==1.1.0
+primp==1.1.3
 prompt_toolkit==3.0.52
 propcache==0.4.1
 psycopg2-binary==2.9.11
@@ -72,3 +72,5 @@ httpx[http2]==0.28.1
 pysocks==1.7.1
 stem==1.8.1
 curl_cffi==0.6.2
+tenacity==8.2.3
+

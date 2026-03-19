@@ -9,7 +9,6 @@ import random
 from contextlib import contextmanager
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse
-from sales.engine.reply_catcher import run_inbound_catcher
 
 # Celery & Django Imports
 from celery import shared_task
@@ -19,29 +18,24 @@ from requests.packages.urllib3.util.retry import Retry
 from requests.exceptions import RequestException, HTTPError, Timeout, ConnectionError
 
 from django.core.cache import cache
-from django.db import transaction
+from django.db import transaction, DatabaseError
 from django import db
 from django.utils import timezone
 from django.db.models import Q
-from django.db import transaction, DatabaseError
 
-# Local Engine Imports
-from .models import Institution
-from .engine.serp_resolver import SERPResolverEngine
-from .engine.recon_engine import _orchestrate, execute_recon
-from .engine.ml_scoring import train_model, score_unrated_leads
-from .engine.discovery_engine import OSMDiscoveryEngine
-#Desde aqui 
+# =========================================================
+# IMPORTACIONES DE VANGUARDIA (GOD TIER)
+# =========================================================
+from sales.models import Institution, TechProfile, DeepForensicProfile, Interaction, Contact
+from sales.engine.serp_resolver import SERPResolverEngine
+from sales.engine.recon_engine import execute_recon
+from sales.engine.ml_scoring import train_model, score_unrated_leads
+from sales.engine.discovery_engine import OSMDiscoveryEngine
 
-
-
-# Importaciones locales de tu arquitectura B2B
-from sales.models import Institution, TechProfile
-from sales.views import SniperSearchView
+# (Motor de Respuesta Inbound - Si lo tienes activo)
+from sales.engine.reply_catcher import run_inbound_catcher
 
 logger = logging.getLogger("Sovereign.OmniSniper.Celery")
-
-
 
 # =========================================================
 # ⚙️ OMNI-TIER CONFIGURATION & TELEMETRY
@@ -51,7 +45,6 @@ logging.basicConfig(
     format='%(asctime)s.%(msecs)03d - [%(levelname)s] [Sovereign-Workers] %(message)s', 
     datefmt='%H:%M:%S'
 )
-logger = logging.getLogger("Sovereign.CeleryWorkers")
 
 def create_resilient_session() -> requests.Session:
     """Configura una sesión HTTP con Circuit Breaker, Connection Pooling y Retries."""
@@ -66,7 +59,7 @@ def create_resilient_session() -> requests.Session:
     session.mount("https://", adapter)
     session.mount("http://", adapter)
     session.headers.update({
-        'User-Agent': 'Sovereign-B2B-Intelligence-Engine/1.0 (Enterprise Data Aggregator)'
+        'User-Agent': 'Sovereign-B2B-Intelligence-Engine/2.0 (Enterprise Data Aggregator)'
     })
     return session
 
@@ -117,7 +110,7 @@ def safe_async_runner(coro):
 
 
 # =========================================================
-# 🕵️‍♂️ MISIÓN 0: OMNI-SCAN (TIER GOD RECON ENGINE)
+# 🎯 MISIÓN 0: OMNI-SCAN (SINGLE TARGET RECON ENGINE)
 # =========================================================
 @shared_task(
     bind=True, 
@@ -125,7 +118,7 @@ def safe_async_runner(coro):
     max_retries=3,
     autoretry_for=(RequestException, HTTPError, Timeout),
     retry_backoff=True,
-    retry_backoff_max=120,
+    retry_backoff_max=300,
     retry_jitter=True, # Previene el problema del 'Thundering Herd'
     soft_time_limit=300, 
     time_limit=360,
@@ -133,10 +126,10 @@ def safe_async_runner(coro):
 )
 def task_run_single_recon(self, inst_id: str):
     """
-    Motor OMNI-SCAN de Grado Empresarial.
-    Resolución SERP -> Sanitización -> Extracción Forense -> Limpieza de Memoria.
+    [El Núcleo del Francotirador]
+    Resolución SERP -> Extracción Forense Playwright -> Análisis de Idiomas/LMS/Énfasis -> Memoria.
     """
-    db.close_old_connections() # Previene "connection already closed" en procesos largos
+    db.close_old_connections()
     start_time = time.time()
     lock_id = f"mutex_recon_{inst_id}"
 
@@ -148,22 +141,27 @@ def task_run_single_recon(self, inst_id: str):
         cache.set(cache_key, current_logs[-8:], timeout=600)
         logger.info(f"[OMNI-SCAN][{inst_id}]: {message}")
 
-    # Bloqueo Atómico Distribuido Invencible (Context Manager)
     with distributed_lock(lock_id, timeout=360) as acquired:
         if not acquired:
             log_telemetry("Misión interceptada: Objetivo bajo escaneo concurrente.", "WARN")
             return "Locked by another worker"
 
         try:
-            inst = Institution.objects.get(id=inst_id)
-            log_telemetry(f"⚡ OMNI-SCAN DESPLEGADO: {inst.name[:25]}", "INIT")
+            # 1. BLOQUEO TRANSACCIONAL (ACID)
+            with transaction.atomic():
+                inst = Institution.objects.select_for_update().get(id=inst_id)
+                # Pasar a estado LOCKED para que nadie más lo toque
+                if inst.processing_status != Institution.ProcessingStatus.SNIPER_LOCKED:
+                    inst.processing_status = Institution.ProcessingStatus.SNIPER_LOCKED
+                    inst.save(update_fields=['processing_status'])
+                    
+            log_telemetry(f"⚡ INFILTRACIÓN INICIADA: {inst.name[:25]}", "INIT")
             
             # --- FASE 1: RESOLUCIÓN SERP ---
             if not inst.website:
                 log_telemetry("Buscando huella digital en redes SERP (DuckDuckGo)...", "NET")
                 engine = SERPResolverEngine()
                 
-                # Contextualización Semántica
                 keyword = {
                     'kindergarten': 'jardín infantil',
                     'university': 'universidad',
@@ -183,31 +181,34 @@ def task_run_single_recon(self, inst_id: str):
                                     parsed = urlparse(candidate)
                                     found_url = f"{parsed.scheme}://{parsed.netloc}".lower()
                                     break
-                        if found_url:
-                            break 
+                        if found_url: break 
                     except Exception as e:
                         log_telemetry(f"Sobrecarga SERP. Retrying ({attempt}/3)...", "WARN")
                         time.sleep((2 ** attempt) + random.uniform(0, 1)) 
                 
                 if found_url:
-                    with transaction.atomic():
-                        # Bloqueo estricto de fila para escritura limpia
-                        locked_inst = Institution.objects.select_for_update().get(id=inst_id)
-                        locked_inst.website = found_url
-                        locked_inst.save(update_fields=['website', 'updated_at'])
-                        
-                    log_telemetry(f"Enlace establecido: {found_url}", "OK")
                     inst.website = found_url
+                    inst.save(update_fields=['website', 'updated_at'])
+                    log_telemetry(f"Enlace establecido: {found_url}", "OK")
                 else:
-                    log_telemetry("Objetivo fantasma. Misión cancelada.", "FAIL")
+                    log_telemetry("Objetivo fantasma o sin URL. Misión abortada.", "FAIL")
+                    inst.processing_status = Institution.ProcessingStatus.DISCARDED
+                    inst.save(update_fields=['processing_status'])
                     return "Ghost Target"
 
-            # --- FASE 2: GHOST SNIPER ---
-            log_telemetry("Bypass de WAF y extracción forense en curso...", "HACK")
-            execute_recon(inst_id)
+            # --- FASE 2: GHOST SNIPER (PLAYWRIGHT + IA DEEPSEEK) ---
+            log_telemetry("Bypass de WAF y extracción de LMS, Idiomas y Certificaciones...", "HACK")
+            
+            # Aquí es donde ocurre la magia real de extracción de datos
+            execute_recon(inst_id=str(inst.id))
+            
+            # Tras extraer la data, el colegio pasa a ENRICHED (Listo para la IA de Ventas)
+            inst.refresh_from_db()
+            inst.processing_status = Institution.ProcessingStatus.ENRICHED
+            inst.save(update_fields=['processing_status'])
             
             elapsed = round(time.time() - start_time, 2)
-            log_telemetry(f"MISIÓN CUMPLIDA. Operación finalizada en {elapsed}s", "SUCCESS")
+            log_telemetry(f"MISIÓN CUMPLIDA. Inteligencia asegurada en {elapsed}s", "SUCCESS")
             return f"Omni-Scan Complete: {elapsed}s"
             
         except Institution.DoesNotExist:
@@ -215,20 +216,74 @@ def task_run_single_recon(self, inst_id: str):
             return "404 Not Found"
         except SoftTimeLimitExceeded:
             log_telemetry("Cut-off de recursos. Proceso abortado para proteger el nodo.", "TIMEOUT")
+            Institution.objects.filter(id=inst_id).update(processing_status=Institution.ProcessingStatus.RAW_RADAR)
             return "Soft Timeout"
         except Exception as e:
             log_telemetry(f"ERROR ESTRUCTURAL: {str(e)[:40]}", "CRITICAL")
+            Institution.objects.filter(id=inst_id).update(processing_status=Institution.ProcessingStatus.RAW_RADAR)
             logger.exception(f"OMNI-SCAN Crash Crítico en {inst_id}")
             raise self.retry(exc=e) 
         finally:
             # Destrucción Absoluta de Artefactos de Memoria
             cache.delete(f"scan_in_progress_{inst_id}")
             db.close_old_connections()
-            gc.collect() # Libera RAM del Celery Worker
+            gc.collect() 
 
 
 # =========================================================
-# 🛰️ MISIÓN 1: RADAR OPENSTREETMAP (DATA INGESTION)
+# 🛸 MISIÓN 1: CONTROLADOR DE ENJAMBRE (FLOW CONTROL)
+# =========================================================
+@shared_task(
+    bind=True, 
+    name="sales.tasks.task_run_ghost_sniper_fleet"
+)
+def task_run_ghost_sniper_fleet(self, limit: int = 500, city: str = None, mission_id: str = None):
+    """
+    [EL CONTROLADOR DEFINITIVO DE FLUJO]
+    Responde a la orden: "Dame 500 colegios de Cajicá, y no me des los repetidos".
+    Asegura los colegios en memoria, los bloquea y lanza el enjambre de escaneo.
+    """
+    db.close_old_connections()
+    logger.info(f"🚦 [SWARM COMMANDER] Solicitando autorización para {limit} objetivos en {city or 'Global'}...")
+
+    with transaction.atomic():
+        # 1. Filtramos estrictamente los colegios VÍRGENES (RAW)
+        query = Institution.objects.select_for_update().filter(
+            website__isnull=False, 
+            is_active=True,
+            processing_status=Institution.ProcessingStatus.RAW_RADAR
+        )
+        if city: 
+            query = query.filter(city__icontains=city)
+        if mission_id: 
+            query = query.filter(mission_id=mission_id)
+        
+        # 2. Limitamos a la cantidad solicitada (Ej: 500)
+        query = query.order_by('created_at')[:limit]
+        target_ids = list(query.values_list('id', flat=True))
+
+        if not target_ids:
+            logger.info(f"✅ [SWARM COMMANDER] Base de datos limpia en {city}. No hay colegios crudos pendientes.")
+            return f"Inbox Zero para {city}."
+
+        # 3. [CANDADO MÁGICO]: Cambiamos el estado a LOCKED.
+        # Ningún otro worker ni tú al darle "click" volverá a tocar estos colegios.
+        Institution.objects.filter(id__in=target_ids).update(
+            processing_status=Institution.ProcessingStatus.SNIPER_LOCKED,
+            updated_at=timezone.now()
+        )
+
+    logger.info(f"🔥 [SWARM COMMANDER] {len(target_ids)} blancos BLOQUEADOS. Desatando el Infierno asíncrono...")
+
+    # 4. Desplegamos el enjambre de tareas en paralelo
+    for t_id in target_ids:
+        task_run_single_recon.delay(str(t_id))
+
+    return f"Flota desplegada: {len(target_ids)} drones en el aire."
+
+
+# =========================================================
+# 🛰️ MISIÓN 2: RADAR OPENSTREETMAP (DATA INGESTION)
 # =========================================================
 @shared_task(
     bind=True, 
@@ -243,7 +298,7 @@ def task_run_single_recon(self, inst_id: str):
 )
 def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] = None):
     """
-    Extracción Geoespacial. Delega la ejecución de red a OSMDiscoveryEngine.
+    Extracción Geoespacial. Llena la base de datos de manera bruta y lanza a los Snipers.
     """
     db.close_old_connections()
     batch_uuid = mission_id or str(uuid.uuid4())
@@ -259,38 +314,23 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
         try:
             # Delegamos al motor Singularity Tier
             engine = OSMDiscoveryEngine()
-            engine.discover_and_inject(city=city, country=country)
+            total_creados = safe_async_runner(engine.run_radar(location_type='city', location_name=city))
             
-            # Post-procesamiento y recuento para orquestación inteligente
-            institutions_query = Institution.objects.filter(city__iexact=city)
-            if mission_id:
-                institutions_query.filter(mission_id__isnull=True).update(mission_id=mission_id)
-                
-            total_creados = institutions_query.count()
-            stats = {
-                "con_web": institutions_query.filter(website__isnull=False).count(),
-                "sin_web": institutions_query.filter(website__isnull=True).count(),
-                "privados": institutions_query.filter(is_private=True).count()
-            }
-            
-            logger.info(f"🎯 [OSM RADAR] ÉXITO en {city}. Total: {total_creados} leads. ({stats['con_web']} Webs).")
+            if mission_id and total_creados > 0:
+                Institution.objects.filter(city__iexact=city, mission_id__isnull=True).update(mission_id=batch_uuid)
 
-            # Smart Routing (Chain Orchestration)
-            if stats["sin_web"] > 0:
-                logger.info(f"🤖 [SMART ROUTE] Encendiendo SERP Engine para {stats['sin_web']} objetivos ciegos.")
-                task_run_serp_resolver.apply_async(kwargs={'limit': min(stats["sin_web"], 200)}, countdown=5)
-            
-            if stats["con_web"] > 0:
-                logger.info(f"🕵️‍♂️ [SMART ROUTE] Desplegando Ghost Sniper Fleet para {stats['con_web']} webs nativas.")
-                task_run_ghost_sniper.apply_async(kwargs={'mission_id': batch_uuid, 'limit': min(stats["con_web"], 100)}, countdown=15)
+            logger.info(f"🎯 [OSM RADAR] ÉXITO en {city}. Total inyectados en estado RAW: {total_creados}.")
 
-            return {"mission_id": batch_uuid, "total": total_creados, "stats": stats}
+            # [REACCIÓN EN CADENA] Una vez descubiertos, manda a los Snipers a atacarlos
+            if total_creados > 0:
+                logger.info(f"🤖 [SMART ROUTE] Despertando Flota Sniper para enriquecer {city}...")
+                task_run_ghost_sniper_fleet.apply_async(kwargs={'limit': min(total_creados, 500), 'city': city}, countdown=10)
+
+            return {"mission_id": batch_uuid, "total": total_creados}
 
         except SoftTimeLimitExceeded:
-            logger.error("⏳ [OSM RADAR] Cut-off por límite de tiempo. Salvaguardando memoria.")
             return "Soft Timeout Exceeded"
         except Exception as e:
-            logger.error(f"❌ [OSM RADAR] Crash de Red/API: {str(e)}")
             raise self.retry(exc=e, countdown=60)
         finally:
             db.close_old_connections()
@@ -298,14 +338,16 @@ def task_run_osm_radar(self, country: str, city: str, mission_id: Optional[str] 
 
 
 # =========================================================
-# 🔍 MISIÓN 2: RESOLUCIÓN DE URLs (SERP CLUSTER)
+# 🔍 MISIÓN 3: RESOLUCIÓN DE URLs (SERP CLUSTER)
 # =========================================================
 @shared_task(
-    bind=True, 
-    queue='default',
-    soft_time_limit=1800,
-    time_limit=1860,
-    name="sales.tasks.task_run_serp_resolver"
+    bind=True,
+    name="sales.tasks.task_run_serp_resolver",
+    queue='discovery_queue', # Usamos la cola de descubrimiento, no la default
+    soft_time_limit=120,     # 2 minutos para avisar (Soft)
+    time_limit=150,          # 2.5 minutos para matar (Hard)
+    acks_late=True,          # Si el worker muere, la tarea vuelve a la cola
+    max_retries=3            # Si falla por red, reintentamos
 )
 def task_run_serp_resolver(self, limit: int = 50):
     """Cluster autónomo de resolución. Limitado con Mutex para no banear IPs locales."""
@@ -313,24 +355,16 @@ def task_run_serp_resolver(self, limit: int = 50):
     lock_id = "mutex_global_serp_cluster"
     
     with distributed_lock(lock_id, timeout=1800) as acquired:
-        if not acquired:
-            logger.warning("⚠️ [SERP RESOLVER] Clúster actualmente saturado. Cancelando redundancia.")
-            return "Cluster Occupied."
+        if not acquired: return "Cluster Occupied."
 
-        logger.info(f"🔍 [SERP RESOLVER] Cacería iniciada. Límite de carga: {limit} objetivos.")
+        logger.info(f"🔍 [SERP RESOLVER] Cacería iniciada. Límite: {limit} objetivos.")
         try:
             engine = SERPResolverEngine(concurrency_limit=3)
             engine.resolve_missing_urls(limit=limit)
-            
-            logger.info("🕵️‍♂️ [CHAIN REACTION] SERP Finalizó. Transfiriendo targets resueltos a Playwright...")
-            task_run_ghost_sniper.apply_async(kwargs={'limit': limit}, countdown=10)
             return "Resolución SERP Finalizada con éxito."
-            
         except SoftTimeLimitExceeded:
-            logger.warning("⏳ [SERP RESOLVER] Interrupción por límite de tiempo. Guardando estado.")
             return "Soft Timeout."
         except Exception as e:
-            logger.error(f"❌ [SERP] Fallo de motor de búsqueda: {str(e)}")
             raise self.retry(exc=e, countdown=120)
         finally:
             db.close_old_connections()
@@ -338,318 +372,127 @@ def task_run_serp_resolver(self, limit: int = 50):
 
 
 # =========================================================
-# 👻 MISIÓN 3: BATCH GHOST SNIPER (PLAYWRIGHT FLEET)
-# =========================================================
-@shared_task(
-    bind=True, 
-    queue='scraping_queue',
-    soft_time_limit=3600, # Hasta 1 hora de scrapeo masivo
-    time_limit=3660,
-    name="sales.tasks.task_run_ghost_sniper"
-)
-def task_run_ghost_sniper(self, limit: int = 50, mission_id: Optional[str] = None):
-    """Orquestador Forense Masivo asíncrono. Extracción de Tech Stack profunda."""
-    db.close_old_connections()
-    lock_id = "mutex_playwright_fleet"
-    
-    with distributed_lock(lock_id, timeout=3600) as acquired:
-        if not acquired:
-            logger.warning("⚠️ [GHOST SNIPER] Flota Playwright ya desplegada. Ignorando solicitud.")
-            return "Fleet Occupied."
-
-        logger.info(f"🕵️‍♂️ [GHOST SNIPER] Iniciando Infiltración Masiva (Batch MAX: {limit})")
-        
-        query = Institution.objects.filter(website__isnull=False, is_active=True).exclude(website='')
-        
-        if mission_id:
-            query = query.filter(mission_id=mission_id, tech_profile__isnull=True)
-        else:
-            query = query.filter(tech_profile__isnull=True)
-
-        if not query.exists():
-            query = Institution.objects.filter(website__isnull=False, last_scored_at__isnull=True).exclude(website='')
-
-        # Optimización de DB: values_list es infinitamente más rápido que instanciar el ORM entero
-        qs = list(query.values('id', 'name', 'website', 'city')[:limit])
-        
-        if not qs:
-            logger.info("✅ [GHOST SNIPER] Inbox Zero. Todo el pipeline está enriquecido.")
-            return "Inbox Zero."
-
-        targets = [
-            {'id': str(item['id']), 'name': item['name'], 'url': item['website'], 'city': item['city']}
-            for item in qs
-        ]
-
-        try:
-            # [OMNI-TIER FIX]: Aislamiento absoluto de Playwright
-            safe_async_runner(_orchestrate(targets))
-            return f"Misión cumplida: {len(targets)} nodos infiltrados."
-            
-        except SoftTimeLimitExceeded:
-            logger.warning("⏳ [GHOST SNIPER] Cut-off por tiempo de ciclo de servidor. Datos parciales asegurados.")
-            return "Timeout. Guardado parcial."
-        except Exception as e:
-            logger.error(f"❌ [GHOST SNIPER] Crash Crítico en Playwright Runtime: {str(e)}")
-            raise self.retry(exc=e, countdown=180)
-        finally:
-            db.close_old_connections()
-            gc.collect()
-
-
-# =========================================================
-# 🧠 MISIÓN 4: PREDICTIVE ML SCORING (THE AUTONOMOUS UNICORN)
+# 🤖 MISIÓN 4: AUTONOMOUS AI OUTREACH (LA IA S.D.R.)
 # =========================================================
 @shared_task(
     bind=True,
-    queue='default', # Escalar a queue dedicada en Kubernetes/ECS si es necesario
-    max_retries=3,
-    retry_backoff=True, 
-    retry_backoff_max=600,
-    soft_time_limit=1800, # 30 min max
-    time_limit=1860,
-    name="sales.tasks.task_retrain_ai_model"
+    name="sales.tasks.task_autonomous_ai_outreach"
 )
-def task_retrain_ai_model(self):
+def task_autonomous_ai_outreach(self, limit: int = 50, city: str = None):
     """
-    [WEEKLY MLOPS OPERATION]
-    Reentrenamiento de la matriz de Bosques Aleatorios calibrada.
-    Protegida por Mutex Locks distribuidos para prevenir OOM (Out Of Memory).
+    [LA JOYA DE LA CORONA]
+    Esta tarea lee los colegios ENRICHED (ya escaneados), evalúa su Moodle,
+    su nivel Bilingüe, y les envía un correo hiper-personalizado ofreciendo Learning Labs.
+    Genera la memoria de contexto para hacer seguimiento continuo.
     """
     db.close_old_connections()
-    start_time = time.time()
-    lock_id = "mutex_ml_training_lock"
-    
-    with distributed_lock(lock_id, timeout=2100) as acquired:
-        if not acquired:
-            logger.warning("⚠️ [ML-OPS] Operación de entrenamiento rechazada: Nodo actual ocupado.")
-            return "Locked by another worker."
+    logger.info(f"🧠 [AI SDR] Iniciando campaña de contacto táctico. Límite: {limit}")
 
-        logger.info("🧠 [ML-OPS] Lock Distribuido Asegurado. Recompilando Matriz Neuronal...")
-        
+    # Buscamos colegios listos para atacar (No contactados, Enriquecidos, Buen Score)
+    targets = Institution.objects.select_related('tech_profile', 'forensic_profile').filter(
+        processing_status=Institution.ProcessingStatus.ENRICHED,
+        contacted=False,
+        email__isnull=False,
+        lead_score__gte=50 # Solo atacamos a colegios que valgan la pena
+    )
+    
+    if city: targets = targets.filter(city__icontains=city)
+    targets = targets[:limit]
+
+    if not targets:
+        logger.info("⏸️ [AI SDR] No hay prospectos con perfil apto para contacto hoy.")
+        return "Cero Targets aptos para disparo."
+
+    import os
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    success_count = 0
+    for inst in targets:
+        try:
+            # 1. Recuperar Contexto del Target
+            tech = getattr(inst, 'tech_profile', None)
+            forensic = getattr(inst, 'forensic_profile', None)
+            
+            lms_actual = tech.lms_provider if tech and tech.lms_provider else "una plataforma estándar"
+            enfasis = forensic.pedagogical_emphasis if forensic and forensic.pedagogical_emphasis else "educativo"
+            es_bilingue = forensic.is_bilingual if forensic else False
+
+            # 2. Ingeniería de Prompts (Red Teaming Cognitivo)
+            prompt = f"""
+            Eres el Director Comercial de 'Learning Labs', la plataforma LMS más rápida y nativa del mercado.
+            Analiza este prospecto: Colegio '{inst.name}' en '{inst.city}'.
+            - Enfoque Pedagógico detectado: {enfasis}.
+            - LMS actual: {lms_actual}.
+            - ¿Es Bilingüe?: {'Sí' if es_bilingue else 'No'}.
+
+            Redacta un cold email (max 4 líneas) directo al Rector. 
+            No uses saludos formales aburridos.
+            Si usan Moodle, diles que Learning Labs no requiere servidores complicados.
+            Si son bilingües, menciona nuestro soporte nativo en inglés.
+            Termina con un Call to Action preguntando si tienen 10 minutos este martes.
+            """
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7
+            )
+            email_body = response.choices[0].message.content
+
+            # 3. Marcar como Contactado e Iniciar el Hilo de Memoria
+            with transaction.atomic():
+                inst.contacted = True
+                inst.save(update_fields=['contacted', 'updated_at'])
+                
+                # Creamos la Interacción de Memoria (Thread)
+                Interaction.objects.create(
+                    institution=inst,
+                    channel='EMAIL',
+                    status='SENT',
+                    subject=f"Potenciando el enfoque {enfasis} en {inst.name}",
+                    message_sent=email_body,
+                    thread_id=f"thread_{inst.id}",
+                    next_action_date=timezone.now() + timezone.timedelta(days=3) # Follow-up automático en 3 días
+                )
+            
+            logger.info(f"📨 Misil enviado a {inst.email} ({inst.name})")
+            success_count += 1
+            time.sleep(1) # Delay táctico para no saturar SMTP
+
+        except Exception as e:
+            logger.error(f"❌ Fallo al contactar {inst.name}: {e}")
+
+    return f"Campaña completada. {success_count} colegios contactados con IA."
+
+
+# =========================================================
+# 🧠 MISIÓN 5: PREDICTIVE ML SCORING
+# =========================================================
+@shared_task(bind=True, soft_time_limit=1800, time_limit=1860)
+def task_retrain_ai_model(self):
+    """Reentrenamiento de la matriz de Bosques Aleatorios."""
+    db.close_old_connections()
+    with distributed_lock("mutex_ml_training_lock", timeout=2100) as acquired:
+        if not acquired: return "Locked."
         try:
             success = train_model()
-            elapsed = round((time.time() - start_time) / 60, 2)
-            
-            if success:
-                logger.info(f"🏆 [ML-OPS] Champion Model desplegado exitosamente en {elapsed} mins.")
-                return f"Model retrained in {elapsed}m."
-            else:
-                logger.info("⏸️ [ML-OPS] Varianza de datos insuficiente. Pospuesto para el próximo ciclo.")
-                return "Insufficient data."
-                
-        except SoftTimeLimitExceeded:
-            logger.error("⏳ [ML-OPS] FATAL: Límite de procesamiento (30m) excedido. Previniendo deadlock.")
-            return "Soft Timeout Exceeded."
+            return "Model retrained." if success else "Insufficient data."
         except Exception as e:
-            logger.error(f"❌ [ML-OPS] Falla estructural crítica durante el entrenamiento: {str(e)}")
             raise self.retry(exc=e)
         finally:
-            db.close_old_connections()
-            gc.collect() # Crítico para liberar DataFrames de Pandas de la memoria RAM
-
-
-@shared_task(
-    bind=True,
-    queue='default',
-    max_retries=5,
-    retry_backoff=True,
-    retry_backoff_max=300,
-    soft_time_limit=600, 
-    time_limit=660,
-    name="sales.tasks.task_batch_score_leads"
-)
-def task_batch_score_leads(self, limit: int = 2000):
-    """
-    [DAILY MLOPS OPERATION]
-    Inferencia Masiva. Asigna un score de 0-100 a los leads frescos de manera atómica.
-    """
-    db.close_old_connections()
-    start_time = time.time()
-    lock_id = "mutex_ml_inference_lock"
-    
-    with distributed_lock(lock_id, timeout=600) as acquired:
-        if not acquired:
-            logger.warning("⚠️ [ML-OPS] Inferencia bloqueada: Matriz actualmente evaluando en otro nodo.")
-            return "Locked by another worker."
-
-        logger.info(f"🔮 [ML-OPS] Iniciando Inferencia Vectorial de Alto Rendimiento ({limit} targets)...")
-        
-        try:
-            score_unrated_leads(limit=limit)
-            elapsed = round(time.time() - start_time, 2)
-            logger.info(f"⚡ [ML-OPS] Inferencia Completada en {elapsed} segundos.")
-            return f"Inferencia complete: {elapsed}s."
-            
-        except SoftTimeLimitExceeded:
-            logger.error("⏳ [ML-OPS] Interrupción de Inferencia. Datos parciales guardados.")
-            return "Soft Timeout Exceeded."
-        except Exception as e:
-            logger.error(f"❌ [ML-OPS] Fallo en pipeline de inferencia: {str(e)}")
-            raise self.retry(exc=e)
-        finally:
-            db.close_old_connections()
             gc.collect()
 
-
-
-# ==============================================================================
-# [GOD TIER ARCHITECTURE: OMNI-SNIPER CELERY WORKER]
-# Spec: Silicon Wadi / Lazarus ATP - Alta Disponibilidad y Resiliencia Extrema
-# ==============================================================================
-@shared_task(
-    bind=True,
-    max_retries=4,           # Reintentos máximos antes de declarar KIA al target
-    acks_late=True,          # Zero Data Loss: Solo confirma la tarea si termina exitosamente
-    time_limit=300,          # Hard Limit: Mata el worker si se cuelga por más de 5 min (Evita zombies)
-    soft_time_limit=270,     # Soft Limit: Da 30s de margen para cerrar la base de datos limpiamente
-    retry_backoff=True,      # Exponential Backoff (Espera 1m, luego 2m, 4m... evade bloqueos por IP)
-    retry_backoff_max=600,   # Techo de espera de 10 minutos máximo
-    retry_jitter=True        # Anti-Thundering Herd: Añade aleatoriedad a los reintentos
-)
-def task_run_omni_sniper(self, inst_id):
-    """
-    Motor Asíncrono Híbrido: Extrae Inteligencia (URL, Emails, Phones, LMS Stack).
-    Cuenta con inyección de estado en Caché (HTMX Ready), bloqueos transaccionales
-    y auto-curación ante caídas de red o bloqueos de Firewalls (WAF).
-    """
-    start_time = time.time()
-    log_prefix = f"[MISSION:{str(inst_id)[:8]}]"
-    
-    # 📡 [TELEMETRÍA EN VIVO]: Notifica al Frontend (C2) que el satélite está en posición
-    cache.set(f"telemetry_{inst_id}", [f"🛰️ {log_prefix} Uplink establecido. Motores listos."], timeout=1200)
-
-    try:
-        # 🛡️ 1. BLOQUEO TRANSACCIONAL ESTRICTO (ACID COMPLIANCE)
-        # select_for_update() bloquea la fila en la DB a nivel de kernel para que ningún
-        # otro worker o script sobreescriba esta institución mientras el Sniper trabaja.
-        with transaction.atomic():
-            try:
-                inst = Institution.objects.select_for_update(nowait=False).get(id=inst_id)
-            except Institution.DoesNotExist:
-                logger.error(f"❌ {log_prefix} Objetivo purgado del Vault. Abortando misión.")
-                return "ABORTED_NOT_FOUND"
-
-            target_query = (inst.website if inst.website else inst.name).strip()
-            geo_context = f"{inst.city or ''} {inst.country or ''}".strip()
-
-            logger.info(f"🎯 {log_prefix} INFILTRACIÓN INICIADA: {target_query} | Sector: {geo_context}")
-            cache.set(f"telemetry_{inst_id}", [f"🕵️‍♂️ Extrayendo inteligencia cruda de {target_query}..."], timeout=1200)
-
-            # 🧠 2. INSTANCIACIÓN DEL MOTOR DE VANGUARDIA
-            sniper_engine = SniperSearchView()
-
-            # 🕷️ 3. EJECUCIÓN DEL CRAWLER MULTI-VECTOR
-            data = sniper_engine.worker_scan(
-                target=target_query,
-                geo_context=geo_context,
-                city=inst.city or "",
-                country=inst.country or "Colombia",
-                use_email=True,
-                use_whatsapp=True,
-                use_lms=True
-            )
-
-            # 🔬 4. ANÁLISIS FORENSE Y MUTACIÓN DE DATOS
-            if data.get('dom') and not data.get('err'):
-                
-                # --- A. Higiene y Sanitización Estricta de Strings ---
-                clean_domain = data['dom'][:250].lower()
-                clean_email = data['ems'][0][:250].lower() if data.get('ems') else None
-                clean_phone = data['phs'][0][:45] if data.get('phs') else None
-                found_lms = str(data.get('lms', 'No detectado'))[:90]
-                has_lms_flag = (found_lms.lower() != "no detectado")
-
-                # --- B. Inyección Quirúrgica (Solo actualizamos lo que falta o mejora) ---
-                # Usamos update_fields para reducir la carga de IO en PostgreSQL/MySQL en un 95%
-                update_fields = ['updated_at', 'last_scored_at', 'discovery_source']
-                inst.last_scored_at = timezone.now()
-                inst.discovery_source = 'Ghost_V20'
-
-                if not inst.website or "http" not in inst.website:
-                    inst.website = clean_domain
-                    update_fields.append('website')
-
-                if clean_email and not inst.email:
-                    inst.email = clean_email
-                    update_fields.append('email')
-
-                if clean_phone and not inst.phone:
-                    inst.phone = clean_phone
-                    update_fields.append('phone')
-
-                # --- C. Motor de Puntuación Predictiva (Dynamic Lead Scoring) ---
-                # Aumentamos la prioridad de venta del colegio según la densidad de datos hallados
-                current_score = inst.lead_score
-                score_bump = 0
-                if clean_email and 'email' in update_fields: score_bump += 25
-                if clean_phone and 'phone' in update_fields: score_bump += 15
-                if has_lms_flag: score_bump += 40
-                
-                if score_bump > 0:
-                    inst.lead_score = min(current_score + score_bump, 100)
-                    update_fields.append('lead_score')
-
-                # Commit a la Base de Datos (Row Lock liberado tras esto)
-                inst.save(update_fields=update_fields)
-
-                # --- D. Creación/Actualización del Perfil Tecnológico ---
-                tech, tech_created = TechProfile.objects.get_or_create(institution=inst)
-                tech.lms_provider = found_lms
-                tech.has_lms = has_lms_flag
-                # Si encontramos redes sociales (socs), asumimos huella digital analítica
-                if data.get('socs'):
-                    tech.has_analytics = True 
-                tech.save()
-
-                # 📊 Telemetría de Victoria
-                elapsed = time.time() - start_time
-                logger.info(f"✅ {log_prefix} OPERACIÓN EXITOSA. URL: {clean_domain} | TTR: {elapsed:.2f}s")
-                cache.set(f"telemetry_{inst_id}", [f"✅ Extracción completada. URL: {clean_domain}", f"⚙️ Infraestructura: {found_lms.upper()}"], timeout=1200)
-
-                return {"status": "SUCCESS", "domain": clean_domain, "time": elapsed}
-
-            else:
-                # 🛑 Fallo Controlado (Falso Positivo o WAF Bloqueando)
-                err_msg = data.get('err', 'Identidad indetectable o escudo WAF activo.')
-                logger.warning(f"⚠️ {log_prefix} FALLO TÁCTICO: {err_msg}")
-                cache.set(f"telemetry_{inst_id}", [f"⚠️ Contramedida detectada: {err_msg[:60]}..."], timeout=1200)
-                
-                # Heurística: Si fue un bloqueo de red o un timeout, forzamos reintento
-                # Celery usará Exponential Backoff para volver a intentarlo más tarde con otra IP
-                if "timeout" in err_msg.lower() or "waf" in err_msg.lower() or "bloque" in err_msg.lower():
-                    raise RequestException("WAF/Timeout trigger para Exponential Backoff.")
-                    
-                return {"status": "FAILED", "reason": err_msg}
-
-    except DatabaseError as db_err:
-        # Caída de la base de datos o Deadlock detectado
-        logger.error(f"🔥 {log_prefix} Falla Crítica en Transacción DB: {db_err}")
-        cache.set(f"telemetry_{inst_id}", ["🔥 DB Deadlock. Recalibrando transacciones..."], timeout=1200)
-        raise self.retry(exc=db_err, countdown=20) # Retraso táctico para desatascar locks
-        
-    except (RequestException, TimeoutError) as net_err:
-        # Firewall o Red Inestable. Reintenta silenciosamente.
-        logger.warning(f"📡 {log_prefix} Interferencia de Red. Reintentando... (Intento {self.request.retries}/{self.max_retries})")
-        raise self.retry(exc=net_err)
-        
-    except SoftTimeLimitExceeded:
-        # El proceso lleva demasiado tiempo, se cierra elegantemente sin corromper la DB
-        logger.critical(f"⌛ {log_prefix} TIEMPO LÍMITE EXCEDIDO. Interrumpiendo ejecución.")
-        return {"status": "TIMEOUT_KILLED"}
-
-    except Exception as e:
-        # Error de Código Cero-Día
-        logger.critical(f"💀 {log_prefix} COLAPSO CATASTRÓFICO: {str(e)}", exc_info=True)
-        cache.set(f"telemetry_{inst_id}", [f"💀 Error Crítico del Sistema: {str(e)[:40]}"], timeout=1200)
-        
-        if self.request.retries < self.max_retries:
+@shared_task(bind=True, soft_time_limit=600, time_limit=660)
+def task_batch_score_leads(self, limit: int = 2000):
+    """Inferencia Masiva de Score de Ventas."""
+    db.close_old_connections()
+    with distributed_lock("mutex_ml_inference_lock", timeout=600) as acquired:
+        if not acquired: return "Locked."
+        try:
+            score_unrated_leads(limit=limit)
+            return "Inferencia complete."
+        except Exception as e:
             raise self.retry(exc=e)
-        return {"status": "CRITICAL_FAILURE", "error": str(e)}
-
-    finally:
-        # 🧹 5. PROTOCOLO DE LIMPIEZA INQUEBRANTABLE (KILL-SWITCH DE HTMX)
-        # Pase lo que pase (éxito o explosión nuclear), esta línea TIENE que ejecutarse
-        # para que la interfaz de usuario deje de girar y de mostrar "⏳ Analizando..."
-        cache.delete(f"scan_in_progress_{inst_id}")
-        logger.debug(f"🧹 {log_prefix} Lock de memoria caché destruido.")
+        finally:
+            gc.collect()

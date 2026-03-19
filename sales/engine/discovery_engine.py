@@ -15,6 +15,7 @@ from tenacity import (
     retry_if_exception_type,
     before_sleep_log
 )
+from asgiref.sync import sync_to_async
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils import timezone
@@ -42,7 +43,7 @@ class OSMDiscoveryEngine:
     Implementa Búsqueda Radial Ultraligera y Autocuración de Enjambre.
     """
     
-    # 🔥 Servidores saneados: Francia fue purgado por corrupción de DB.
+    # 🔥 Servidores saneados: Redundancia global para evadir baneos.
     OVERPASS_ENDPOINTS = [
         "https://overpass-api.de/api/interpreter",          # Alemania (Principal)
         "https://lz4.overpass-api.de/api/interpreter",      # Alemania (Backup de alta velocidad)
@@ -120,7 +121,6 @@ class OSMDiscoveryEngine:
                 
             return endpoint, data.get("elements", [])
         except Exception as e:
-            # Empaquetamos el error para saber qué nodo falló
             raise Exception(f"{str(e)}")
 
     @retry(
@@ -144,12 +144,11 @@ class OSMDiscoveryEngine:
             
             logger.info(f"🏎️ [SWARM] Desplegando enjambre hacia {len(self.OVERPASS_ENDPOINTS)} satélites mundiales...")
             
-            # as_completed entrega las tareas a medida que van terminando (exitosas o fallidas)
             for coro in asyncio.as_completed(tasks):
                 try:
                     winner_node, elements = await coro
                     
-                    # ¡Tenemos el PRIMER ganador SANO! Destruimos el resto de las tareas para liberar memoria y red.
+                    # Destruimos el resto de las tareas para liberar memoria y red.
                     for t in tasks:
                         if not t.done():
                             t.cancel()
@@ -159,11 +158,9 @@ class OSMDiscoveryEngine:
                     return elements
                     
                 except Exception as e:
-                    # Este nodo falló. Lo reportamos y el bucle sigue esperando al siguiente nodo rápido.
                     logger.warning(f"⚠️ [SWARM] Nodo ignorado por corrupción o timeout: {str(e)}")
                     continue
             
-            # Si el bucle termina y nadie retornó data, significa que todos fallaron.
             raise Exception("Todos los satélites del enjambre fallaron simultáneamente. Reiniciando...")
 
     def _sanitize_website(self, url: str) -> Optional[str]:
@@ -193,7 +190,7 @@ class OSMDiscoveryEngine:
         raw_string = f"{name.strip().lower()}|{city.strip().lower()}|{country.strip().lower()}"
         return hashlib.sha256(raw_string.encode('utf-8')).hexdigest()
 
-    def _normalize_stream(self, elements: List[Dict], city: str, country: str, state: str) -> Iterator[Institution]:
+    def _normalize_stream(self, elements: List[Dict], city: str, country: str) -> Iterator[Institution]:
         for element in elements:
             tags = element.get("tags", {})
             
@@ -229,52 +226,21 @@ class OSMDiscoveryEngine:
                 phone=phone,
                 institution_type=inst_type,
                 country=country,
-                state_region=state,
                 city=tags.get("addr:city", city), # Asignación de ciudad forzada al ancla
                 address=address[:250] if address else None,
                 latitude=lat,
                 longitude=lon,
                 discovery_source=Institution.DiscoverySource.OSM,
+                #processing_status=Institution.ProcessingStatus.RAW, # [GOD TIER FIX]: Forzamos estado RAW para el Sniper
+                processing_status='RAW',
                 is_private=True,
                 is_active=True
             )
 
-    def discover_and_inject(self, city: str, country: str, state: str = None):
-        logger.info(f"🚀 INICIANDO INGESTIÓN TOP-OF-FUNNEL: {city.upper()}, {country.upper()}")
-        
-        query = self._build_query(city, country)
-        
-        try:
-            raw_elements = asyncio.run(self._race_endpoints_async(query))
-        except Exception as e:
-            logger.error(f"❌ [CRÍTICO] Colapso total del Escudo OSM tras reintentos: {str(e)}")
-            return
-        
-        if not raw_elements:
-            logger.warning(f"📭 Escaneo Vectorial completado. No se detectaron instituciones en el radar para {city}.")
-            return
-
-        raw_instances = self._normalize_stream(raw_elements, city, country, state)
-        
-        unique_instances_map = {}
-        for inst in raw_instances:
-            fingerprint = self._generate_fingerprint(inst.name, inst.city, inst.country)
-            
-            if fingerprint not in unique_instances_map:
-                unique_instances_map[fingerprint] = inst
-            else:
-                existing = unique_instances_map[fingerprint]
-                if not existing.website and inst.website: existing.website = inst.website
-                if not existing.email and inst.email: existing.email = inst.email
-                if not existing.phone and inst.phone: existing.phone = inst.phone
-                    
-        instances = list(unique_instances_map.values())
+    @sync_to_async
+    def _save_to_db(self, instances: List[Institution], city: str) -> int:
+        """Capa de persistencia aislada para evitar bloqueos del ORM síncrono de Django."""
         total_valid = len(instances)
-        
-        if total_valid == 0:
-            logger.warning("🧹 Intersección estéril: Todos los registros fueron descartados.")
-            return
-
         logger.info(f"⚙️ Abriendo compuertas transaccionales. Volcando {total_valid} Leads a la BD...")
 
         try:
@@ -289,12 +255,13 @@ class OSMDiscoveryEngine:
             logger.info("=" * 70)
             logger.info(f"🏁 INGESTIÓN COMPLETADA CON ÉXITO: {city.upper()} | {total_valid} LEADS ASEGURADOS")
             logger.info("=" * 70)
+            return total_valid
             
         except Exception as e:
             logger.warning(f"⚠️ Caída del UPSERT Masivo ({str(e)}). Activando Protocolo Fallback Secuencial...")
-            self._fallback_sequential_inject(instances, city)
+            return self._fallback_sequential_inject(instances, city)
 
-    def _fallback_sequential_inject(self, instances: List[Institution], city: str):
+    def _fallback_sequential_inject(self, instances: List[Institution], city: str) -> int:
         inserted, updated, skipped = 0, 0, 0
         
         for inst in instances:
@@ -304,9 +271,10 @@ class OSMDiscoveryEngine:
                         name=inst.name, city=inst.city, country=inst.country,
                         defaults={
                             "website": inst.website, "phone": inst.phone, "email": inst.email,
-                            "institution_type": inst.institution_type, "state_region": inst.state_region,
+                            "institution_type": inst.institution_type,
                             "address": inst.address, "latitude": inst.latitude, "longitude": inst.longitude,
-                            "discovery_source": inst.discovery_source
+                            "discovery_source": inst.discovery_source,
+                            "processing_status": inst.processing_status
                         }
                     )
                     if created: inserted += 1
@@ -322,3 +290,47 @@ class OSMDiscoveryEngine:
         logger.info(f"🏁 PROTOCOLO DE CONTINGENCIA COMPLETADO: {city.upper()}")
         logger.info(f"🟢 Nuevos: {inserted} | 🟡 Actualizados: {updated} | 🔴 Descartados: {skipped}")
         logger.info("=" * 70)
+        return inserted + updated
+
+    async def run_radar(self, location_type: str, location_name: str, country: str = "Colombia") -> int:
+        """
+        [NÚCLEO RECONSTRUIDO]
+        Esta es la función exacta que Celery está llamando. Orquesta el escaneo y la inyección.
+        """
+        logger.info(f"🚀 INICIANDO INGESTIÓN TOP-OF-FUNNEL: {location_name.upper()}, {country.upper()}")
+        
+        query = self._build_query(location_name, country)
+        
+        try:
+            raw_elements = await self._race_endpoints_async(query)
+        except Exception as e:
+            logger.error(f"❌ [CRÍTICO] Colapso total del Escudo OSM tras reintentos: {str(e)}")
+            return 0
+        
+        if not raw_elements:
+            logger.warning(f"📭 Escaneo Vectorial completado. No se detectaron instituciones en el radar para {location_name}.")
+            return 0
+
+        raw_instances = self._normalize_stream(raw_elements, location_name, country)
+        
+        unique_instances_map = {}
+        for inst in raw_instances:
+            fingerprint = self._generate_fingerprint(inst.name, inst.city, inst.country)
+            
+            if fingerprint not in unique_instances_map:
+                unique_instances_map[fingerprint] = inst
+            else:
+                existing = unique_instances_map[fingerprint]
+                if not existing.website and inst.website: existing.website = inst.website
+                if not existing.email and inst.email: existing.email = inst.email
+                if not existing.phone and inst.phone: existing.phone = inst.phone
+                    
+        instances = list(unique_instances_map.values())
+        
+        if not instances:
+            logger.warning("🧹 Intersección estéril: Todos los registros fueron descartados.")
+            return 0
+
+        # Disparamos la inyección en la base de datos de manera segura (Sync-to-Async)
+        total_inserted = await self._save_to_db(instances, location_name)
+        return total_inserted

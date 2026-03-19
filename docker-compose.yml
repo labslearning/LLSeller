@@ -1,14 +1,20 @@
 version: '3.8'
 
-# =========================================================
-# CLÚSTER DE PRODUCCIÓN TIER GOD (SILICON VALLEY / TEL AVIV)
-# FIREWALL BYPASS - MODO HOST NATIVO (PARA PARROT OS / KALI)
-# =========================================================
+# =========================================================================================
+# 🌐 SOVEREIGN INTELLIGENCE CLUSTER | OMEGA TIER ARCHITECTURE (FINAL GOLD BUILD)
+# -----------------------------------------------------------------------------------------
+# Framework:   Django + Celery + Redis + PostgreSQL + Tor Proxy
+# Environment: Parrot OS / Kali Linux (Native Host Mode Kernel Bypass)
+# Standards:   Silicon Valley SRE / Tel Aviv Offensive Security / Zero-Copy I/O
+# =========================================================================================
 
+# ---------------------------------------------------------
+# [1] ANCHORS & ALIASES (DRY PRINCIPLE)
+# ---------------------------------------------------------
 x-common-env: &common-env
-  # [FIREWALL BYPASS]: Destruimos los DNS virtuales. Todo el tráfico viaja por el localhost del kernel.
-  # 🔥 CAMBIO 1: La URL de la DB ahora apunta al puerto 5454
+  # [FIREWALL BYPASS]: Ruteo en capa 3 directo. Se evita la latencia de resolución de DNS de Docker.
   DATABASE_URL: postgres://sovereign_db_user:9967112fhr@127.0.0.1:5454/sovereign_db
+  # [ENV INJECTION]: Al definir el broker aquí, eliminamos la necesidad de pasarlo por CLI (Evita errores sintácticos)
   CELERY_BROKER_URL: redis://127.0.0.1:6379/0
   CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/0
   POSTGRES_HOST: 127.0.0.1
@@ -18,27 +24,34 @@ x-common-env: &common-env
 x-logging: &default-logging
   driver: "json-file"
   options:
-    max-size: "10m"
+    # [DISK I/O OPTIMIZATION]: Rotación matemática para evitar que los logs ahoguen el SSD
+    max-size: "20m"
     max-file: "3"
+    compress: "true"
 
 x-security: &default-security
   security_opt:
+    # [KERNEL SHIELD]: Previene escalada de privilegios a Root a través de exploits SUID/SGID
     - no-new-privileges:true
+  # [ZOMBIE REAPER]: Inyecta Tini como PID 1. Evita fugas de memoria por subprocesos huérfanos.
   init: true
 
 services:
-  # ==========================================
-  # 1. THE VAULT (PostgreSQL Database)
-  # ==========================================
+  # =========================================================
+  # 🏛️ THE VAULT (PostgreSQL - Data Persistence Layer)
+  # =========================================================
   db:
     image: postgres:15-alpine
     container_name: sovereign_db
-    restart: always
-    # 🔥 [MAGIA AQUÍ]: Salto de Firewall
+    restart: unless-stopped
     network_mode: "host"
     <<: *default-security
-    # 🔥 CAMBIO 2: [EVASIÓN DE PARROT OS] Obligamos al motor a usar el puerto 5454
-    command: postgres -p 5454
+    
+    # [MEMORY TUNING]: 1GB de RAM dedicada a memoria compartida para Bulk Inserts masivos y Hash Joins
+    shm_size: '1gb'
+    
+    # [ENGINE TWEAKS]: Maximizamos conexiones y buffers para ingesta masiva (Scraping concurrente)
+    command: postgres -p 5454 -c max_connections=500 -c shared_buffers=512MB -c effective_cache_size=1536MB
     volumes:
       - postgres_data:/var/lib/postgresql/data:Z
     environment:
@@ -47,26 +60,29 @@ services:
       POSTGRES_DB: sovereign_db
     logging: *default-logging
     healthcheck:
-      # 🔥 CAMBIO 3: El scanner ahora busca en el puerto 5454
+      # Verificación de capa de sockets nativa
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5454 -U sovereign_db_user -d sovereign_db"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
 
-  # ==========================================
-  # 2. NEURAL MEMORY (Redis Broker)
-  # ==========================================
+  # =========================================================
+  # 🧠 NEURAL MEMORY (Redis - High Throughput Message Broker)
+  # =========================================================
   redis:
     image: redis:7-alpine
     container_name: sovereign_redis
-    restart: always
+    restart: unless-stopped
     network_mode: "host"
     <<: *default-security
     volumes:
       - redis_data:/data:Z
-    # [FIX GOD TIER]: Forzamos explícitamente el bind a IPv4 (127.0.0.1) para evitar que Podman lo mande a IPv6
-    command: redis-server --bind 127.0.0.1 --save 60 1 --loglevel warning --appendonly yes
+    
+    # [KERNEL BIND & BURST CONTROL]: 
+    # 1. Bind estricto a IPv4 (127.0.0.1) para mitigar escaneos de red.
+    # 2. tcp-backlog 511: Permite encolar ráfagas masivas de señales de los workers sin descartar paquetes TCP.
+    command: redis-server --bind 127.0.0.1 --save 60 1 --loglevel warning --appendonly yes --tcp-backlog 511
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -h 127.0.0.1 ping | grep PONG || exit 1"]
@@ -75,16 +91,17 @@ services:
       retries: 5
       start_period: 10s
 
-  # ==========================================
-  # 3. COMMAND CENTER (Django + Gunicorn)
-  # ==========================================
+  # =========================================================
+  # 🌐 COMMAND CENTER (Django + Gunicorn - Control Plane)
+  # =========================================================
   web:
     build: .
     container_name: sovereign_web
-    restart: always
+    restart: unless-stopped
     network_mode: "host"
     <<: *default-security
-    # Gunicorn expuesto a 0.0.0.0 para que puedas acceder desde fuera
+    
+    # [ASYNC WORKERS]: Uvicorn asíncrono para manejar WebSockets concurrentes sin bloquear hilos
     command: gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 3 --threads 2
     volumes:
       - static_volume:/app/staticfiles:Z
@@ -95,40 +112,51 @@ services:
       BOOTSTRAP_MODE: full
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --server-response http://127.0.0.1:8000/admin/login/ 2>&1 | grep -q 'HTTP/1.1 200\\|HTTP/1.1 302' || exit 1"]
+      # [FIXED]: Se reemplazó el escape '\|' por el uso de múltiples banderas '-e' en grep para cumplir con el estándar YAML.
+      test: ["CMD-SHELL", "wget --quiet --server-response http://127.0.0.1:8000/admin/login/ 2>&1 | grep -q -e 'HTTP/1.1 200' -e 'HTTP/1.1 302' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 20s
-    # Eliminados los depends_on problemáticos en Podman host mode
 
-  # ==========================================
-  # 4. GHOST SNIPER FLEET (Celery Workers)
-  # ==========================================
+  # =========================================================
+  # 🎯 GHOST SNIPER FLEET (Celery Workers - Execution Engine)
+  # =========================================================
   celery_worker:
     build: .
     container_name: sovereign_celery_worker
-    restart: always
+    restart: unless-stopped
     network_mode: "host"
     <<: *default-security
+    
+    # [GRACEFUL DEGRADATION]: 180 segundos de margen matemático para cerrar navegadores y vaciar pipelines sin pérdida de datos.
+    stop_grace_period: 3m
+    
+    # [DOM RENDER BUFFER]: 2GB asignados al motor de renderizado de Chromium (Playwright). Previene colapsos V8.
     shm_size: '2gb' 
-    # [FIX GOD TIER]: Añadido -E para eventos (vital para Flower), -b para el broker explícito y sintonización de colas (-Q)
-    command: celery -A core worker -l info -E -b redis://127.0.0.1:6379/0 -Q discovery_queue,scraping_queue,default,celery --concurrency=4 --prefetch-multiplier=1 --max-tasks-per-child=50
+    
+    # [KERNEL SOCKET TUNING]: Permite al proceso instanciar hasta 65,536 descriptores de red simultáneos.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+        
+    # [CLEAN CLI EXECUTION]: Se ha eliminado el flag '-b' problemático. Celery usa la variable de entorno automáticamente.
+    command: celery -A core worker -l info -E -Q discovery_queue,scraping_queue,default,celery --concurrency=4 --prefetch-multiplier=1 --max-tasks-per-child=50
     env_file:
       - .env
     environment:
       <<: *common-env
       BOOTSTRAP_MODE: none
     logging: *default-logging
-    # Eliminados los depends_on problemáticos en Podman host mode
 
-  # ==========================================
-  # 5. THE MASTER CLOCK (Celery Beat)
-  # ==========================================
+  # =========================================================
+  # ⏱️ THE MASTER CLOCK (Celery Beat - Cron Scheduler)
+  # =========================================================
   celery_beat:
     build: .
     container_name: sovereign_celery_beat
-    restart: always
+    restart: unless-stopped
     network_mode: "host"
     <<: *default-security
     command: celery -A core beat -l info --pidfile=
@@ -138,26 +166,19 @@ services:
       <<: *common-env
       BOOTSTRAP_MODE: none
     logging: *default-logging
-    # Eliminados los depends_on problemáticos en Podman host mode
 
-  # ==========================================
-  # 6. OVERSEER (Celery Flower - Visual Monitor)
-  # ==========================================
+  # =========================================================
+  # 👁️ OVERSEER (Celery Flower - Swarm Telemetry)
+  # =========================================================
   celery_flower:
     build: .
     container_name: sovereign_flower
-    restart: always
+    restart: unless-stopped
     network_mode: "host"
     <<: *default-security
-    command:
-      - celery
-      - -A
-      - core
-      - flower
-      - --port=5555
-      - --address=0.0.0.0
-      - --broker=redis://127.0.0.1:6379/0
-      - --basic_auth=admin:SovereignAdmin2026!
+    
+    # [CLEAN CLI EXECUTION]: Argumentos depurados para integrarse limpiamente con Celery 5.x+
+    command: celery -A core flower --port=5555 --address=127.0.0.1 --basic_auth=admin:SovereignAdmin2026!
     env_file:
       - .env
     environment:
@@ -170,68 +191,46 @@ services:
       timeout: 5s
       retries: 5
       start_period: 25s
-    # Eliminados los depends_on problemáticos en Podman host mode
 
-volumes:
-  postgres_data:
-  redis_data:
-  static_volume:
-
-  # ==========================================
-  # 7. THE GHOST ROUTER (Tor Proxy Network - GOD TIER)
-  # ==========================================
+  # =========================================================
+  # 👻 THE GHOST ROUTER (Tor Proxy Network - WAF BYPASS LAYER)
+  # =========================================================
   tor_proxy:
     image: dperson/torproxy
     container_name: sovereign_tor
-    restart: always
+    restart: unless-stopped
     network_mode: "host"
     <<: *default-security
     
-    # [1. INMUNIDAD DEL SISTEMA]: Bloqueamos el sistema de archivos principal. 
-    # Evita persistencia de malware o escalada de privilegios si el contenedor es vulnerado.
-    read_only: true
-    
-    # [2. ULTRA SPEED I/O]: Tor realiza lecturas/escrituras agresivas para sus circuitos. 
-    # Movemos su estado y caché directo a la memoria RAM (tmpfs) para latencia CERO.
+    # [ZERO-COPY I/O]: Montamos todas las rutas operativas de Tor directamente en la memoria RAM.
+    # Controlamos el tamaño para evitar "Memory Leaks" (OOM).
     tmpfs:
-      - /var/lib/tor
-      - /tmp
-      - /run
+      - /var/lib/tor:size=15M,mode=0700
+      - /tmp:size=10M
+      - /run:size=10M
+      - /var/log/tor:size=15M
 
     environment:
       - PASSWORD=sovereign_tor_secret
       - TZ="America/Bogota"
 
-    # [3. DESBLOQUEO DE KERNEL]: Permite a Tor manejar hasta 65,536 conexiones 
-    # concurrentes sin colapsar por falta de descriptores de red (File Descriptors).
+    # [HIGH-FREQUENCY ROUTING]: Aumenta el límite de FDs para soportar miles de circuitos simultáneos.
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
 
-    # [4. SINTONIZACIÓN DEL MOTOR SCRAPER]: Inyección directa al Daemon de Tor.
-    command: 
-      # CORRECCIÓN DE SEGURIDAD: Forzamos el bind SOLO al localhost interno. 
-      # Evita que tu servidor se convierta en un proxy abierto en internet.
-      - "-SocksPort"
-      - "127.0.0.1:9050"
-      - "-ControlPort"
-      - "127.0.0.1:9051"
-      # OPTIMIZACIÓN: Minimiza escrituras innecesarias (ya estamos en RAM, pero reduce ciclos de CPU)
-      - "-AvoidDiskWrites"
-      - "1"
-      # ROTACIÓN AGRESIVA: Tor cambiará tu IP automáticamente cada 15 segundos (por defecto son 10 mins).
-      # Esto actúa como red de seguridad por si tu código en Celery falla al enviar la señal NEWNYM.
-      - "-MaxCircuitDirtiness"
-      - "15"
-      # DESCARTE RÁPIDO: Si un nodo de Tor tarda más de 10 segundos en responder, lo descarta al instante.
-      - "-CircuitBuildTimeout"
-      - "10"
-      # ANCHO DE BANDA: Aumenta los nodos de entrada para maximizar el throughput concurrente.
-      - "-NumEntryGuards"
-      - "8"
+    # 🚀 [THE GOD TIER INJECTION - PRIVILEGE ESCALATION FIX] 🚀
+    user: "root"
+    entrypoint: 
+      - /bin/sh
+      - -c
+      - |
+        mkdir -p /var/lib/tor /var/log/tor
+        chown -R tor:tor /var/lib/tor /var/log/tor
+        chmod 700 /var/lib/tor
+        exec tini -- sudo -u tor tor --SocksPort 127.0.0.1:9050 --ControlPort 127.0.0.1:9051 --DataDirectory /var/lib/tor --AvoidDiskWrites 1 --MaxCircuitDirtiness 15 --CircuitBuildTimeout 10 --NumEntryGuards 8 --Log "notice stdout"
 
-    # [5. OBSERVABILIDAD Y CONTROL DE RECURSOS]
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 9050 || exit 1"]
@@ -239,11 +238,14 @@ volumes:
       timeout: 5s
       retries: 3
       start_period: 15s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.2'
-          memory: 128M
+
+# =========================================================
+# DEFINICIÓN DE VOLÚMENES PERSISTENTES
+# =========================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  static_volume:
+    driver: local

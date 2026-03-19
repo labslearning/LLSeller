@@ -2,16 +2,11 @@ import json
 import logging
 import uuid
 from typing import Any, Dict
-from django.db.models import FloatField
-from .models import Interaction
-
-from django.utils.html import format_html, mark_safe
-from django.db.models import F
 
 from django.contrib import admin, messages
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count, Q, F, Avg, Case, When, Value, IntegerField, Prefetch
+from django.db.models import Count, Q, F, Avg, Case, When, Value, IntegerField, FloatField, Prefetch
 from django.http import HttpResponseRedirect, HttpRequest, JsonResponse, HttpResponse
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
@@ -19,6 +14,7 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
+from django.utils.translation import gettext_lazy as _  # <--- [GOD TIER FIX: IMPORTACIÓN FALTANTE]
 from django.conf import settings
 from django.db.models.functions import Coalesce
 
@@ -31,11 +27,13 @@ from unfold.decorators import action, display
 # --- Importaciones locales ---
 from .models import (
     Institution, CommandCenter, TechProfile, DeepForensicProfile, 
-    GlobalPipeline, SniperConsole, GeoRadarWorkspace 
+    GlobalPipeline, SniperConsole, GeoRadarWorkspace, Interaction, Contact
 )
-from .engine.recon_engine import execute_recon, AIInsightsGenerator
+from .engine.recon_engine import execute_recon
 from .engine.serp_resolver import SERPResolverEngine
-from .tasks import task_run_osm_radar, task_run_serp_resolver, task_run_ghost_sniper, task_run_single_recon
+
+# Importaciones de tareas Celery (La Flota)
+from .tasks import task_run_osm_radar, task_run_serp_resolver, task_run_ghost_sniper_fleet, task_run_single_recon
 
 # ==========================================
 # TELEMETRÍA Y LOGGING CENTRALIZADO
@@ -86,6 +84,29 @@ class EnterpriseTechFilter(admin.SimpleListFilter):
             return queryset.filter(Q(tech_profile__has_lms=False) | Q(tech_profile__isnull=True))
         return queryset
 
+class AcademicCertificationFilter(admin.SimpleListFilter):
+    """[GOD TIER]: Filtro específico para encontrar los colegios Bilingües y con IB."""
+    title = '🎓 Nivel Académico (Sniper Data)'
+    parameter_name = 'academic_level'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('bilingual', '🗣️ Bilingües / Trilingües'),
+            ('ib_cert', '🏆 Certificación IB'),
+            ('cambridge', '🇬🇧 Cambridge / Oxford'),
+        )
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if val == 'bilingual':
+            return queryset.filter(Q(forensic_profile__is_bilingual=True) | Q(forensic_profile__is_trilingual=True))
+        if val == 'ib_cert':
+            return queryset.filter(forensic_profile__has_ib_cert=True)
+        if val == 'cambridge':
+            return queryset.filter(forensic_profile__has_cambridge_cert=True)
+        return queryset
+
+
 # ==========================================
 # 2. EL CENTRO DE MANDO B2B (THE GRID)
 # ==========================================
@@ -102,6 +123,7 @@ class GlobalPipelineAdmin(ModelAdmin):
     """
     list_display = (
         'display_institution_identity',
+        'data_density_badge',
         'advanced_recon_trigger',
         'display_intelligence_radar',
         'display_performance_score',
@@ -113,12 +135,10 @@ class GlobalPipelineAdmin(ModelAdmin):
     list_filter = (
         StrategicIntentFilter,
         EnterpriseTechFilter,
+        AcademicCertificationFilter,
+        'processing_status',
         'country',
-        'state_region',
         'city',
-        'institution_type',
-        'discovery_source',
-        'is_private'
     )
 
     search_fields = ('name', 'website', 'email', 'city', 'country')
@@ -137,18 +157,117 @@ class GlobalPipelineAdmin(ModelAdmin):
             'https://unpkg.com/htmx.org@1.9.10',
             'js/websocket_handler.js',)
 
+    def get_ordering(self, request):
+        """
+        [GOD TIER FIX] 
+        Al retornar una tupla vacía, le prohibimos a Django Admin que 
+        aplique su ordenamiento por defecto, obligándolo a respetar 
+        exclusivamente el order_by() de nuestro get_queryset.
+        """
+        return ()
+    
     def get_queryset(self, request):
+        from django.db.models import Case, When, Value, IntegerField, ExpressionWrapper, Q
+        
+        """
+        [GOD TIER ENGINE V7.0 - DATA DENSITY SCORING]
+        Calculadora de gravedad B2B. Suma atributos acumulativos y penaliza 
+        URLs basura o sin LMS. Los objetivos para la IA siempre estarán arriba.
+        """
         return super().get_queryset(request).select_related(
             'tech_profile', 'forensic_profile'
         ).annotate(
-            priority_rank=Case(
-                When(website__isnull=False, last_scored_at__isnull=False, then=Value(3)),
-                When(website__isnull=False, last_scored_at__isnull=True, then=Value(2)),
-                default=Value(1),
-                output_field=IntegerField(),
+            # 🧠 ALGORITMO DE DENSIDAD DE INTELIGENCIA ACUMULATIVO
+            data_density=ExpressionWrapper(
+                # 1. Munición Principal: Email validado (+20 pts)
+                Case(When(Q(email__isnull=False) & ~Q(email=''), then=Value(20)), default=Value(0)) +
+                
+                # 2. EL SANTO GRIAL: LMS Confirmado (+35 pts) -> REQUISITO CRÍTICO PARA LEARNING LABS
+                Case(
+                    When(
+                        Q(tech_profile__has_lms=True) & 
+                        Q(tech_profile__lms_provider__isnull=False) & 
+                        ~Q(tech_profile__lms_provider=''), 
+                        then=Value(35)
+                    ), 
+                    default=Value(0)
+                ) +
+                
+                # 3. Vector Secundario: Teléfono / WhatsApp (+10 pts)
+                Case(When(Q(phone__isnull=False) & ~Q(phone=''), then=Value(10)), default=Value(0)) +
+                
+                # 4. Presencia Digital: URL Confirmada por Levenshtein (+10 pts)
+                Case(When(Q(website__isnull=False) & ~Q(website=''), then=Value(10)), default=Value(0)) +
+                
+                # 5. INTELIGENCIA FORENSE STACKEABLE (¡Ahora sí se suman todos!)
+                # A. Nivel de Idioma
+                Case(
+                    When(forensic_profile__is_trilingual=True, then=Value(15)),
+                    When(forensic_profile__is_bilingual=True, then=Value(10)),
+                    default=Value(0)
+                ) +
+                # B. Certificación IB (+5 pts extra)
+                Case(When(forensic_profile__has_ib_cert=True, then=Value(5)), default=Value(0)) +
+                # C. Certificación Cambridge (+5 pts extra)
+                Case(When(forensic_profile__has_cambridge_cert=True, then=Value(5)), default=Value(0)) +
+                
+                # 6. MULTIPLICADORES DE ESTADO TÁCTICO (El toque final)
+                Case(
+                    When(processing_status='ENRICHED', then=Value(10)), # Bono por escaneo perfecto
+                    When(processing_status='DISCARDED', then=Value(-100)), # Penalización masiva a la basura
+                    default=Value(0)
+                ),
+                
+                output_field=IntegerField()
             )
-        ).order_by('-priority_rank', '-lead_score', '-updated_at')
+        ).order_by(
+            '-data_density',   # 🥇 PRIMERO: Los Dioses (LMS + Email + IB + Trilingüe = ~110 pts)
+            '-lead_score',     # 🥈 SEGUNDO: El Score predictivo
+            '-updated_at'      # 🥉 TERCERO: Los más frescos
+        )
+    
+    # ----------------------------------------------------------------------
+    # PEGA ESTO JUSTO DEBAJO DE TU get_queryset DENTRO DE GlobalPipelineAdmin
+    # ----------------------------------------------------------------------
+    @display(description="Data Density (Intel)", ordering='-data_density')
+    def data_density_badge(self, obj):
+        """
+        Renderiza el estado de inteligencia del objetivo.
+        Colores tipo Semáforo APT para rápida toma de decisiones.
+        """
+        score = getattr(obj, 'data_density', 0)
         
+        if score >= 80:
+            # Verde: Objetivo rico en inteligencia (Listo para IA)
+            color = "bg-[#022c22] text-[#34d399] border-[#10b981]"
+            shadow = "shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+            icon = "verified_user"
+        elif score >= 50:
+            # Naranja: Faltan datos (Quizás no hay email pero sí LMS)
+            color = "bg-amber-900/40 text-amber-400 border-amber-500/50"
+            shadow = ""
+            icon = "warning"
+        elif score > 0:
+            # Azul: Inteligencia mínima (Quizás solo URL y Teléfono)
+            color = "bg-blue-900/40 text-blue-400 border-blue-500/50"
+            shadow = ""
+            icon = "troubleshoot"
+        else:
+            # Gris oscuro: Fantasma (Solo Nombre y Ciudad)
+            color = "bg-slate-900/80 text-slate-500 border-slate-700"
+            shadow = ""
+            icon = "visibility_off"
+
+        return format_html(
+            f'<div class="flex items-center gap-1.5 w-fit px-2 py-1 rounded border {color} {shadow}">'
+            f'  <span class="material-symbols-outlined text-[13px]">{icon}</span>'
+            f'  <span class="text-[10px] font-black tracking-widest uppercase">{score} PTS</span>'
+            f'</div>'
+        )
+
+
+
+
     def changelist_view(self, request, extra_context=None):
         qs = self.get_queryset(request)
         metrics = qs.aggregate(
@@ -251,7 +370,6 @@ class GlobalPipelineAdmin(ModelAdmin):
 
     # ==========================================
     # CELDAS ESTÁTICAS - ANTI LAYOUT SHIFT
-    # Adiós a los flex-col conflictivos. Usamos DOM tradicional (<span>, <br>).
     # ==========================================
 
     @display(description='Identidad', ordering='name')
@@ -274,28 +392,14 @@ class GlobalPipelineAdmin(ModelAdmin):
 
     @display(description="Mando")
     def advanced_recon_trigger(self, obj) -> str:
-        """
-        [GOD TIER - APT LEVEL UI - ULTRA-STABLE]
-        Renderiza el panel de control táctico blindado contra bloqueos de Unfold/Django.
-        Optimizado para evasión de Form Hijacking, CSRF Blocks y DOM Layering.
-        """
-        from django.urls import reverse
-        from django.utils.html import format_html
-        
-        # Generación segura de URLs para HTMX (vía GET para máxima compatibilidad)
         url_sniper = reverse('admin:sales_globalpipeline_auto_sniper', args=[obj.pk])
         
-        # Clases base Tailwind con microinteracciones de grado militar
         btn_base = (
             "group relative inline-flex w-full items-center justify-start gap-2 px-3 py-1.5 mb-1.5 "
             "text-[10px] font-black uppercase tracking-[0.15em] rounded shadow-sm transition-all "
             "duration-300 overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
         )
 
-        # ==========================================
-        # 1. BOTÓN MAESTRO: OMNI SNIPER (Siempre Activo)
-        # ==========================================
-        # 🛠️ FIX: type="button" + hx-get + pointer-events-none
         sniper_btn = format_html(
             '<button type="button" hx-get="{url}" hx-target="#recon-panel-{pk}" hx-swap="outerHTML" '
             'hx-disabled-elt="this" '
@@ -312,9 +416,6 @@ class GlobalPipelineAdmin(ModelAdmin):
             classes=btn_base
         )
 
-        # ==========================================
-        # 2. BOTONES SECUNDARIOS TÁCTICOS (Condicionales)
-        # ==========================================
         secondary_btns = ""
         if obj.website:
             url_lms = reverse('admin:sales_globalpipeline_scan_lms', args=[obj.pk])
@@ -340,9 +441,6 @@ class GlobalPipelineAdmin(ModelAdmin):
                 classes=btn_base
             )
 
-        # ==========================================
-        # 3. ENSAMBLAJE DEL PANEL (Anti-Layout Shift)
-        # ==========================================
         return format_html(
             '<div id="recon-panel-{pk}" class="whitespace-nowrap min-w-[140px] flex flex-col '
             'animate-in fade-in zoom-in-95 duration-300 ease-out">'
@@ -354,12 +452,13 @@ class GlobalPipelineAdmin(ModelAdmin):
             secondary_btns=secondary_btns
         )
         
-    @display(description='Tecnología')
+    @display(description='Tecnología / Inteligencia')
     def display_intelligence_radar(self, obj):
         if not hasattr(obj, 'tech_profile') or not obj.tech_profile:
             return format_html('<div id="tech-radar-{}" class="whitespace-nowrap min-w-[100px]"><span class="text-xs text-gray-400 italic">Sin escanear</span></div>', obj.pk)
 
         tech = obj.tech_profile
+        forensic = getattr(obj, 'forensic_profile', None)
         badges = []
         b_class = "inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase text-white mb-1"
 
@@ -370,8 +469,11 @@ class GlobalPipelineAdmin(ModelAdmin):
         elif obj.last_scored_at:
             badges.append(format_html('<span class="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-300 mb-1">SIN LMS</span><br>'))
 
-        if tech.is_wordpress:
-            badges.append(format_html('<span class="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">WP</span>'))
+        if forensic:
+            if forensic.is_trilingual:
+                badges.append(format_html('<span class="inline-block px-2 py-0.5 mr-1 rounded text-[9px] font-bold uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">TRILINGÜE</span>'))
+            elif forensic.is_bilingual:
+                badges.append(format_html('<span class="inline-block px-2 py-0.5 mr-1 rounded text-[9px] font-bold uppercase bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">BILINGÜE</span>'))
 
         if not badges:
             return format_html('<div id="tech-radar-{}" class="whitespace-nowrap min-w-[100px]"><span class="text-xs text-gray-400 italic">-</span></div>', obj.pk)
@@ -382,9 +484,6 @@ class GlobalPipelineAdmin(ModelAdmin):
     def display_performance_score(self, obj):
         score = obj.lead_score or 0
         color = "text-emerald-600" if score >= 80 else "text-amber-500" if score >= 50 else "text-red-500"
-        
-        # ELIMINAMOS LA BARRA DE PROGRESO ANIMADA (EL VERDADERO CAUSANTE DEL GLITCH)
-        # Mostramos un indicador de puntos sólido, rápido e inquebrantable.
         return format_html(
             '<div id="score-panel-{}" class="whitespace-nowrap min-w-[60px]">'
             '  <strong class="text-sm {}">{} PTS</strong>'
@@ -473,7 +572,7 @@ class GlobalPipelineAdmin(ModelAdmin):
         for inst in queryset:
             if inst.website:
                 try:
-                    task_run_single_recon.delay(inst.id)
+                    task_run_single_recon.delay(str(inst.id))
                     success += 1
                 except Exception as e:
                     logger.error(f"Fallo en bulk recon {inst.name}: {e}")
@@ -483,21 +582,16 @@ class GlobalPipelineAdmin(ModelAdmin):
         self.message_user(request, f"🚀 Misión masiva completada: {success} encolados, {failed} fallos, {skipped} omitidos (Sin URL).")
 
     fieldsets = (
-        ('Identidad Estratégica', {'classes': ('tab',), 'fields': (('name', 'institution_type'), ('country', 'state_region', 'city'), ('address',), ('website', 'email', 'phone'),),}),
+        ('Identidad Estratégica', {'classes': ('tab',), 'fields': (('name', 'institution_type', 'processing_status'), ('country', 'state_region', 'city'), ('address',), ('website', 'email', 'phone'),),}),
         ('🧠 Sales Intelligence (AI Tier 2)', {'classes': ('tab',), 'fields': ('ai_executive_panel', 'ai_tactical_panel', 'ai_copywriting_panel')}),
         ('🔬 Analítica Base', {'classes': ('tab',), 'fields': (('lead_score', 'last_scored_at', 'discovery_source'),),}),
     )
 
     def run_auto_sniper(self, request, inst_id):
-        # 1. Bloqueamos la interfaz localmente
         cache.set(f"scan_in_progress_{inst_id}", True, timeout=300)
-        
-        # 2. Importamos y lanzamos la tarea que creamos en el Paso 1
-        from .tasks import task_run_omni_sniper
-        task_run_omni_sniper.delay(inst_id)
-        
-        # 3. Retornamos el snippet de HTMX que empezará a hacer "polling" automático
+        task_run_single_recon.delay(inst_id)
         return HttpResponse(self._get_polling_html(inst_id))
+
 
 # ==========================================
 # 3. DASHBOARD CENTRAL (COMMAND CENTER)
@@ -519,6 +613,7 @@ class CommandCenterAdmin(ModelAdmin):
         # === 1. MANEJO DE MISIONES (Botones de acción masiva) ===
         if request.method == "POST":
             action_type = request.POST.get('action_type')
+            
             mission_control = {
                 'radar': {
                     'task': task_run_osm_radar,
@@ -534,9 +629,9 @@ class CommandCenterAdmin(ModelAdmin):
                     'success_msg': "🔍 Escuadrón SERP resolviendo URLs en los clústers de búsqueda."
                 },
                 'sniper': {
-                    'task': task_run_ghost_sniper,
-                    'kwargs': {'limit': int(request.POST.get('limit', 30))},
-                    'success_msg': "🕵️‍♂️ Ghost Sniper activado. Extracción forense iniciada."
+                    'task': task_run_ghost_sniper_fleet, # Usa el Enjambre Anti-Duplicados
+                    'kwargs': {'limit': int(request.POST.get('limit', 500)), 'city': request.POST.get('city', '')},
+                    'success_msg': f"🕵️‍♂️ Flota Ghost Sniper activada. Escaneando {request.POST.get('limit', 500)} objetivos."
                 }
             }
 
@@ -545,10 +640,10 @@ class CommandCenterAdmin(ModelAdmin):
                 try:
                     mission['task'].delay(**mission['kwargs'])
                     self.message_user(request, mission['success_msg'], level='SUCCESS')
-                    cache.delete('b2b_dashboard_metrics') # Forzar recálculo del dashboard
+                    cache.delete('b2b_dashboard_metrics') # Forzar recálculo
                 except Exception as e:
-                    logger.critical(f"Falla de conexión con el Message Broker: {str(e)}")
-                    self.message_user(request, "🚨 ERROR CRÍTICO: Infraestructura Celery/Redis inalcanzable.", level='ERROR')
+                    logger.critical(f"Falla de conexión con Celery: {str(e)}")
+                    self.message_user(request, "🚨 ERROR CRÍTICO: Infraestructura Celery inalcanzable.", level='ERROR')
             return HttpResponseRedirect(request.path)
 
         # === 2. CÁLCULO ANALÍTICO DE ALTO RENDIMIENTO (BI) ===
@@ -558,7 +653,6 @@ class CommandCenterAdmin(ModelAdmin):
             metrics = None
 
         if not metrics:
-            # A. KPIs Generales (Tarjetas Superiores)
             base_metrics = Institution.objects.aggregate(
                 total_leads=Count('id'),
                 blind_leads=Count('id', filter=Q(website__isnull=True) | Q(website='')),
@@ -567,7 +661,6 @@ class CommandCenterAdmin(ModelAdmin):
                 private_schools=Count('id', filter=Q(is_private=True))
             )
 
-            # B. Market Share de LMS (Para gráfico de Dona)
             lms_distribution = list(Institution.objects.filter(tech_profile__isnull=False)
                 .annotate(
                     lms_clean=Case(
@@ -578,20 +671,18 @@ class CommandCenterAdmin(ModelAdmin):
                 )
                 .values('lms_clean')
                 .annotate(total=Count('id'))
-                .order_by('-total')[:6] # Agarra el Top 6 del mercado
+                .order_by('-total')[:6] 
             )
             
             lms_labels = [str(item['lms_clean']).upper() for item in lms_distribution]
             lms_data = [item['total'] for item in lms_distribution]
 
-            # C. Salud del Pipeline B2B (Para gráfico de Barras)
             pipeline_health = Institution.objects.aggregate(
                 hot=Count('id', filter=Q(lead_score__gte=75)),
                 warm=Count('id', filter=Q(lead_score__gte=40, lead_score__lt=75)),
                 cold=Count('id', filter=Q(lead_score__lt=40))
             )
 
-            # Empaquetamos todo y lo convertimos a JSON para JavaScript
             metrics = {
                 'kpis': base_metrics,
                 'lms_labels': json.dumps(lms_labels),
@@ -599,7 +690,7 @@ class CommandCenterAdmin(ModelAdmin):
                 'pipeline_data': json.dumps([pipeline_health['hot'], pipeline_health['warm'], pipeline_health['cold']])
             }
             try:
-                cache.set('b2b_dashboard_metrics', metrics, timeout=60) # Caché de 1 minuto para no saturar DB
+                cache.set('b2b_dashboard_metrics', metrics, timeout=60) 
             except Exception:
                 pass
 
@@ -613,13 +704,14 @@ class CommandCenterAdmin(ModelAdmin):
             'pipeline_data': metrics['pipeline_data']
         })
         return TemplateResponse(request, "admin/sales/commandcenter/dashboard.html", context)
+
+
 @admin.register(SniperConsole)
 class SniperConsoleAdmin(ModelAdmin):
     def has_add_permission(self, request): return False
     
     def changelist_view(self, request, extra_context=None):
         context = dict(self.admin_site.each_context(request))
-        # Mission ID único para aislar la telemetría en Redis y coordinar el Enjambre
         mission_id = str(uuid.uuid4())
         context.update({
             'title': mark_safe('<span class="flex items-center gap-2">🌌 Ghost Swarm <span class="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.3)]">V6.0 GOD-TIER</span></span>'),
@@ -636,18 +728,12 @@ class SniperConsoleAdmin(ModelAdmin):
         ] + urls
 
     def search_targets(self, request):
-        """
-        [OMNI-SEARCH & SWARM DETECTOR - Nivel God Tier]
-        Busca en vivo por nombre, URL o ciudad, y soporta pegado masivo de Excel.
-        Clasifica al instante entre "Conocidos" (Vault) y "Nuevos" (Zero-Day).
-        """
         query = request.GET.get('search_query', '').strip()
         mission_id = request.GET.get('mission_id', '')
 
         if len(query) < 3:
             return HttpResponse('<div class="flex items-center justify-center p-12 text-slate-500 font-mono text-xs uppercase tracking-widest"><span class="material-symbols-outlined mr-2">radar</span> Ingresa nombres, dominios o pega una lista separada por comas...</div>')
 
-        # Detección Multiobjetivo (Swarm Mode)
         raw_targets = [t.strip() for t in query.replace('\n', ',').split(',') if t.strip()]
         is_swarm = len(raw_targets) > 1
 
@@ -659,14 +745,12 @@ class SniperConsoleAdmin(ModelAdmin):
         known_targets, zero_day_targets = [], []
 
         for target in raw_targets:
-            # Búsqueda Vectorial Simulada (Cruce múltiple)
             db_match = Institution.objects.filter(Q(name__icontains=target) | Q(website__icontains=target) | Q(city__icontains=target)).first()
             if db_match:
                 known_targets.append(db_match)
             else:
                 zero_day_targets.append(target)
 
-        # 1. EN EL VAULT (Actualización/Confirmación)
         if known_targets:
             html_output += '<div class="space-y-2"><h4 class="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-sm">database</span> Registros Existentes (Re-Escanear)</h4>'
             for inst in known_targets:
@@ -683,7 +767,6 @@ class SniperConsoleAdmin(ModelAdmin):
                 '''
             html_output += '</div>'
 
-        # 2. ZERO-DAY TARGETS (Nuevos Objetivos)
         if zero_day_targets:
             html_output += '<div class="space-y-2 mt-4"><h4 class="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2"><span class="material-symbols-outlined text-sm">travel_explore</span> Zero-Day Targets (Extracción Profunda)</h4>'
             for z_target in zero_day_targets:
@@ -695,7 +778,6 @@ class SniperConsoleAdmin(ModelAdmin):
                 '''
             html_output += '</div>'
 
-        # 3. SWITCHES TÁCTICOS Y LANZAMIENTO
         target_payload = ",".join([str(t.id) for t in known_targets] + zero_day_targets)
         
         html_output += f'''
@@ -721,41 +803,29 @@ class SniperConsoleAdmin(ModelAdmin):
         return HttpResponse(html_output)
 
     def launch_sniper(self, request):
-        """
-        [LANZADOR ASÍNCRONO MULTIHILO]
-        Crea los registros faltantes y dispara MÚLTIPLES misiones de Celery en paralelo.
-        """
         mission_id = request.POST.get('mission_id')
         target_payload = request.POST.get('target_payload', '').split(',')
-        
-        # Opciones tácticas que puedes pasar a tus tareas de Celery en el futuro
-        # deep_scan = request.POST.get('deep_scan') == '1'
         
         active_ids = []
         for target in target_payload:
             target = target.strip()
             if not target: continue
 
-            # Instanciación Determinista
             if target.isdigit():
                 inst = Institution.objects.get(id=target)
             else:
                 is_url = target.startswith(('http', 'www.'))
                 if is_url:
-                    inst, _ = Institution.objects.get_or_create(website=target.lower(), defaults={'name': 'Validating Domain...', 'mission_id': mission_id})
+                    inst, _ = Institution.objects.get_or_create(website=target.lower(), defaults={'name': 'Validating Domain...', 'mission_id': mission_id, 'processing_status': 'RAW'})
                 else:
-                    inst, _ = Institution.objects.get_or_create(name=target, defaults={'mission_id': mission_id, 'discovery_source': 'manual'})
+                    inst, _ = Institution.objects.get_or_create(name=target, defaults={'mission_id': mission_id, 'discovery_source': 'manual', 'processing_status': 'RAW'})
             
             active_ids.append(inst.id)
-            
-            # Inicializamos Logs en Caché (Aislados por ID)
             cache.set(f"telemetry_{inst.id}", [f"🛰️ [GHOST SWARM] Enlazando objetivo...", "⚡ Evasión inicial iniciada..."], timeout=1200)
             cache.set(f"scan_in_progress_{inst.id}", True, timeout=1200)
             
-            # DISPARO PARALELO: Cada colegio va a un Worker distinto (DAG Deterministic)
             task_run_single_recon.delay(inst.id)
 
-        # Registramos todos los IDs en la misión maestra
         cache.set(f"swarm_mission_{mission_id}", active_ids, timeout=1200)
         telemetry_url = reverse('admin:sniper_telemetry', args=[mission_id])
         
@@ -774,10 +844,6 @@ class SniperConsoleAdmin(ModelAdmin):
         ''')
 
     def get_telemetry(self, request, mission_id):
-        """
-        [C2 TELEMETRY HUB]
-        Monitoreo simultáneo y en tiempo real de todo el enjambre de Celery.
-        """
         active_ids = cache.get(f"swarm_mission_{mission_id}", [])
         if not active_ids: return HttpResponse("<div>Error 404: Enlace satelital perdido.</div>")
 
@@ -815,7 +881,6 @@ class SniperConsoleAdmin(ModelAdmin):
         html_output += '</div>'
 
         if all_completed:
-            # Termina el polling HTMX y muestra tarjeta final maestra
             return HttpResponse(f'''
             <div class="mb-6 p-6 border border-emerald-500/50 bg-[#010a05] rounded-2xl flex flex-col md:flex-row justify-between items-center shadow-[0_0_40px_rgba(16,185,129,0.15)] animate-in zoom-in duration-700">
                 <div class="mb-4 md:mb-0 text-center md:text-left">
@@ -831,7 +896,6 @@ class SniperConsoleAdmin(ModelAdmin):
             {html_output}
             ''')
         else:
-            # Polling HTMX Continúa
             return HttpResponse(html_output)
 
 
@@ -857,37 +921,153 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
         mission_id = request.POST.get('mission_id')
         task_run_osm_radar.delay(country, city, mission_id)
         return HttpResponse('<div class="p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl animate-pulse text-purple-400 text-xs font-bold uppercase tracking-widest flex items-center gap-3"><span class="material-symbols-outlined animate-spin">sync</span> Satélite OSM Desplegado. Barrido en progreso...</div>')
-
+   
     def get_radar_results(self, request, mission_id):
-        results = Institution.objects.filter(mission_id=mission_id).order_by('-created_at')
-        count = results.count()
-        html_counter = f'<div id="result-counter" hx-swap-oob="true" class="bg-black px-4 py-2 rounded-full border border-white/5 font-mono text-[10px] text-purple-400">{count} OBJETIVOS DETECTADOS</div>'
+        from django.urls import reverse
+        from django.http import HttpResponse
         
-        table_rows = "".join([f'<tr class="border-b border-white/5 hover:bg-white/[0.02] transition-colors"><td class="p-4 text-xs font-bold text-white uppercase">{i.name}</td><td class="p-4 text-[10px] text-slate-500 font-mono uppercase">{i.city}</td><td class="p-4 text-right"><a href="{reverse("admin:sales_globalpipeline_change", args=[i.id])}" class="bg-white text-black px-3 py-1 rounded text-[9px] font-black hover:bg-purple-600 hover:text-white transition-all uppercase">Ver Perfil</a></td></tr>' for i in results])
-        table_html = f'<table class="w-full text-left"><thead><tr class="bg-[#0d0d0d] text-[10px] uppercase text-slate-500 font-black"><th class="p-4 text-xs">Institución</th><th class="p-4 text-xs">Ciudad</th><th class="p-4 text-right text-xs">Acción</th></tr></thead><tbody>{table_rows}</tbody></table>'
+        # [GOD TIER OPTIMIZATION]: Pre-fetch total
+        results = Institution.objects.filter(mission_id=mission_id).select_related(
+            'tech_profile', 'forensic_profile'
+        ).order_by('-created_at')
+        
+        count = results.count()
+        
+        # 1. Contador HTMX
+        html_counter = f'''
+        <div id="result-counter" hx-swap-oob="true" 
+             class="bg-[#022c22] px-4 py-2 rounded-lg border border-emerald-700/50 font-mono text-[11px] font-black text-emerald-400 tracking-[0.2em] shadow-[inset_0_0_10px_rgba(16,185,129,0.2)]">
+            {count} TARGETS ASEGURADOS
+        </div>
+        '''
+        
+        table_rows = []
+        for i in results:
+            # --- A. URL / RED ---
+            if i.website:
+                clean_url = i.website.replace("https://","").replace("http://","").replace("www.","").split("/")[0]
+                url_display = f'<a href="{i.website}" target="_blank" class="url-link">{clean_url}</a>'
+            else:
+                url_display = '<span class="text-slate-600 text-[10px] font-mono italic flex items-center gap-1"><span class="material-symbols-outlined text-[12px] animate-spin">radar</span> Buscando...</span>'
+            
+            # --- B. LMS CLASSIFICATION ENGINE (Global & LatAm Focus) ---
+            lms_badge = '<span class="badge-lms-none animate-pulse">⏳ INFILTRANDO...</span>'
+            if hasattr(i, 'tech_profile') and i.tech_profile:
+                if i.tech_profile.lms_provider:
+                    lms = i.tech_profile.lms_provider.upper()
+                    
+                    # Motor de Tinte Dinámico según plataforma
+                    if 'MOODLE' in lms: 
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#f59e0b20; color:#fbbf24; border-color:#f59e0b40;">🟠 {lms}</span>'
+                    elif 'PHIDIAS' in lms: 
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#8b5cf620; color:#c084fc; border-color:#8b5cf640;">🟣 {lms}</span>'
+                    elif 'CANVAS' in lms: 
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#ef444420; color:#f87171; border-color:#ef444440;">🔴 {lms}</span>'
+                    elif 'SCHOOLNET' in lms: 
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#0ea5e920; color:#38bdf8; border-color:#0ea5e940;">🔵 {lms}</span>'
+                    elif 'CIBERCOLEGIOS' in lms:
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#14b8a620; color:#2dd4bf; border-color:#14b8a640;">🟢 CIBERCOLEGIOS</span>'
+                    elif 'SISTEMA SABERES' in lms or 'SABERES' in lms:
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#f9731620; color:#fb923c; border-color:#f9731640;">🟧 SABERES</span>'
+                    elif 'COLEGIOS COLOMBIA' in lms or 'CIUDAD EDUCATIVA' in lms:
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#eab30820; color:#facc15; border-color:#eab30840;">🟨 CIUDAD ED.</span>'
+                    elif 'SIGA' in lms:
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#6366f120; color:#818cf8; border-color:#6366f140;">🟦 SIGA</span>'
+                    elif 'BLACKBOARD' in lms:
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#3f3f4620; color:#a1a1aa; border-color:#3f3f4640;">⚫ BLACKBOARD</span>'
+                    elif 'GOOGLE CLASSROOM' in lms:
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#10b98120; color:#34d399; border-color:#10b98140;">📗 G-CLASSROOM</span>'
+                    else: 
+                        lms_badge = f'<span class="badge-lms-custom" style="background:#64748b20; color:#cbd5e1; border-color:#64748b40;">🔘 {lms}</span>'
+                
+                elif getattr(i.tech_profile, 'has_lms', None) == False:
+                    lms_badge = '<span class="badge-lms-none">❌ SIN LMS</span>'
+
+            # --- C. INTELIGENCIA FORENSE (Idiomas y Certificaciones) ---
+            lang_badges = []
+            if hasattr(i, 'forensic_profile') and i.forensic_profile:
+                # Idiomas
+                if getattr(i.forensic_profile, 'is_trilingual', False): 
+                    lang_badges.append('<span class="badge-lang" style="background:#f59e0b20; color:#fbbf24; border-color:#f59e0b40;">🌟 TRILINGÜE</span>')
+                elif getattr(i.forensic_profile, 'is_bilingual', False): 
+                    lang_badges.append('<span class="badge-lang" style="background:#10b98120; color:#34d399; border-color:#10b98140;">⭐ BILINGÜE</span>')
+                
+                # Certificaciones Críticas
+                if getattr(i.forensic_profile, 'has_ib_cert', False): 
+                    lang_badges.append('<span class="badge-lang" style="background:#db277720; color:#f472b6; border-color:#db277740;">🏆 IB BACHILLERATO</span>')
+                if getattr(i.forensic_profile, 'has_cambridge_cert', False): 
+                    lang_badges.append('<span class="badge-lang" style="background:#1e3a8a40; color:#60a5fa; border-color:#1e3a8a80;">🇬🇧 CAMBRIDGE</span>')
+                if getattr(i.forensic_profile, 'has_efqm_cert', False):
+                    lang_badges.append('<span class="badge-lang" style="background:#6366f120; color:#818cf8; border-color:#6366f140;">💎 EFQM</span>')
+
+            lang_html = '<div class="flex flex-wrap gap-1.5 max-w-[200px]">' + " ".join(lang_badges) + '</div>' if lang_badges else '<span class="text-slate-600 text-[10px] font-mono italic">Escaneando HTML...</span>'
+
+            # --- D. VECTORES DE CONTACTO ---
+            contact_html = ""
+            if getattr(i, 'email', None):
+                contact_html += f'<div class="text-emerald-400 text-[10px] font-mono truncate max-w-[140px]" title="{i.email}">📧 {i.email}</div>'
+            if getattr(i, 'phone', None):
+                contact_html += f'<div class="text-emerald-500 text-[10px] font-mono mt-0.5">💬 {i.phone}</div>'
+            
+            if not contact_html:
+                contact_html = '<span class="text-slate-600 text-[10px] font-mono italic">Buscando endpoints...</span>'
+
+            # --- E. BOTÓN INDIVIDUAL (FORCE SCAN) ---
+            profile_url = reverse("admin:sales_globalpipeline_change", args=[i.id])
+            sniper_url = reverse("admin:sales_globalpipeline_auto_sniper", args=[i.id]) 
+            
+            row = f'''
+            <tr>
+                <td class="col-name">
+                    <div class="flex flex-col">
+                        <span class="truncate max-w-[220px]" title="{i.name}">{i.name}</span>
+                        <span class="text-[9px] text-slate-500 font-mono mt-0.5 uppercase tracking-widest">{i.city}</span>
+                    </div>
+                </td>
+                <td>{url_display}</td>
+                <td>{lms_badge}</td>
+                <td>{lang_html}</td>
+                <td>{contact_html}</td>
+                <td class="text-right">
+                    <div class="flex items-center justify-end gap-2">
+                        <a href="{profile_url}" target="_blank" class="bg-[#111] text-slate-400 hover:text-white px-3 py-1.5 rounded text-[9px] font-black uppercase tracking-widest transition-all border border-slate-700 hover:border-slate-500">
+                            Vault
+                        </a>
+                        <button hx-get="{sniper_url}" hx-swap="none" onclick="this.innerHTML='<span class=\\'material-symbols-outlined text-[12px] animate-spin\\'>sync</span> EJECUTANDO'; this.classList.add('opacity-50')" class="btn-individual-scan">
+                            <span class="material-symbols-outlined text-[12px]">my_location</span> Sniper
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            '''
+            table_rows.append(row)
+            
+        rows_html = "".join(table_rows)
+        
+        table_html = f'''
+        <table class="w-full text-left">
+            <thead>
+                <tr>
+                    <th>Target (Institución)</th>
+                    <th>Vector (URL)</th>
+                    <th>Tecnología (LMS)</th>
+                    <th>Nivel Académico (IB/Idiomas)</th>
+                    <th>Contactos</th>
+                    <th class="text-right">Acción Manual</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows_html}
+            </tbody>
+        </table>
+        '''
         return HttpResponse(f'{html_counter}{table_html}')
+    
 
-    # ==========================================
-# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES)
-# ==========================================
-# ==========================================
-# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES)
-# ==========================================
 
-# ==========================================
-# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES)
-# ==========================================
-# ==========================================
-# 4. BÓVEDA FORENSE (LOG DE INTERACCIONES)
-# ==========================================
 # ==========================================
 # 4. BÓVEDA FORENSE (LOG DE INTERACCIONES / FULL THREAD)
 # ==========================================
-from django.db.models import F
-from django.utils.html import format_html, mark_safe
-from django.utils.translation import gettext_lazy as _
-from .models import Interaction
-
 class EngagementFilter(admin.SimpleListFilter):
     """Filtro Heurístico de Temperatura Operativa."""
     title = '🔥 Temperatura del Lead'
@@ -908,7 +1088,6 @@ class EngagementFilter(admin.SimpleListFilter):
         if val == 'dormant': return queryset.filter(status__in=['NEW', 'SENT'])
         if val == 'compromised': return queryset.filter(status__in=['BOUNCED', 'FAILED'])
         return queryset
-
 
 @admin.register(Interaction)
 class InteractionAdmin(ModelAdmin):
@@ -1033,7 +1212,6 @@ class InteractionAdmin(ModelAdmin):
         subject_clean = obj.subject.replace('[EMAIL] ', '').replace('[WHATSAPP] ', '') if obj.subject else "NULL_SUBJECT"
         body_clean = obj.message_sent[:85] + "..." if obj.message_sent and len(obj.message_sent) > 85 else (obj.message_sent or "NO_DATA")
         
-        # Si el cliente respondió, mostramos un tag visual en la tabla
         reply_badge = ""
         if obj.status == 'REPLIED':
             reply_badge = '<span class="inline-block mt-1 bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 text-[9px] px-1 rounded font-bold tracking-widest uppercase">Respuesta Capturada</span>'
@@ -1086,8 +1264,6 @@ class InteractionAdmin(ModelAdmin):
         target_name = obj.contact.name if obj.contact else "Contacto"
         out_time = obj.created_at.strftime("%d %b %Y, %H:%M:%S UTC") if obj.created_at else "---"
         
-        # Extracción dinámica del mensaje de respuesta (INBOUND)
-        # Busca posibles campos en tu modelo de base de datos donde se guarde la respuesta
         inbound_content = getattr(obj, 'message_received', getattr(obj, 'reply_text', getattr(obj, 'inbound_payload', None)))
         in_time = obj.updated_at.strftime("%d %b %Y, %H:%M:%S UTC") if obj.updated_at else "---"
 
@@ -1114,7 +1290,6 @@ class InteractionAdmin(ModelAdmin):
         # BLOQUE 2: RESPUESTA DEL CLIENTE (INBOUND - HUMANO)
         inbound_html = ""
         if obj.status in ['REPLIED', 'MEETING']:
-            # Si no hay un campo dedicado a guardar el texto exacto, mostramos una alerta forense
             display_reply = inbound_content.replace('\n', '<br>') if inbound_content else "<i>[El texto de respuesta fue procesado por el Neural Engine, pero no se almacenó el payload crudo en la base de datos de Interacciones. El sistema determinó que el Lead es positivo.]</i>"
             
             inbound_html = f"""
@@ -1150,7 +1325,6 @@ class InteractionAdmin(ModelAdmin):
             </div>
             """
 
-        # ENSAMBLAJE DEL COMUNICADOR
         return format_html(
             '<div class="bg-[#050505] p-6 rounded-2xl border border-white/5 max-w-4xl mx-auto shadow-2xl">'
             '  <div class="mb-4 flex items-center gap-2 border-b border-white/5 pb-3">'

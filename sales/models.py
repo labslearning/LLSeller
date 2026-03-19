@@ -1,112 +1,142 @@
 import uuid
+import re
 from django.db import models
-from django.core.validators import MinValueValidator, MaxValueValidator
-from django.db.models import Count, Q, Avg, CheckConstraint
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
+from django.db.models import Count, Q, Avg, CheckConstraint, F
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 
-# ==========================================
-# 0. CORE: CLASE BASE (DRY)
-# ==========================================
+# ======================================================================
+# 0. CORE: ABSTRACT BASE (AUDIT TRAIL & DDD)
+# ======================================================================
 
 class TimeStampedModel(models.Model):
     """
-    Clase base abstracta. Otorga trazabilidad cronológica (Audit Trail)
-    a nivel de base de datos para cada registro del sistema.
+    [God Tier Audit Trail]
+    Capa de inmutabilidad base. Utiliza db_index estratégico para
+    consultas temporales y limpieza de registros (TTL Policies).
     """
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(
+        auto_now_add=True, 
+        db_index=True,
+        db_comment="Timestamp inmutable de creación (UTC)."
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        db_comment="Timestamp dinámico de última mutación (UTC)."
+    )
 
     class Meta:
         abstract = True
 
 
-# ==========================================
-# 1. TIER 0: MASTER ENTITY (INSTITUTION)
-# ==========================================
+# ======================================================================
+# 1. TIER 0: MASTER NODE (INSTITUTION & STATE MACHINE)
+# ======================================================================
 
 class Institution(TimeStampedModel):
     """
-    [Master Node]
-    Representa a la empresa o colegio prospecto. Mantiene solo la información 
-    de enrutamiento básico (Identity & Routing). Los datos pesados se delegan a los perfiles OneToOne.
+    [C2 Master Node & State Machine]
+    Controla el flujo de trabajo (Radar -> Sniper -> AI Outreach).
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    mission_id = models.UUIDField(null=True, blank=True, db_index=True, verbose_name="ID de Misión")
+    mission_id = models.UUIDField(
+        null=True, blank=True, db_index=True, 
+        verbose_name="ID de Misión/Batch",
+        db_comment="Agrupador lógico para campañas Celery (Swarm ID)."
+    )
     
     class InstitutionType(models.TextChoices):
-        KINDERGARTEN = 'kindergarten', 'Jardín Infantil / Preescolar'
-        SCHOOL = 'school', 'Colegio (Básica/Media)'
-        UNIVERSITY = 'university', 'Universidad / Educación Superior'
-        INSTITUTE = 'institute', 'Instituto Técnico / Tecnológico'
-        OTHER = 'other', 'Otro'
+        KINDERGARTEN = 'kindergarten', _('Jardín Infantil / Preescolar')
+        SCHOOL = 'school', _('Colegio (Básica/Media)')
+        UNIVERSITY = 'university', _('Universidad / Educación Superior')
+        INSTITUTE = 'institute', _('Instituto Técnico / Tecnológico')
+        OTHER = 'other', _('Otro')
 
     class DiscoverySource(models.TextChoices):
-        OSM = 'osm', 'OpenStreetMap'
-        GOV_DATA = 'gov_data', 'Directorio Gubernamental'
-        SERP = 'serp', 'Buscador (Web Scraping)'
-        MANUAL = 'manual', 'Ingreso Manual / CRM'
+        OSM = 'osm', _('OpenStreetMap (GeoRadar)')
+        GOV_DATA = 'gov_data', _('Directorio Gubernamental')
+        SERP = 'serp', _('SERP Engine (Web Scraping)')
+        MANUAL = 'manual', _('CRM Inbound / Manual')
+        GHOST = 'Ghost_V20', _('Ghost Sniper V20 (Autonomous)')
+
+    # [GOD TIER: STATE MACHINE] Control de flujo anti-duplicación
+    class ProcessingStatus(models.TextChoices):
+        RAW_RADAR = 'RAW', _('Crudo (Solo Mapa/Radar)')
+        SNIPER_LOCKED = 'LOCKED', _('Bloqueado (Sniper Extrayendo)')
+        ENRICHED = 'ENRICHED', _('Enriquecido (Listo para Ventas)')
+        DISCARDED = 'DISCARDED', _('Descartado (Falso Positivo/Caído)')
+
+    processing_status = models.CharField(
+        max_length=20, choices=ProcessingStatus.choices,
+        default=ProcessingStatus.RAW_RADAR, db_index=True,
+        verbose_name="Estado en Pipeline"
+    )
 
     # --- IDENTIDAD Y CONTACTO BÁSICO ---
     name = models.CharField(max_length=255, verbose_name="Nombre de la Institución")
-    website = models.URLField(max_length=255, unique=True, null=True, blank=True, verbose_name="Sitio Web")
-    email = models.EmailField(blank=True, null=True, verbose_name="Email Principal")
-    phone = models.CharField(max_length=50, blank=True, null=True, verbose_name="Teléfono Principal")
+    
+    website = models.URLField(
+        max_length=255, unique=True, null=True, blank=True, 
+        verbose_name="Sitio Web Oficial"
+    )
+    
+    # Índice de confianza de URL (Evita atacar URLs basura como directorios)
+    url_trust_score = models.FloatField(
+        default=0.0, validators=[MinValueValidator(0.0), MaxValueValidator(100.0)],
+        help_text="Heurística de Levenshtein (Qué tan real es la URL)",
+        db_comment="Filtro matemático para descartar Falsos Positivos de URLs antes del Scrape."
+    )
+    
+    email = models.EmailField(blank=True, null=True, verbose_name="Email Principal (Sanitizado)")
+    phone = models.CharField(
+        max_length=50, blank=True, null=True, verbose_name="Línea Directa / PBX",
+        validators=[RegexValidator(r'^\+?1?\d{8,15}$', message="Formato E.164 o local válido requerido.")]
+    )
     
     # --- CLASIFICACIÓN DE NEGOCIO (B2B TARGETING) ---
     institution_type = models.CharField(
-        max_length=20, 
-        choices=InstitutionType.choices, 
-        default=InstitutionType.SCHOOL, 
-        verbose_name="Nivel Educativo"
+        max_length=20, choices=InstitutionType.choices, 
+        default=InstitutionType.SCHOOL, db_index=True
     )
-    is_private = models.BooleanField(default=True, db_index=True, verbose_name="Es Privada")
-    student_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Estudiantes Estimados")
+    is_private = models.BooleanField(default=True, db_index=True)
+    student_count = models.PositiveIntegerField(null=True, blank=True)
 
     # --- GEOLOCALIZACIÓN Y TERRITORIOS ---
-    country = models.CharField(max_length=100, db_index=True, default="Colombia", verbose_name="País")
-    state_region = models.CharField(max_length=100, blank=True, null=True, db_index=True, verbose_name="Estado / Región")
-    city = models.CharField(max_length=100, db_index=True, verbose_name="Ciudad / Municipio")
-    address = models.CharField(max_length=255, blank=True, null=True, verbose_name="Dirección Física")
-    latitude = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True, verbose_name="Latitud")
-    longitude = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True, verbose_name="Longitud")
+    country = models.CharField(max_length=100, db_index=True, default="Colombia")
+    state_region = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    city = models.CharField(max_length=100, db_index=True)
+    address = models.CharField(max_length=255, blank=True, null=True)
+    latitude = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True)
+    longitude = models.DecimalField(max_digits=11, decimal_places=8, blank=True, null=True)
 
     # --- TRAZABILIDAD Y CRM ROUTING ---
-    discovery_source = models.CharField(
-        max_length=20, 
-        choices=DiscoverySource.choices, 
-        default=DiscoverySource.MANUAL, 
-        verbose_name="Origen del Dato"
-    )
-    is_active = models.BooleanField(default=True, db_index=True, verbose_name="Activo en CRM")
-    
-    # Conservamos el Score y Last Scanned aquí porque se usan agresivamente para Order By y Filtros Rápidos
-    last_scored_at = models.DateTimeField(blank=True, null=True, verbose_name="Último Escaneo")
+    discovery_source = models.CharField(max_length=20, choices=DiscoverySource.choices, default=DiscoverySource.MANUAL)
+    is_active = models.BooleanField(default=True, db_index=True)
+    last_scored_at = models.DateTimeField(blank=True, null=True, db_index=True)
     
     lead_score = models.IntegerField(
-        default=0, 
-        db_index=True,
+        default=0, db_index=True,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
-        verbose_name="Score de Venta (0-100)"
+        db_comment="Termómetro de Venta Predictivo (0-100)."
     )
     
-    # [KILL-SWITCH] Freno para que la Cadencia 2 no le siga escribiendo si ya se contactó/respondió
-    contacted = models.BooleanField(
-        default=False, 
-        db_index=True, 
-        verbose_name="Fase 1 Completada"
-    )
+    contacted = models.BooleanField(default=False, db_index=True)
 
     class Meta:
         verbose_name = "Institución Educativa"
         verbose_name_plural = "Instituciones Educativas"
-        ordering = ['-lead_score']
+        ordering = ['-lead_score', '-updated_at']
         
         indexes = [
-            # Índice compuesto táctico para el Dashboard
+            models.Index(fields=['processing_status', 'city']), # Acelera la consulta "Dame 500 de Cajicá crudos"
             models.Index(fields=['-lead_score', 'contacted', 'is_active']),
-            # Índice principal para el Buscador Geográfico Mundial
             models.Index(fields=['country', 'state_region', 'city']),
+            models.Index(
+                fields=['processing_status', 'website'], 
+                name='idx_sniper_queue',
+                condition=Q(is_active=True) & Q(website__isnull=False) & Q(processing_status='RAW')
+            ),
         ]
         
         constraints = [
@@ -121,25 +151,38 @@ class Institution(TimeStampedModel):
         ]
 
     def __str__(self):
-        return f"{self.name} ({self.lead_score} pts) - {self.city}"
+        return f"{self.name} | Score: {self.lead_score} | {self.city}"
+
+    def lock_for_sniper(self):
+        """[DDD] Bloquea el registro para que ningún otro worker lo procese concurrente."""
+        self.processing_status = self.ProcessingStatus.SNIPER_LOCKED
+        self.save(update_fields=['processing_status', 'updated_at'])
+
+    def escalate_lead(self, points: int):
+        self.lead_score = min(self.lead_score + points, 100)
+        self.save(update_fields=['lead_score', 'updated_at'])
 
 
-# ==========================================
-# 2. TIER 1 & 2: MODULAR INTELLIGENCE PROFILES
-# ==========================================
+# ======================================================================
+# 2. TIER 1 & 2: OMNI-RECON PROFILES
+# ======================================================================
 
 class TechProfile(TimeStampedModel):
     """
-    [Tier 1: Fast Recon]
-    Almacena los resultados del escaneo ligero de infraestructura tecnológica (LMS, CMS, Analytics).
-    Separado de la institución para no saturar la tabla principal.
+    [Tier 1: Tech Stack Recon]
+    Vector de ataque tecnológico (LMS, CMS, etc).
     """
-    institution = models.OneToOneField(Institution, on_delete=models.CASCADE, related_name='tech_profile')
+    institution = models.OneToOneField(
+        Institution, on_delete=models.CASCADE, 
+        related_name='tech_profile',
+        related_query_name='tech_profile'
+    )
     
     has_lms = models.BooleanField(default=False, db_index=True)
-    lms_provider = models.CharField(max_length=100, blank=True, null=True, db_index=True, verbose_name="Proveedor LMS (Ej: Moodle)")
-    is_wordpress = models.BooleanField(default=False, verbose_name="Usa WordPress")
-    has_analytics = models.BooleanField(default=False, verbose_name="Tiene Google Analytics/Tag Manager")
+    lms_provider = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    
+    is_wordpress = models.BooleanField(default=False)
+    has_analytics = models.BooleanField(default=False)
     
     last_scanned = models.DateTimeField(auto_now=True)
 
@@ -147,265 +190,206 @@ class TechProfile(TimeStampedModel):
         verbose_name = "Perfil Tecnológico"
         verbose_name_plural = "Perfiles Tecnológicos"
 
-    def __str__(self):
-        return f"Tech Stack: {self.institution.name}"
-
 
 class DeepForensicProfile(TimeStampedModel):
     """
-    [Tier 2: Deep AI Recon]
-    Almacena los resultados del motor de IA (DeepSeek/OpenAI), estrategias de ventas,
-    y datos estructurados que toman más tiempo en procesarse.
+    [Tier 2: AI Deep Recon]
+    Despliegue de variables explícitas para filtrado B2B avanzado de Élite.
     """
-    institution = models.OneToOneField(Institution, on_delete=models.CASCADE, related_name='forensic_profile')
+    institution = models.OneToOneField(
+        Institution, on_delete=models.CASCADE, 
+        related_name='forensic_profile',
+        related_query_name='forensic_profile'
+    )
     
-    ai_classification = models.CharField(max_length=100, blank=True, null=True, db_index=True, verbose_name="Clasificación IA")
-    executive_summary = models.TextField(blank=True, null=True, verbose_name="Resumen Ejecutivo")
+    # --- VARIABLES DE CALIFICACIÓN EDUCATIVA TOP TIER ---
+    is_bilingual = models.BooleanField(default=False, db_index=True, verbose_name="Es Bilingüe")
+    is_trilingual = models.BooleanField(default=False, db_index=True, verbose_name="Es Trilingüe")
     
-    # Array/JSON de tácticas de ventas generadas por la IA
-    sales_playbook = models.JSONField(default=list, blank=True, verbose_name="Recomendaciones Tácticas (Lista)")
-    predictive_copy = models.TextField(blank=True, null=True, verbose_name="Draft de Cold Email")
+    # Certificaciones de Peso Pesado
+    has_ib_cert = models.BooleanField(default=False, db_index=True, verbose_name="Certificación IB (Bachillerato Internacional)")
+    has_cambridge_cert = models.BooleanField(default=False, db_index=True, verbose_name="Certificación Cambridge")
     
-    estimated_budget = models.CharField(max_length=100, blank=True, null=True, verbose_name="Presupuesto Estimado")
+    languages_detected = models.JSONField(default=list, blank=True, verbose_name="Lista de Idiomas (Ej: ['Inglés', 'Francés'])")
+    pedagogical_emphasis = models.CharField(max_length=150, blank=True, null=True, db_index=True, verbose_name="Énfasis (Ej: Montessori, STEAM)")
     
+    # Payload nativo para la IA
+    extracted_data = models.JSONField(
+        default=dict, blank=True, 
+        verbose_name="Data Profunda Cruda (DOM Completo JSON)"
+    )
+    
+    ai_classification = models.CharField(max_length=100, blank=True, null=True, db_index=True)
+    executive_summary = models.TextField(blank=True, null=True)
+    sales_playbook = models.JSONField(default=list, blank=True)
+    predictive_copy = models.TextField(blank=True, null=True)
+    
+    estimated_budget = models.CharField(max_length=100, blank=True, null=True)
+    ai_confidence_score = models.FloatField(default=0.0)
+
     last_scanned = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Perfil Forense IA"
         verbose_name_plural = "Perfiles Forenses IA"
+        
+        indexes = [
+            models.Index(fields=['is_bilingual', 'is_trilingual']),
+            models.Index(fields=['has_ib_cert', 'has_cambridge_cert']),
+        ]
 
-    def __str__(self):
-        return f"AI Intelligence: {self.institution.name}"
 
-
-# ==========================================
-# 3. CRM & OUTREACH: CONTACTOS E INTERACCIONES
-# ==========================================
+# ======================================================================
+# 3. CRM & OUTREACH: TARGETS & INTERACTIONS (AI MEMORY ENGINE)
+# ======================================================================
 
 class Contact(TimeStampedModel):
-    """Representa al tomador de decisiones (Rector, Director IT) dentro de la institución."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name='contacts')
     
     name = models.CharField(max_length=255)
-    role = models.CharField(max_length=255, blank=True, null=True)
+    role = models.CharField(max_length=255, blank=True, null=True, db_index=True)
     email = models.EmailField(blank=True, null=True, unique=True)
     linkedin = models.URLField(blank=True, null=True)
     phone = models.CharField(max_length=50, blank=True, null=True)
+    
+    is_valid_email = models.BooleanField(default=True)
 
-    def __str__(self):
-        return f"{self.name} - {self.role or 'Sin Cargo'}"
+    class Meta:
+        indexes = [models.Index(fields=['institution', 'role'])]
 
-
-# Asegúrate de importar TimeStampedModel, Institution y Contact arriba en tu archivo
 
 class Interaction(TimeStampedModel):
     """
-    [OMNI-CHANNEL INTERACTION NODE]
-    Registro inmutable y transaccional de cada punto de contacto (Outbound/Inbound).
-    Diseñado para analítica de ML de alto volumen, reconstrucción forense de ventas
-    y telemetría de comportamiento de leads.
+    [AI MEMORY & STATE MACHINE]
+    Posee un hilo conversacional (Thread ID) y un programador de acciones
+    para que la IA sepa exactamente cuándo y cómo re-contactar.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # --- ENUMS: ESTADOS Y CANALES (Type-Safe Choices) ---
+    # [MEMORIA DE LA IA] Agrupa correos y WhatsApps en una sola línea temporal
+    thread_id = models.CharField(
+        max_length=255, blank=True, null=True, db_index=True,
+        verbose_name="ID de Hilo (Contexto IA)"
+    )
+    
     class Status(models.TextChoices):
         NEW = 'NEW', _('Nuevo (Pendiente)')
         QUEUED = 'QUEUED', _('En Cola (Worker)') 
-        SENT = 'SENT', _('Enviado (Entregado al MTA)')
-        OPENED = 'OPENED', _('Abierto (Tracking Pixel)')
-        REPLIED = 'REPLIED', _('Respondido (Inbound Interceptado)')
-        MEETING = 'MEETING', _('Reunión Agendada (Conversión Exitoso)')
-        BOUNCED = 'BOUNCED', _('Rebotado (Hard/Soft Bounce)')
-        CLOSED = 'CLOSED', _('Cerrado (Sin Interés/Perdido)')
+        SENT = 'SENT', _('Enviado (Entregado)')
+        OPENED = 'OPENED', _('Abierto (Pixel Tracking)')
+        REPLIED = 'REPLIED', _('Respondido (Inbound)')
+        MEETING = 'MEETING', _('Reunión Agendada (Success)')
+        BOUNCED = 'BOUNCED', _('Rebotado (Fallo de Red/Email)')
+        CLOSED = 'CLOSED', _('Cerrado (Perdido/Sin Interés)')
 
     class Channel(models.TextChoices):
-        EMAIL = 'EMAIL', _('Email Cold Outreach')
-        WHATSAPP = 'WHATSAPP', _('WhatsApp Business API')
-        LINKEDIN = 'LINKEDIN', _('LinkedIn InMail/Mensaje')
-        CALL = 'CALL', _('Llamada Telefónica')
+        EMAIL = 'EMAIL', _('Email')
+        WHATSAPP = 'WHATSAPP', _('WhatsApp')
+        LINKEDIN = 'LINKEDIN', _('LinkedIn')
+        CALL = 'CALL', _('Llamada')
 
-    # --- RELACIONES OPTIMIZADAS ---
-    institution = models.ForeignKey(
-        'Institution', 
-        on_delete=models.CASCADE, # Si muere el colegio, mueren las interacciones
-        related_name='interactions',
-        db_index=True,
-        help_text="Nodo Institucional Padre"
-    )
-    contact = models.ForeignKey(
-        'Contact', 
-        on_delete=models.SET_NULL, # [GOD TIER] Si el contacto es borrado, NO perdemos el registro de la métrica de interacción para el ML
-        null=True, 
-        blank=True, 
-        related_name='interactions',
-        db_index=True
-    )
+    institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name='interactions', db_index=True)
+    contact = models.ForeignKey(Contact, on_delete=models.SET_NULL, null=True, blank=True, related_name='interactions', db_index=True)
 
-    channel = models.CharField(
-        max_length=20, 
-        choices=Channel.choices, 
-        default=Channel.EMAIL,
-        db_index=True,
-        verbose_name="Canal de Outreach"
-    )
-
-    # --- PAYLOADS (OUTBOUND & INBOUND) ---
-    subject = models.CharField(max_length=255, blank=True, null=True, verbose_name="Asunto del Mensaje")
-    message_sent = models.TextField(blank=True, null=True, verbose_name="Payload Enviado (Copy Generado)")
+    channel = models.CharField(max_length=20, choices=Channel.choices, default=Channel.EMAIL, db_index=True)
     
-    # El campo faltante requerido para cerrar el ciclo de IA
-    message_received = models.TextField(
-        blank=True, 
-        null=True, 
-        verbose_name="Payload Recibido (Respuesta Cruda)"
-    )
-
-    # --- DATA WAREHOUSE & TELEMETRÍA AVANZADA ---
-    telemetry_data = models.JSONField(
-        default=dict, 
-        blank=True, 
-        verbose_name="Telemetría Forense (Headers, IPs, User-Agent, Sentimiento NLP)",
-        help_text="Esquema libre para almacenar el intent detectado, latencias y metadata del protocolo."
-    )
-
-    # --- KPIs Y ENGAGEMENT METRICS ---
-    opened_count = models.IntegerField(default=0, verbose_name="Aperturas (Tracking Pixel)")
-    clicked_count = models.IntegerField(default=0, verbose_name="Clics en Enlaces (Deep Links)")
+    subject = models.CharField(max_length=255, blank=True, null=True)
+    message_sent = models.TextField(blank=True, null=True)
+    message_received = models.TextField(blank=True, null=True)
     
-    # [FEEDBACK LOOP IA] Target para el motor RandomForest / XGBoost
-    replied = models.BooleanField(
-        default=False, 
-        db_index=True,
-        verbose_name="Conversión Lograda (Respondió)"
-    )
+    # Analítica de Sentimiento inyectada por IA
+    ai_sentiment = models.CharField(max_length=50, blank=True, null=True, db_index=True, verbose_name="Sentimiento (Positivo/Negativo/Objeción)")
     
-    status = models.CharField(
-        max_length=20, 
-        choices=Status.choices, 
-        default=Status.NEW, 
-        db_index=True
-    )
-    meeting_date = models.DateTimeField(blank=True, null=True, verbose_name="Fecha de Reunión (Si aplica)")
+    telemetry_data = models.JSONField(default=dict, blank=True)
+    
+    opened_count = models.IntegerField(default=0)
+    clicked_count = models.IntegerField(default=0)
+    replied = models.BooleanField(default=False, db_index=True)
+    
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW, db_index=True)
+    
+    meeting_date = models.DateTimeField(blank=True, null=True)
+    
+    # [IA AUTÓNOMA] Fecha en la que la IA debe leer este registro y enviar el siguiente mensaje
+    next_action_date = models.DateTimeField(blank=True, null=True, db_index=True, verbose_name="Próxima Acción (IA Follow-up)")
 
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Interacción B2B"
         verbose_name_plural = "Interacciones B2B"
         
-        # [GOD TIER] Índices compuestos para que tu CommandCenter vuele
         indexes = [
             models.Index(fields=['institution', 'status']),
             models.Index(fields=['status', 'replied']),
-            models.Index(fields=['created_at', 'channel']),
-        ]
-        
-        # [GOD TIER] Integridad Referencial a nivel PostgreSQL (Imposible corromper los datos)
-        constraints = [
-            # Regla 1: Si agendaste reunión, DB exige que exista una fecha
-            CheckConstraint(
-                check=~Q(status='MEETING') | Q(meeting_date__isnull=False),
-                name='interaction_meeting_requires_date'
-            ),
-            # Regla 2: Si el estado es REPLIED, el bool `replied` DEBE ser True
-            CheckConstraint(
-                check=~Q(status='REPLIED') | Q(replied=True),
-                name='interaction_replied_status_sync'
-            )
+            models.Index(fields=['thread_id', 'created_at']), # Acelera la reconstrucción de memoria de la IA
+            models.Index(fields=['next_action_date']), # Permite al Cron Job encontrar rápidamente a quién escribirle hoy
         ]
 
     def __str__(self) -> str:
-        contact_label = self.contact.name if self.contact else "Sin Contacto"
-        return f"[{self.get_channel_display()}] {contact_label} | Estado: {self.get_status_display()}"
+        return f"[{self.get_channel_display()}] Thread: {self.thread_id} -> {self.get_status_display()}"
 
-    # ==========================================
-    # DOMAIN-DRIVEN DESIGN (DDD) METHODS
-    # ==========================================
-    
     def register_open(self, ip_address: str = "Unknown", user_agent: str = "Unknown") -> None:
-        """Registra una apertura con telemetría de forma idempotente (Domain Behavior)."""
         self.opened_count += 1
-        if self.status in [self.Status.NEW, self.Status.SENT]:
+        if self.status in [self.Status.NEW, self.Status.QUEUED, self.Status.SENT]:
             self.status = self.Status.OPENED
+            self.institution.escalate_lead(10)
         
-        # Apilar el log en el JSONField de forma limpia
         opens_log = self.telemetry_data.get('opens', [])
-        opens_log.append({
-            'timestamp': timezone.now().isoformat(),
-            'ip': ip_address,
-            'user_agent': user_agent
-        })
+        opens_log.append({'timestamp': timezone.now().isoformat(), 'ip': ip_address, 'user_agent': user_agent})
         self.telemetry_data['opens'] = opens_log
-        
         self.save(update_fields=['opened_count', 'status', 'telemetry_data', 'updated_at'])
 
     def register_inbound_reply(self, raw_payload: str, intent: str = "NEUTRAL", sentiment_score: float = 0.0) -> None:
-        """
-        Intercepta la respuesta B2B y alimenta directamente la base de datos 
-        preparando el terreno para la matriz de Machine Learning.
-        """
         self.message_received = raw_payload
         self.replied = True
+        self.ai_sentiment = intent
         
-        # Solo lo pasamos a REPLIED si no estamos ya en algo superior como MEETING
         if self.status not in [self.Status.MEETING, self.Status.CLOSED]:
             self.status = self.Status.REPLIED
+            self.institution.escalate_lead(30)
             
         self.telemetry_data['nlp_engine'] = {
-            'intent': intent,
-            'sentiment_score': sentiment_score,
-            'processed_at': timezone.now().isoformat()
+            'intent': intent, 'sentiment_score': sentiment_score, 'processed_at': timezone.now().isoformat()
         }
         
-        self.save(update_fields=['message_received', 'replied', 'status', 'telemetry_data', 'updated_at'])
+        # Desactivamos el seguimiento automático porque el humano ya respondió (La IA debe evaluarlo primero)
+        self.next_action_date = None
+        
+        self.save(update_fields=['message_received', 'replied', 'status', 'telemetry_data', 'updated_at', 'ai_sentiment', 'next_action_date'])
 
-# ==========================================
-# 4. DATA WAREHOUSE & DASHBOARD MANAGER
-# ==========================================
+
+# ======================================================================
+# 4. HIGH-PERFORMANCE DATA WAREHOUSE (BI LAYER)
+# ======================================================================
 
 class CommandCenterQuerySet(models.QuerySet):
-    """
-    Capa de acceso a datos de Alto Rendimiento. Resuelve métricas complejas en la DB.
-    """
     def get_funnel_metrics(self) -> dict:
         return self.aggregate(
             total_leads=Count('id'),
             blind_leads=Count('id', filter=Q(website__isnull=True) | Q(website='')),
-            ready_to_scan=Count('id', filter=Q(website__isnull=False, last_scored_at__isnull=True) & ~Q(website='')),
-            enriched_leads=Count('id', filter=Q(last_scored_at__isnull=False)),
-            avg_score=Avg('lead_score')
+            ready_to_scan=Count('id', filter=Q(is_active=True, website__isnull=False, processing_status='RAW') & ~Q(website='')),
+            enriched_leads=Count('id', filter=Q(processing_status='ENRICHED')),
+            avg_score=Avg('lead_score'),
+            hot_leads=Count('id', filter=Q(lead_score__gte=75))
         )
 
 class CommandCenterManager(models.Manager):
-    """
-    Aisla la lógica de Business Intelligence (BI) de las consultas normales del ORM.
-    """
-    def get_queryset(self):
-        return CommandCenterQuerySet(self.model, using=self._db)
-        
-    def get_dashboard_stats(self):
-        return self.get_queryset().get_funnel_metrics()
+    def get_queryset(self): return CommandCenterQuerySet(self.model, using=self._db)
+    def get_dashboard_stats(self): return self.get_queryset().get_funnel_metrics()
 
 
-# ==========================================
-# 5. THE FACADE PATTERN (PROXY MODELS)
-# ==========================================
+# ======================================================================
+# 5. THE FACADE PATTERN (ADMIN PROXY ROUTERS)
+# ======================================================================
 
 class CommandCenter(Institution):
-    """
-    [Architecture Pattern: Proxy Facade]
-    Controlador central del B2B Growth Engine.
-    Actúa como un Gateway de seguridad y analítica para las operaciones de Celery.
-    """
     objects = CommandCenterManager()
-
     class Meta:
         proxy = True
         app_label = 'sales'
         verbose_name = _('🚀 Sovereign Command Center')
         verbose_name_plural = _('🚀 Sovereign Command Center')
-        
-        # 🛡️ Role-Based Access Control (RBAC)
         permissions = [
             ("can_execute_osm_radar", _("Security: Can launch OSM Satellite Discovery")),
             ("can_execute_serp_resolver", _("Security: Can launch SERP URL Resolver")),
@@ -413,29 +397,11 @@ class CommandCenter(Institution):
             ("view_executive_dashboard", _("Analytics: Can view C-Level Pipeline Metrics")),
         ]
 
-    def __str__(self):
-        return "B2B Growth Engine Operations"
-
-
 class GlobalPipeline(Institution):
-    class Meta:
-        proxy = True
-        app_label = 'sales'
-        verbose_name = "1. 🌐 Global Database"
-        verbose_name_plural = "1. 🌐 Global Database"
-
+    class Meta: proxy = True; app_label = 'sales'; verbose_name = "1. 🌐 Global Database"; verbose_name_plural = "1. 🌐 Global Database"
 
 class SniperConsole(Institution):
-    class Meta:
-        proxy = True
-        app_label = 'sales'
-        verbose_name = "2. 🎯 Sniper Console"
-        verbose_name_plural = "2. 🎯 Sniper Console"
-
+    class Meta: proxy = True; app_label = 'sales'; verbose_name = "2. 🎯 Sniper Console"; verbose_name_plural = "2. 🎯 Sniper Console"
 
 class GeoRadarWorkspace(Institution):
-    class Meta:
-        proxy = True
-        app_label = 'sales'
-        verbose_name = "3. 🛰️ Geospatial Radar"
-        verbose_name_plural = "3. 🛰️ Geospatial Radar"
+    class Meta: proxy = True; app_label = 'sales'; verbose_name = "3. 🛰️ Geospatial Radar"; verbose_name_plural = "3. 🛰️ Geospatial Radar"

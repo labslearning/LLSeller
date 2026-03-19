@@ -13,18 +13,18 @@
         <header class="shrink-0 flex items-center justify-between bg-[#0A0A0A]/80 backdrop-blur-2xl border border-white/5 p-5 lg:px-8 rounded-2xl shadow-2xl z-20">
             <div class="flex items-center gap-6">
                 <div class="relative flex-shrink-0 w-14 h-14 bg-gradient-to-br from-[#111] to-black border border-white/10 rounded-xl flex items-center justify-center shadow-inner group cursor-default">
-                    <div x-show="scanning" class="absolute inset-0 bg-indigo-500/20 rounded-xl animate-pulse"></div>
+                    <div x-show="scanning" class="absolute inset-0 bg-red-500/20 rounded-xl animate-pulse"></div>
                     <div class="absolute inset-0 bg-indigo-500/0 group-hover:bg-indigo-500/10 rounded-xl transition-colors duration-500"></div>
-                    <span class="material-symbols-outlined text-indigo-500 text-3xl z-10 transition-transform duration-700 group-hover:rotate-180" :class="scanning ? 'animate-spin-slow' : ''">my_location</span>
+                    <span class="material-symbols-outlined text-indigo-500 text-3xl z-10 transition-transform duration-700 group-hover:rotate-180" :class="scanning ? 'animate-spin-slow text-red-500' : ''">satellite_alt</span>
                 </div>
                 <div class="flex flex-col justify-center">
                     <h1 class="text-2xl font-bold text-white tracking-tight m-0 flex items-center gap-3">
-                        Geo_Radar <span class="text-indigo-500 font-light">Workspace</span>
+                        Geospatial <span class="text-indigo-500 font-light">Radar Engine</span>
                         <span class="px-2.5 py-0.5 rounded text-[10px] font-mono tracking-widest border transition-all duration-300 shadow-sm" 
-                              :class="scanning ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30 shadow-indigo-500/20' : 'bg-white/5 text-slate-500 border-white/10'" 
-                              x-text="scanning ? 'LIVE SCAN' : 'STANDBY'"></span>
+                              :class="scanning ? 'bg-red-500/10 text-red-400 border-red-500/30 shadow-red-500/20 animate-pulse' : 'bg-white/5 text-slate-500 border-white/10'" 
+                              x-text="scanning ? 'ENJAMBRE DEPLOYED' : 'STANDBY'"></span>
                     </h1>
-                    <p class="text-[11px] font-mono text-slate-500 uppercase tracking-[0.25em] mt-1.5">Sovereign Intelligence Engine V5.0</p>
+                    <p class="text-[11px] font-mono text-slate-500 uppercase tracking-[0.25em] mt-1.5">Sovereign God-Tier Extractor | Playwright + Tor Active</p>
                 </div>
             </div>
             
@@ -35,10 +35,11 @@
                 </div>
                 <div class="w-px h-12 bg-gradient-to-b from-transparent via-white/10 to-transparent"></div>
                 <div class="flex flex-col items-end">
-                    <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><span class="material-symbols-outlined text-[12px]">memory</span> Estado Operativo</span>
-                    <span class="text-[13px] font-mono font-bold tracking-widest transition-colors duration-300" 
-                          :class="scanning ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'text-slate-500'" 
-                          x-text="scanning ? 'SISTEMA ENLAZADO' : 'INACTIVO'"></span>
+                    <span class="text-[9px] font-mono text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><span class="material-symbols-outlined text-[12px]">security</span> Protocolos</span>
+                    <span class="text-[11px] font-mono font-bold tracking-widest transition-colors duration-300" 
+                          :class="scanning ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]' : 'text-slate-500'">
+                          ANTI-DUPES ON | URL LEVENSHTEIN VALIDATOR
+                    </span>
                 </div>
             </div>
         </header>
@@ -52,73 +53,84 @@
                     
                     <h2 class="text-[11px] font-bold text-slate-300 uppercase tracking-widest mb-6 flex items-center gap-2">
                         <span class="material-symbols-outlined text-[16px] text-indigo-500">api</span>
-                        Matriz de Despliegue
+                        Parámetros de Inserción
                     </h2>
                     
                     <form hx-post="{% url 'admin:radar_deploy' %}" 
                           hx-target="#backend-void" 
-                          @submit="launchSatellite()"
+                          @submit="launchSatellite($event)"
                           class="flex flex-col gap-5 relative z-10">
                         {% csrf_token %}
                         <input type="hidden" name="mission_id" value="{{ mission_id }}">
                         
-                        <div class="flex flex-col gap-2">
-                            <label class="text-[10px] font-mono text-slate-500 uppercase tracking-widest ml-1">País Objetivo</label>
-                            <div class="relative focus-within:transform focus-within:scale-[1.02] transition-all duration-300">
-                                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-[18px]">public</span>
-                                <input type="text" name="country" placeholder="Ej: Colombia" required :readonly="scanning"
-                                       class="w-full bg-[#111] border border-white/5 text-white text-[13px] py-4 pl-12 pr-4 rounded-xl focus:border-indigo-500 focus:bg-black focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none placeholder-slate-700 disabled:opacity-50">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-mono text-slate-500 uppercase tracking-widest ml-1">País</label>
+                                <div class="relative focus-within:transform focus-within:scale-[1.02] transition-all duration-300">
+                                    <input type="text" name="country" value="Colombia" required :readonly="scanning"
+                                           class="w-full bg-[#111] border border-white/5 text-white text-[12px] py-3 px-4 rounded-xl focus:border-indigo-500 focus:bg-black focus:ring-1 focus:ring-indigo-500/50 transition-all outline-none disabled:opacity-50">
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-[10px] font-mono text-emerald-400 uppercase tracking-widest ml-1 font-bold">Cuadrante (Ciudad)</label>
+                                <div class="relative focus-within:transform focus-within:scale-[1.02] transition-all duration-300">
+                                    <input type="text" name="city" placeholder="Ej: Cajicá" required :readonly="scanning"
+                                           class="w-full bg-[#022c22] border border-emerald-500/30 text-emerald-400 font-bold uppercase text-[12px] py-3 px-4 rounded-xl focus:border-emerald-500 focus:bg-black focus:ring-1 focus:ring-emerald-500/50 transition-all outline-none placeholder-emerald-900 disabled:opacity-50 shadow-[inset_0_0_10px_rgba(16,185,129,0.1)]">
+                                </div>
                             </div>
                         </div>
 
-                        <div class="flex flex-col gap-2">
-                            <label class="text-[10px] font-mono text-slate-500 uppercase tracking-widest ml-1">Región / Ciudad</label>
+                        <div class="flex flex-col gap-2 mt-2 border-t border-white/5 pt-4">
+                            <label class="text-[10px] font-mono text-purple-400 uppercase tracking-widest ml-1 font-bold flex items-center justify-between">
+                                Límite de Ingestión
+                                <span class="text-[8px] text-slate-500">Anti-Bloqueos (SERP)</span>
+                            </label>
                             <div class="relative focus-within:transform focus-within:scale-[1.02] transition-all duration-300">
-                                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-[18px]">location_city</span>
-                                <input type="text" name="city" placeholder="Ej: Bogota" required :readonly="scanning"
-                                       class="w-full bg-[#111] border border-white/5 text-white text-[13px] py-4 pl-12 pr-4 rounded-xl focus:border-indigo-500 focus:bg-black focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none placeholder-slate-700 disabled:opacity-50">
+                                <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-purple-500 text-[18px]">filter_alt</span>
+                                <input type="number" name="limit" value="500" min="1" max="5000" required :readonly="scanning"
+                                       class="w-full bg-[#1a0b2e] border border-purple-500/40 text-purple-300 font-black text-lg py-4 pl-12 pr-4 rounded-xl focus:border-purple-400 focus:bg-black focus:ring-1 focus:ring-purple-500/50 transition-all outline-none disabled:opacity-50 shadow-[inset_0_0_15px_rgba(168,85,247,0.15)] tracking-widest">
                             </div>
+                            <p class="text-[9px] text-slate-600 font-mono mt-1 leading-tight">Controla el flujo de Celery. Si pides 50, extrae 50 reales, verifica LMS y se detiene.</p>
                         </div>
 
                         <div class="mt-4">
                             <button type="submit" x-show="!scanning"
-                                    class="w-full h-[56px] bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(79,70,229,0.2)] hover:shadow-[0_0_30px_rgba(79,70,229,0.5)] transform hover:-translate-y-1">
-                                Iniciar Extracción
-                                <span class="material-symbols-outlined text-[20px]">rocket_launch</span>
+                                    class="w-full h-[56px] bg-gradient-to-r from-red-600 via-red-500 to-purple-700 hover:from-red-500 hover:to-purple-500 text-white rounded-xl text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-300 flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(220,38,38,0.3)] hover:shadow-[0_0_30px_rgba(220,38,38,0.6)] transform hover:-translate-y-1 border border-white/10">
+                                EJECUTAR INFILTRACIÓN
+                                <span class="material-symbols-outlined text-[20px] group-hover:animate-bounce">radar</span>
                             </button>
 
                             <button type="button" x-show="scanning" @click="abortMission()"
-                                    class="w-full h-[56px] bg-[#111] hover:bg-red-500/10 border border-red-500/30 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-3 hover:shadow-[0_0_20px_rgba(239,68,68,0.2)]">
-                                Abortar Conexión
-                                <span class="material-symbols-outlined text-[20px]">power_settings_new</span>
+                                    class="w-full h-[56px] bg-[#111] hover:bg-red-900/40 border border-red-500/30 text-red-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-3 hover:shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+                                PARAR ENJAMBRE CELERY
+                                <span class="material-symbols-outlined text-[20px]">stop_circle</span>
                             </button>
                         </div>
                     </form>
                     <div id="backend-void" class="hidden"></div>
                 </div>
 
-                <div class="flex-1 min-h-0 bg-[#0A0A0A]/95 backdrop-blur-2xl border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-                    <div class="shrink-0 px-5 py-4 border-b border-white/5 flex justify-between items-center bg-[#111]/50">
+                <div class="flex-1 min-h-0 bg-[#0A0A0A]/95 backdrop-blur-2xl border border-white/5 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+                    <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/5 via-transparent to-transparent pointer-events-none"></div>
+                    <div class="shrink-0 px-5 py-4 border-b border-white/5 flex justify-between items-center bg-[#111]/80 z-10">
                         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <span class="material-symbols-outlined text-[14px]">terminal</span> System Logs
+                            <span class="material-symbols-outlined text-[14px]">terminal</span> Playwright Telemetry
                         </span>
                         <div class="flex gap-1.5">
-                            <div class="w-2.5 h-2.5 rounded-full bg-slate-800"></div>
-                            <div class="w-2.5 h-2.5 rounded-full bg-slate-800"></div>
-                            <div class="w-2.5 h-2.5 rounded-full transition-all duration-300" :class="scanning ? 'bg-indigo-500 animate-pulse shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-slate-800'"></div>
+                            <div class="w-2.5 h-2.5 rounded-full transition-all duration-300" :class="scanning ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-slate-800'"></div>
                         </div>
                     </div>
 
-                    <div class="flex-1 overflow-y-auto p-5 font-mono text-[10px] leading-relaxed flex flex-col gap-2 custom-scrollbar" id="terminal-logs">
+                    <div class="flex-1 overflow-y-auto p-4 font-mono text-[10px] leading-relaxed flex flex-col gap-2 custom-scrollbar z-10" id="terminal-logs">
                         <template x-for="log in logs" :key="log.id">
-                            <div class="opacity-0 animate-fade-in flex gap-3">
+                            <div class="opacity-0 animate-fade-in flex gap-3 border-b border-white/5 pb-1">
                                 <span class="text-slate-600 shrink-0">[{log.time}]</span>
-                                <span :class="log.color" x-text="log.text"></span>
+                                <span :class="log.color" x-html="log.text"></span>
                             </div>
                         </template>
                         <div x-show="scanning" class="flex gap-3 mt-2">
                             <span class="text-slate-600 shrink-0">[{getCurrentTime()}]</span>
-                            <span class="text-indigo-400">Ejecutando subrutinas<span class="animate-pulse">...</span></span>
+                            <span class="text-indigo-400 font-bold">Analizando Nodos y DOMs<span class="animate-pulse text-red-500">_</span></span>
                         </div>
                     </div>
                 </div>
@@ -127,41 +139,46 @@
             <section class="col-span-1 xl:col-span-9 flex flex-col h-full min-h-0">
                 <div class="bg-[#050505]/95 backdrop-blur-3xl border border-white/5 rounded-2xl shadow-[0_0_60px_rgba(0,0,0,0.9)] flex-1 flex flex-col overflow-hidden relative group">
                     
-                    <div class="shrink-0 px-8 py-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-b from-[#111] to-[#0A0A0A] relative z-20">
-                        <h3 class="text-[14px] font-black text-white uppercase tracking-widest flex items-center gap-3 m-0">
-                            <span class="material-symbols-outlined text-[22px] text-indigo-500">dataset</span>
-                            Base de Datos Objetivo
-                        </h3>
+                    <div class="shrink-0 px-6 py-5 border-b border-white/5 flex justify-between items-center bg-[#0A0A0A] relative z-20">
+                        <div>
+                            <h3 class="text-[13px] font-black text-white uppercase tracking-widest flex items-center gap-3 m-0">
+                                <span class="material-symbols-outlined text-[20px] text-emerald-500">hub</span>
+                                Bóveda Forense de Objetivos
+                            </h3>
+                            <p class="text-[9px] font-mono text-slate-500 mt-1 uppercase tracking-widest">Mostrando Extracción con Data LMS y Contactos</p>
+                        </div>
                         
-                        <div id="table-spinner" class="htmx-indicator flex items-center gap-3 bg-indigo-500/10 border border-indigo-500/30 px-4 py-2 rounded-lg shadow-[0_0_15px_rgba(99,102,241,0.1)]">
-                            <div class="w-3.5 h-3.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                            <span class="text-[10px] font-mono text-indigo-400 uppercase tracking-widest font-bold">Sincronizando DB</span>
+                        <div id="table-spinner" class="htmx-indicator flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+                            <div class="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span class="text-[9px] font-mono text-emerald-400 uppercase tracking-widest font-bold">Sync...</span>
                         </div>
                     </div>
 
                     <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar relative target-wrapper bg-transparent">
                         
                         <div hx-get="{% url 'admin:radar_results' mission_id %}" 
-                             hx-trigger="load, every 3s"
+                             hx-trigger="load, every 4s"
                              hx-indicator="#table-spinner"
                              hx-swap="innerHTML"
                              class="min-h-full w-full">
                             
                             <div class="flex flex-col items-center justify-center h-full text-center p-10 absolute inset-0">
-                                <div class="relative w-24 h-24 mb-6">
+                                <div class="relative w-20 h-20 mb-6">
                                     <div class="absolute inset-0 border border-indigo-500/20 rounded-full animate-ping"></div>
                                     <div class="absolute inset-2 border border-indigo-500/40 rounded-full animate-pulse"></div>
-                                    <div class="absolute inset-0 flex items-center justify-center">
-                                        <span class="material-symbols-outlined text-4xl text-slate-600">radar</span>
-                                    </div>
+                                    <span class="material-symbols-outlined text-4xl text-slate-700 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">dns</span>
                                 </div>
-                                <h4 class="text-slate-300 text-sm font-black font-mono uppercase tracking-[0.2em]">Enlace con BD Pendiente</h4>
-                                <p class="text-slate-500 text-[11px] font-mono mt-3 max-w-sm uppercase tracking-widest">Inicia la extracción en la consola lateral para poblar el Grid de Datos.</p>
+                                <h4 class="text-slate-400 text-xs font-black font-mono uppercase tracking-[0.2em]">Bóveda Vacía / Esperando Orden</h4>
+                                <p class="text-slate-600 text-[10px] font-mono mt-2 max-w-sm uppercase tracking-widest leading-relaxed">
+                                    1. Fija el límite a la izquierda (Ej: 50).<br>
+                                    2. Inicia la extracción.<br>
+                                    3. Playwright traerá el LMS y los emails reales sin duplicados.
+                                </p>
                             </div>
 
                         </div>
 
-                        <div class="sticky bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none z-10"></div>
+                        <div class="sticky bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none z-10"></div>
                     </div>
                 </div>
             </section>
@@ -177,8 +194,8 @@
                 simulationInterval: null,
                 
                 init() {
-                    this.addLog("Sovereign Engine Initialize. All systems nominal.", "text-emerald-500 font-bold");
-                    this.addLog("Awaiting targeting coordinates...", "text-slate-400");
+                    this.addLog("Sovereign APT System: ONLINE.", "text-emerald-500 font-bold");
+                    this.addLog("Levenshtein URL Validator: ACTIVE.", "text-blue-400 font-bold");
                 },
 
                 getCurrentTime() {
@@ -196,20 +213,26 @@
                     }, 50);
                 },
 
-                launchSatellite() {
+                launchSatellite(event) {
+                    const formData = new FormData(event.target);
+                    const city = (formData.get('city') || 'UNKNOWN').toUpperCase();
+                    const limit = formData.get('limit') || '500';
+
                     setTimeout(() => {
                         this.scanning = true;
                         this.logs = [];
-                        this.addLog(">>> UPLINK ESTABLISHED. DEPLOYING SAT-OSM...", "text-indigo-400 font-bold");
+                        this.addLog(`>>> [COMMAND] DEPLOY TARGET: ${city}`, "text-indigo-400 font-black");
+                        this.addLog(`>>> [COMMAND] HARD LIMIT SET: ${limit} INSTITUTIONS`, "text-purple-400 font-black text-[12px]");
                         
                         const actions = [
-                            { msg: "By-passing WAF and establishing secure TLS tunnel...", color: "text-slate-400" },
-                            { msg: "Injecting Spatial Regex Payload into Overpass API.", color: "text-slate-300" },
-                            { msg: "Awaiting JSON telemetry from satellite cluster...", color: "text-yellow-500/80" },
-                            { msg: "Data stream received. Normalizing URLs and Emails...", color: "text-indigo-300" },
-                            { msg: "Executing AI Heuristics to determine public/private sector...", color: "text-slate-400" },
-                            { msg: "Performing Atomic Bulk-Insert into PostgreSQL...", color: "text-emerald-400" },
-                            { msg: "Firing Background AI Resolvers (SERP & Ghost Sniper)...", color: "text-purple-400 font-bold" }
+                            { msg: `Pinging OSM Datacenters for boundary [${city}]...`, color: "text-slate-400" },
+                            { msg: "Applying DB Locks. Checking for existing/duplicate profiles...", color: "text-amber-400" },
+                            { msg: `Allocating ${limit} slots in Redis Broker Queue.`, color: "text-blue-300" },
+                            { msg: "Spawning Celery Workers. Injecting Tor exit nodes...", color: "text-emerald-400 font-bold" },
+                            { msg: ">>> GHOST FLEET ACTIVE.", color: "text-red-500 font-black" },
+                            { msg: "Playwright Headless instances traversing Firewalls (Cloudflare Bypass).", color: "text-slate-300" },
+                            { msg: "Scraping DOM for: <strong>Moodle, Canvas, Phidias, Idukay...</strong>", color: "text-indigo-300" },
+                            { msg: "Verifying Language semantics: <strong>Bilingual/Cambridge</strong>.", color: "text-yellow-300" }
                         ];
 
                         let step = 0;
@@ -219,130 +242,120 @@
                                 step++;
                             } else {
                                 clearInterval(this.simulationInterval);
+                                this.simulationInterval = setInterval(() => {
+                                    if(this.scanning) {
+                                        this.addLog(`[Sniper Report] Extracción de objetivo exitosa. LMS y Contactos detectados. Tabla actualizada.`, "text-slate-500 text-[9px]");
+                                    }
+                                }, 4000);
                             }
-                        }, 2500);
+                        }, 1500);
                     }, 50);
                 },
 
                 abortMission() {
                     this.scanning = false;
                     clearInterval(this.simulationInterval);
-                    this.addLog(">>> KILL SWITCH ACTIVATED.", "text-red-500 font-black");
-                    this.addLog("Severing Celery connections. Mission Aborted.", "text-red-400");
+                    this.addLog(">>> EMERGENCY HALT.", "text-red-500 font-black");
+                    this.addLog("Revoking worker tasks. Mission data saved.", "text-slate-400");
                 }
             }
         }
     </script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800;900&display=swap');
         
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-
         @keyframes spin-slow { 100% { transform: rotate(360deg); } }
         .animate-spin-slow { animation: spin-slow 8s linear infinite; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.15s ease forwards; }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.2s ease forwards; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(99,102,241,0.5); }
 
-        /* Scrollbar Premium Estilo Apple/Stripe */
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 20px; border: 2px solid transparent; background-clip: content-box; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(99,102,241,0.6); }
-
-        .htmx-indicator { opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        .htmx-indicator { opacity: 0; transition: opacity 0.3s ease; }
         .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
-
-        /* ==========================================================
-           LA TABLA DEFINITIVA (Unbreakable Layout)
-           ========================================================== */
         
-        .target-wrapper table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            text-align: left;
-            margin: 0;
+        /* THE ULTIMATE DATA GRID */
+        .target-wrapper table { width: 100%; border-collapse: collapse; text-align: left; margin: 0; }
+        
+        /* Header Sticky */
+        .target-wrapper thead th { 
+            position: sticky; top: 0; z-index: 30; 
+            background: rgba(5, 5, 5, 0.95) !important; 
+            backdrop-filter: blur(10px); 
+            padding: 14px 20px; 
+            font-size: 9px; 
+            text-transform: uppercase; 
+            color: #64748b; 
+            font-weight: 900; 
+            letter-spacing: 0.2em; 
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05); 
+            font-family: 'JetBrains Mono', monospace; 
         }
-
-        /* Sticky Header Flotante con Backdrop Blur Premium */
-        .target-wrapper thead th {
-            position: sticky;
-            top: 0;
-            z-index: 30;
-            background: rgba(5, 5, 5, 0.85) !important;
-            backdrop-filter: blur(16px) !important;
-            -webkit-backdrop-filter: blur(16px) !important;
-            padding: 18px 24px;
-            font-size: 10px;
-            text-transform: uppercase;
-            color: #64748b;
-            font-weight: 900;
-            letter-spacing: 0.15em;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            font-family: 'JetBrains Mono', monospace;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-        }
-
-        .target-wrapper tbody td {
-            padding: 20px 24px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
-            color: #cbd5e1;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.25s ease;
-            white-space: nowrap;
+        
+        /* Celdas de Datos */
+        .target-wrapper tbody td { 
+            padding: 16px 20px; 
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02); 
+            color: #cbd5e1; 
+            font-size: 11px; 
+            font-weight: 500; 
+            white-space: nowrap; 
             background: transparent;
-            /* Borde izquierdo transparente para el efecto hover */
-            border-left: 2px solid transparent;
+            font-family: 'Inter', sans-serif;
+            vertical-align: middle;
         }
 
-        /* Hover de Fila God Tier */
-        .target-wrapper tbody tr {
-            transition: background-color 0.2s ease;
-        }
+        /* Nombres de Colegios */
+        .target-wrapper tbody td.col-name { font-weight: 800; color: #f8fafc; font-size: 12px;}
         
-        .target-wrapper tbody tr:hover td {
-            background-color: rgba(99, 102, 241, 0.04); /* Fondo sutil índigo */
-            color: #ffffff;
-        }
+        /* Hover effects */
+        .target-wrapper tbody tr { transition: background-color 0.15s ease; border-left: 2px solid transparent;}
+        .target-wrapper tbody tr:hover { background-color: rgba(99, 102, 241, 0.05); border-left: 2px solid #6366f1; }
         
-        /* Borde lateral iluminado en la primera celda al hacer hover */
-        .target-wrapper tbody tr:hover td:first-child {
-            border-left: 2px solid #6366f1;
+        /* URLs */
+        .target-wrapper tbody td a.url-link { 
+            color: #818cf8; text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            padding: 4px 8px; background: rgba(99, 102, 241, 0.1); border-radius: 6px; transition: all 0.2s;
         }
+        .target-wrapper tbody td a.url-link:hover { background: rgba(99, 102, 241, 0.25); color: #fff;}
 
-        /* Estilo para links (Websites de colegios) */
-        .target-wrapper tbody td a {
-            color: #818cf8;
-            text-decoration: none;
-            font-weight: 600;
+        /* BADGES (LMS & IDIOMAS) */
+        .badge-lms-moodle { background: #f59e0b20; color: #fbbf24; border: 1px solid #f59e0b40; padding: 3px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; letter-spacing: 0.1em; font-family: 'JetBrains Mono', monospace; }
+        .badge-lms-phidias { background: #8b5cf620; color: #c084fc; border: 1px solid #8b5cf640; padding: 3px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; letter-spacing: 0.1em; font-family: 'JetBrains Mono', monospace; }
+        .badge-lms-canvas { background: #ef444420; color: #f87171; border: 1px solid #ef444440; padding: 3px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; letter-spacing: 0.1em; font-family: 'JetBrains Mono', monospace; }
+        .badge-lms-none { background: #33415540; color: #94a3b8; border: 1px solid #33415580; padding: 3px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; letter-spacing: 0.1em; font-family: 'JetBrains Mono', monospace; }
+        
+        .badge-lang { background: #10b98120; color: #34d399; border: 1px solid #10b98140; padding: 3px 6px; border-radius: 4px; font-size: 9px; font-weight: 900; letter-spacing: 0.1em; font-family: 'JetBrains Mono', monospace; display: inline-flex; align-items: center; gap: 4px;}
+
+        /* BOTÓN INDIVIDUAL (HACKEAR) REQUISITO #2 */
+        .btn-individual-scan {
+            background: linear-gradient(to right, #dc2626, #991b1b);
+            color: white;
             padding: 6px 12px;
-            background: rgba(99, 102, 241, 0.08);
-            border-radius: 8px;
-            transition: all 0.2s;
-            border: 1px solid rgba(99, 102, 241, 0.1);
-        }
-        
-        .target-wrapper tbody td a:hover {
-            background: rgba(99, 102, 241, 0.2);
-            color: #c7d2fe;
-            border-color: rgba(99, 102, 241, 0.4);
-            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
-        }
-
-        /* Aspecto profesional para celdas vacías */
-        .target-wrapper tbody td:empty::after,
-        .target-wrapper tbody td:contains("None") {
-            content: "N/A";
-            color: #334155;
-            font-style: italic;
-            font-size: 11px;
-            font-family: 'JetBrains Mono', monospace;
-            background: rgba(255,255,255,0.02);
-            padding: 4px 8px;
             border-radius: 6px;
+            text-decoration: none;
+            font-weight: 900;
+            font-size: 9px;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 0 10px rgba(220, 38, 38, 0.4);
+            border: 1px solid rgba(255,255,255,0.2);
+            cursor: pointer;
+        }
+        .btn-individual-scan:hover {
+            background: linear-gradient(to right, #ef4444, #dc2626);
+            box-shadow: 0 0 20px rgba(220, 38, 38, 0.8);
+            transform: translateY(-1px);
         }
     </style>
 </main>
