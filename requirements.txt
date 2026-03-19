@@ -73,4 +73,10 @@ pysocks==1.7.1
 stem==1.8.1
 curl_cffi==0.6.2
 tenacity==8.2.3
+# --- Machine Learning Engine ---
+numpy
+pandas
+scikit-learn
+joblib
+whitenoise
 
