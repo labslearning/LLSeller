@@ -2,7 +2,7 @@
 {% load i18n unfold static %}
 
 {% block content %}
-<main class="min-h-screen p-4 lg:p-8 font-sans antialiased text-slate-900 bg-[#f8fafc] dark:bg-[#050505] dark:text-slate-200 transition-all duration-500 overflow-x-hidden">
+<main class="min-h-screen p-4 lg:p-8 font-sans antialiased text-slate-900 bg-[#f8fafc] dark:bg-[#050505] dark:text-slate-200 transition-all duration-500 overflow-x-hidden gpu-accelerated">
     
     <div class="max-w-[1600px] mx-auto mb-8 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/80 dark:bg-[#111111]/80 backdrop-blur-xl p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-2xl shadow-slate-200/40 dark:shadow-none z-10 sticky top-4">
         <div class="flex items-center gap-6">
@@ -18,10 +18,10 @@
                     <span class="px-2 py-0.5 text-[9px] font-bold tracking-widest text-emerald-700 bg-emerald-100 rounded dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 not-italic">V4.1.0</span>
                 </h1>
                 <div class="flex items-center gap-3 text-[10px] font-bold tracking-widest uppercase text-slate-500 dark:text-slate-400 mt-0.5">
-                    <span class="flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
-                    <span id="sys-clock" class="font-mono">LOADING PROTOCOLS...</span>
+                    <span id="ws-indicator" class="flex h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b] transition-colors duration-300"></span>
+                    <span id="sys-clock" class="font-mono">SYNCING...</span>
                     <span class="text-slate-300 dark:text-slate-700">|</span>
-                    <span>NET: ENCRYPTED</span>
+                    <span id="ws-status-text">WS: HANDSHAKE PENDING</span>
                 </div>
             </div>
         </div>
@@ -33,10 +33,10 @@
                 <div class="inline-block h-8 w-8 rounded-full ring-2 ring-slate-50 dark:ring-[#0a0a0a] bg-slate-800 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">PX</div>
             </div>
             <div class="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2"></div>
-            <div class="text-right">
+            <div class="text-right min-w-[60px]">
                 <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sys Latency</p>
-                <p class="text-sm font-mono font-bold text-emerald-500 flex items-center gap-1 justify-end">
-                    <span class="material-symbols-outlined text-[12px]">bolt</span>14ms
+                <p class="text-sm font-mono font-bold text-emerald-500 flex items-center gap-1 justify-end transition-colors duration-300" id="sys-latency">
+                    <span class="material-symbols-outlined text-[12px]">bolt</span><span id="latency-val">--</span>ms
                 </p>
             </div>
         </div>
@@ -44,7 +44,7 @@
 
     <section class="max-w-[1600px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 sys-panel">
         
-        <article class="relative group p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
+        <article class="relative group p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-2xl hover:-translate-y-1" id="card-total">
             <div class="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-110 transition-all duration-500">
                 <span class="material-symbols-outlined text-8xl">public</span>
             </div>
@@ -52,7 +52,7 @@
                 <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
                     <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Global Pipeline
                 </p>
-                <h3 class="text-5xl font-black text-slate-900 dark:text-white mb-4 font-mono tracking-tighter crypto-text" data-val="{{ total_leads }}">0</h3>
+                <h3 id="stat-total" class="text-5xl font-black text-slate-900 dark:text-white mb-4 font-mono tracking-tighter crypto-text" data-val="{{ total_leads|default:'0' }}">{{ total_leads|default:'0' }}</h3>
                 <div class="flex items-center gap-2 py-1.5 px-3 w-fit bg-emerald-50 dark:bg-emerald-500/10 rounded-lg border border-emerald-100 dark:border-emerald-500/20">
                     <span class="material-symbols-outlined text-[14px] text-emerald-600 dark:text-emerald-400">trending_up</span>
                     <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">High Potential</span>
@@ -60,70 +60,70 @@
             </div>
         </article>
 
-        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm hover:border-blue-500/50 transition-all duration-300 flex flex-col justify-between">
+        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm hover:border-blue-500/50 transition-all duration-300 flex flex-col justify-between" id="card-blind">
             <div>
                 <div class="flex justify-between items-center mb-2">
                     <p class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                         <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> Discovery Phase
                     </p>
-                    <span class="text-xs font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded">{{ p_blind }}%</span>
                 </div>
-                <h3 class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter crypto-text" data-val="{{ blind_leads }}">0</h3>
+                <h3 id="stat-blind" class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter crypto-text" data-val="{{ blind_leads|default:'0' }}">{{ blind_leads|default:'0' }}</h3>
             </div>
             <div class="mt-4">
-                <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div class="h-full bg-blue-600 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(37,99,235,0.5)]" style="width: {{ p_blind }}%"></div>
-                </div>
                 <p class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Unresolved Footprints</p>
             </div>
         </article>
 
-        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm hover:border-violet-500/50 transition-all duration-300 flex flex-col justify-between">
+        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm hover:border-violet-500/50 transition-all duration-300 flex flex-col justify-between" id="card-ready">
             <div>
                 <div class="flex justify-between items-center mb-2">
                     <p class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                         <span class="w-1.5 h-1.5 rounded-full bg-violet-500"></span> Infiltration Ready
                     </p>
-                    <span class="text-xs font-mono font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-2 py-0.5 rounded">{{ p_ready }}%</span>
                 </div>
-                <h3 class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter crypto-text" data-val="{{ ready_to_scan }}">0</h3>
+                <h3 id="stat-ready" class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter crypto-text" data-val="{{ ready_to_scan|default:'0' }}">{{ ready_to_scan|default:'0' }}</h3>
             </div>
             <div class="mt-4">
-                <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div class="h-full bg-violet-600 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(124,58,237,0.5)]" style="width: {{ p_ready }}%"></div>
-                </div>
                 <p class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Verified DNS Contexts</p>
             </div>
         </article>
 
-        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm border-b-4 border-b-emerald-500 transition-all duration-300 flex flex-col justify-between relative overflow-hidden">
+        <article class="p-6 bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm border-b-4 border-b-emerald-500 transition-all duration-300 flex flex-col justify-between relative overflow-hidden" id="card-score">
             <div class="absolute -bottom-6 -right-6 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl"></div>
             <div>
                 <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2 relative z-10">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span> Intelligence Integrity
                 </p>
                 <div class="flex items-end gap-2 relative z-10">
-                    <h3 class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter">{{ avg_score|default:"0.0"|floatformat:1 }}</h3>
+                    <h3 id="stat-score" class="text-4xl font-black text-slate-900 dark:text-white font-mono tracking-tighter">{{ avg_score|default:"0.0"|floatformat:1 }}</h3>
                     <span class="text-sm font-bold text-slate-400 mb-1">/100</span>
                 </div>
             </div>
             <div class="mt-4 relative z-10">
-                <div class="flex gap-1">
-                    {% for i in "12345" %}
-                    <div class="h-1.5 flex-1 rounded-full {% if forloop.counter <= 4 %}bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.4)]{% else %}bg-slate-200 dark:bg-slate-800{% endif %}"></div>
-                    {% endfor %}
-                </div>
-                <p class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[12px]">auto_awesome</span> Augmented via DeepSeek
+                <p class="mt-2 text-[10px] font-bold text-emerald-500 uppercase tracking-wide flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">psychology</span> Powered by Sovereign AI
                 </p>
             </div>
         </article>
     </section>
 
+    <section class="max-w-[1600px] mx-auto mb-8 sys-panel">
+        <div class="bg-[#0a0a0a] rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col h-[200px]">
+            <div class="bg-[#111] border-b border-slate-800 px-4 py-2 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="flex h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">LIVE TELEMETRY STREAM</span>
+                </div>
+                <span class="text-[10px] font-mono text-slate-500" id="stream-counter">0 events</span>
+            </div>
+            <ul id="telemetry-log" class="p-4 overflow-y-auto flex-1 font-mono text-xs space-y-1 terminal-scroll">
+                <li class="text-slate-500">Awaiting radar signals...</li>
+            </ul>
+        </div>
+    </section>
+
     <div class="max-w-[1600px] mx-auto grid grid-cols-1 xl:grid-cols-3 gap-8">
-        
         <div class="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
-            
             <article class="sys-panel group flex flex-col bg-white dark:bg-[#111111] border border-slate-200 dark:border-slate-800 rounded-[2rem] overflow-hidden shadow-xl transition-all hover:ring-2 hover:ring-blue-600/30 hover:shadow-blue-900/20 relative">
                 <div class="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-transparent dark:from-blue-900/10 pointer-events-none"></div>
                 <div class="p-8 pb-6 flex-1 relative z-10">
@@ -137,7 +137,7 @@
                         </div>
                     </div>
                     
-                    <form method="POST" class="space-y-6" onsubmit="return UX.launch(this, 'RADAR BARRAGE')">
+                    <form method="POST" class="space-y-6" onsubmit="return CoreController.launch(this, 'RADAR BARRAGE')">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="radar">
                         <div class="space-y-5">
@@ -178,10 +178,9 @@
                         </div>
                     </div>
                     
-                    <form method="POST" class="space-y-6" onsubmit="return UX.launch(this, 'SERP CLUSTER RESOLUTION')">
+                    <form method="POST" class="space-y-6" onsubmit="return CoreController.launch(this, 'SERP CLUSTER RESOLUTION')">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="serp">
-                        
                         <div class="space-y-3">
                             <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider pl-1">Infiltration Batch Size</label>
                             <div class="grid grid-cols-2 gap-3">
@@ -201,7 +200,6 @@
                                 </label>
                             </div>
                         </div>
-                        
                         <button type="submit" class="w-full py-4 mt-2 bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-600/30 hover:bg-indigo-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                             Initialize Sequence <span class="material-symbols-outlined text-[16px]">travel_explore</span>
                         </button>
@@ -224,10 +222,9 @@
                 <h2 class="text-3xl font-black uppercase tracking-tighter italic mb-3">GHOST<span class="text-violet-500">.SNIPER</span></h2>
                 <p class="text-slate-400 text-sm mb-10 leading-relaxed font-medium">Deep forensic analysis of institutional stacks. Defeating standard WAFs to extract decision-maker metrics.</p>
                 
-                <form method="POST" class="space-y-8 flex-1 flex flex-col" onsubmit="return UX.launch(this, 'GHOST SNIPER INFILTRATION')">
+                <form method="POST" class="space-y-8 flex-1 flex flex-col" onsubmit="return CoreController.launch(this, 'GHOST SNIPER INFILTRATION')">
                     {% csrf_token %}
                     <input type="hidden" name="action_type" value="sniper">
-                    
                     <div class="space-y-4">
                         <div class="relative">
                             <label class="block text-[10px] font-black text-slate-500 uppercase tracking-wider pl-1 mb-2">Payload Intensity</label>
@@ -240,7 +237,6 @@
                                 <span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">expand_more</span>
                             </div>
                         </div>
-                        
                         <div class="p-4 rounded-xl bg-black/40 border border-white/5 space-y-3 mt-4">
                             <div class="flex justify-between items-center text-[10px] font-black uppercase text-slate-500 tracking-widest">
                                 <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[14px]">vpn_lock</span> Proxy Mesh</span>
@@ -253,7 +249,6 @@
                             </div>
                         </div>
                     </div>
-
                     <div class="mt-auto pt-8 pb-8">
                         <button type="submit" class="group/strike relative w-full py-5 bg-white text-slate-900 rounded-xl font-black uppercase tracking-widest text-xs overflow-hidden transition-transform active:scale-[0.98] shadow-[0_0_20px_rgba(255,255,255,0.1)]">
                             <span class="relative z-10 flex items-center justify-center gap-2 group-hover/strike:text-white transition-colors duration-300">
@@ -270,24 +265,206 @@
     <div id="toast-container" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-3 w-full max-w-sm pointer-events-none"></div>
 
     <script>
-        const UX = {
-            init() {
-                this.handleClock();
-                this.staggerEntry();
-                this.decodeCryptoText();
-                console.log("%c[SOVEREIGN.OPS] Core initialized. Protocol active.", "color: #10b981; font-weight: bold; font-family: monospace;");
-            },
+        /**
+         * [GOD TIER ARCHITECTURE]: Sovereign Core Controller
+         * Implementa DOM Batching (requestAnimationFrame), Escudo XSS, Ping/Pong Latency, 
+         * Exponential Backoff, y Number Tweening asíncrono.
+         */
+        const CoreController = (() => {
+            // Estado Reactivo Central
+            const state = {
+                metrics: {
+                    total: parseInt('{{ total_leads|default:"0" }}'),
+                    blind: parseInt('{{ blind_leads|default:"0" }}'),
+                    ready: parseInt('{{ ready_to_scan|default:"0" }}'),
+                    score: parseFloat('{{ avg_score|default:"0.0" }}')
+                },
+                socket: null,
+                pingStart: 0,
+                reconnectAttempts: 0,
+                maxReconnectDelay: 30000,
+                renderQueue: [],
+                isRendering: false,
+                logCount: 0
+            };
 
-            handleClock() {
-                const el = document.getElementById('sys-clock');
-                if (!el) return;
+            // Caché O(1) de Nodos del DOM (Evita QuerySelectors lentos)
+            const DOM = {};
+
+            const initDOMCache = () => {
+                DOM.clock = document.getElementById('sys-clock');
+                DOM.wsIndicator = document.getElementById('ws-indicator');
+                DOM.wsStatus = document.getElementById('ws-status-text');
+                DOM.latencyVal = document.getElementById('latency-val');
+                DOM.latencyColor = document.getElementById('sys-latency');
+                
+                DOM.statTotal = document.getElementById('stat-total');
+                DOM.statBlind = document.getElementById('stat-blind');
+                DOM.statReady = document.getElementById('stat-ready');
+                DOM.statScore = document.getElementById('stat-score');
+                
+                DOM.cardTotal = document.getElementById('card-total');
+                DOM.cardBlind = document.getElementById('card-blind');
+                DOM.cardReady = document.getElementById('card-ready');
+                DOM.cardScore = document.getElementById('card-score');
+                
+                DOM.logStream = document.getElementById('telemetry-log');
+                DOM.logCounter = document.getElementById('stream-counter');
+            };
+
+            // 🛡️ XSS Shield: Previene inyecciones desde el WS
+            const sanitize = (str) => {
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            };
+
+            // 📈 Number Tweening: Animación fluida GPU-Acelerada
+            const tweenNumber = (element, start, end, duration = 800) => {
+                if(start === end) return;
+                const startTime = performance.now();
+                const isFloat = end % 1 !== 0;
+
+                const update = (currentTime) => {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    // Easing Cubic Out
+                    const easeProgress = 1 - Math.pow(1 - progress, 3);
+                    const currentVal = start + (end - start) * easeProgress;
+                    
+                    element.textContent = isFloat ? currentVal.toFixed(1) : Math.floor(currentVal);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(update);
+                    } else {
+                        element.textContent = isFloat ? end.toFixed(1) : end;
+                    }
+                };
+                requestAnimationFrame(update);
+            };
+
+            // Flash Háctico CSS
+            const flashCard = (element) => {
+                element.classList.remove('ring-2', 'ring-emerald-500', 'shadow-[0_0_15px_rgba(16,185,129,0.5)]');
+                void element.offsetWidth; // Trigger Reflow
+                element.classList.add('ring-2', 'ring-emerald-500', 'shadow-[0_0_15px_rgba(16,185,129,0.5)]');
+                setTimeout(() => element.classList.remove('ring-2', 'ring-emerald-500', 'shadow-[0_0_15px_rgba(16,185,129,0.5)]'), 500);
+            };
+
+            // 🚀 MOTOR WEBSOCKET
+            const connectWS = () => {
+                const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+                const endpoint = `${protocol}${window.location.host}/ws/status/`; // Reemplaza por tu ruta WS real
+                
+                state.socket = new WebSocket(endpoint);
+
+                state.socket.onopen = () => {
+                    DOM.wsIndicator.className = "flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] transition-colors duration-300";
+                    DOM.wsStatus.textContent = "WS: SECURE UPLINK";
+                    state.reconnectAttempts = 0;
+                    
+                    // Iniciar Ciclo de Ping/Pong para Latencia Cuántica
+                    setInterval(() => {
+                        if(state.socket.readyState === WebSocket.OPEN) {
+                            state.pingStart = performance.now();
+                            state.socket.send(JSON.stringify({command: "PING"}));
+                        }
+                    }, 5000);
+                };
+
+                state.socket.onmessage = (e) => {
+                    const data = JSON.parse(e.data);
+                    
+                    // Cálculo de Latencia Asimétrica
+                    if (data.type === "PONG") {
+                        const latency = Math.round(performance.now() - state.pingStart);
+                        DOM.latencyVal.textContent = latency;
+                        DOM.latencyColor.className = `text-sm font-mono font-bold flex items-center gap-1 justify-end transition-colors duration-300 ${latency < 50 ? 'text-emerald-500' : (latency < 150 ? 'text-amber-500' : 'text-red-500')}`;
+                        return;
+                    }
+
+                    // Encolar al DOM Batcher
+                    state.renderQueue.push(data);
+                    if (!state.isRendering) {
+                        requestAnimationFrame(processRenderQueue);
+                    }
+                };
+
+                state.socket.onclose = (e) => {
+                    DOM.wsIndicator.className = "flex h-2 w-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444] animate-pulse transition-colors duration-300";
+                    DOM.wsStatus.textContent = "WS: CONNECTION LOST";
+                    DOM.latencyVal.textContent = "--";
+                    
+                    // Tolerancia a fallos: Exponential Backoff (E = min(E_max, E_base * 2^n))
+                    let delay = Math.min(1000 * Math.pow(2, state.reconnectAttempts), state.maxReconnectDelay);
+                    state.reconnectAttempts++;
+                    setTimeout(connectWS, delay);
+                };
+            };
+
+            // 🎨 DOM BATCHER (Protección contra DOM Thrashing)
+            const processRenderQueue = () => {
+                state.isRendering = true;
+                const fragment = document.createDocumentFragment();
+                let metricsMutated = { total: false, blind: false, ready: false, score: false };
+
+                while (state.renderQueue.length > 0) {
+                    const data = state.renderQueue.shift();
+                    state.logCount++;
+
+                    // 1. Lógica de Negocio (Mutación de Estado)
+                    if (data.type === 'mutation') {
+                        if (data.entity === 'institution' && data.action === 'create') {
+                            state.metrics.total++;
+                            metricsMutated.total = true;
+                        }
+                        // Agrega aquí tu lógica para blind/ready/score basada en los payloads
+                    }
+
+                    // 2. Construcción del Log de Terminal
+                    const li = document.createElement('li');
+                    const timeStr = new Date().toLocaleTimeString('en-US', {hour12: false, fractionalSecondDigits: 2});
+                    
+                    let tagClass = "text-blue-500";
+                    if(data.type === 'radar_telemetry' && data.level === 'error') tagClass = "text-red-500";
+                    if(data.type === 'mutation') tagClass = "text-emerald-500";
+
+                    li.innerHTML = `
+                        <span class="text-slate-600 dark:text-slate-500">[${timeStr}]</span> 
+                        <span class="${tagClass} font-bold">[${sanitize(data.type.toUpperCase())}]</span> 
+                        <span class="text-slate-800 dark:text-slate-300">${sanitize(data.message || (data.action + ' ' + data.entity))}</span>
+                    `;
+                    fragment.prepend(li); // Más rápido que insertBefore
+                }
+
+                // 3. Aplicación Vectorial al DOM O(1) Repaint
+                DOM.logStream.prepend(fragment);
+                DOM.logCounter.textContent = `${state.logCount} events`;
+
+                // GC: Limitar Logs para no explotar la RAM del navegador
+                while (DOM.logStream.children.length > 100) {
+                    DOM.logStream.lastChild.remove();
+                }
+
+                // 4. Ejecutar Animaciones de Números
+                if (metricsMutated.total) {
+                    const oldVal = parseInt(DOM.statTotal.textContent);
+                    tweenNumber(DOM.statTotal, oldVal, state.metrics.total);
+                    flashCard(DOM.cardTotal);
+                }
+                
+                state.isRendering = false;
+            };
+
+            // UI Init Methods
+            const initClock = () => {
                 setInterval(() => {
                     const now = new Date();
-                    el.textContent = `UTC ${now.toISOString().substring(11, 19)}.${Math.floor(Math.random()*99)}`;
-                }, 100);
-            },
+                    DOM.clock.textContent = `UTC ${now.toISOString().substring(11, 19)}.${Math.floor(Math.random()*99).toString().padStart(2, '0')}`;
+                }, 50); // High refresh rate clock
+            };
 
-            staggerEntry() {
+            const staggerEntry = () => {
                 const items = document.querySelectorAll('.sys-panel');
                 items.forEach((item, i) => {
                     item.style.opacity = '0';
@@ -298,22 +475,20 @@
                         item.style.transform = 'translateY(0) scale(1)';
                     }, i * 150);
                 });
-            },
+            };
 
-            decodeCryptoText() {
+            const decodeCryptoText = () => {
                 const chars = "0123456789";
                 document.querySelectorAll('.crypto-text').forEach(el => {
-                    const targetText = el.getAttribute('data-val') || el.innerText;
+                    const targetText = el.getAttribute('data-val');
                     let iterations = 0;
                     const maxIterations = 20;
                     
                     const interval = setInterval(() => {
-                        el.innerText = targetText.split('')
-                            .map((letter, index) => {
-                                if(index < iterations / (maxIterations / targetText.length)) return letter;
-                                return chars[Math.floor(Math.random() * chars.length)];
-                            })
-                            .join('');
+                        el.innerText = targetText.split('').map((letter, index) => {
+                            if(index < iterations / (maxIterations / targetText.length)) return letter;
+                            return chars[Math.floor(Math.random() * chars.length)];
+                        }).join('');
                         
                         if(iterations >= maxIterations) {
                             clearInterval(interval);
@@ -322,25 +497,9 @@
                         iterations++;
                     }, 40);
                 });
-            },
+            };
 
-            launch(form, protocol) {
-                const btn = form.querySelector('button[type="submit"]');
-                if(!btn) return true;
-
-                // Visual Lock
-                btn.disabled = true;
-                btn.classList.add('cursor-wait');
-                const span = btn.querySelector('span.z-10');
-                if(span) {
-                    span.innerHTML = `<span class="material-symbols-outlined animate-spin text-[16px]">sync</span> SYNCING MATRIX`;
-                }
-
-                this.showToast(protocol);
-                return true;
-            },
-
-            showToast(name) {
+            const showToast = (name) => {
                 const toast = document.createElement('div');
                 toast.className = 'pointer-events-auto flex items-center gap-4 px-5 py-4 bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 rounded-xl shadow-2xl backdrop-blur-xl border border-white/10 dark:border-black/10 transform transition-all duration-500 translate-y-10 opacity-0';
                 toast.innerHTML = `
@@ -350,31 +509,47 @@
                     </div>
                     <div class="flex-1">
                         <p class="text-[9px] font-black uppercase tracking-widest opacity-60 mb-0.5">Protocol Engaged</p>
-                        <p class="text-sm font-black uppercase tracking-tight">${name}</p>
+                        <p class="text-sm font-black uppercase tracking-tight">${sanitize(name)}</p>
                     </div>
                 `;
                 
-                const container = document.getElementById('toast-container');
-                container.appendChild(toast);
-                
-                // Trigger entry animation
-                requestAnimationFrame(() => {
-                    toast.classList.remove('translate-y-10', 'opacity-0');
-                });
-
-                // Trigger exit animation and remove
+                document.getElementById('toast-container').appendChild(toast);
+                requestAnimationFrame(() => toast.classList.remove('translate-y-10', 'opacity-0'));
                 setTimeout(() => {
                     toast.classList.add('translate-y-4', 'opacity-0');
                     setTimeout(() => toast.remove(), 500);
                 }, 4000);
-            }
-        };
+            };
 
-        document.addEventListener('DOMContentLoaded', () => UX.init());
+            // API Pública del Módulo
+            return {
+                init() {
+                    initDOMCache();
+                    initClock();
+                    staggerEntry();
+                    decodeCryptoText();
+                    connectWS();
+                    console.log("%c[SOVEREIGN.OPS] L1 Core initialized. WS Uplink engaged.", "color: #10b981; font-weight: bold; font-family: monospace;");
+                },
+                launch(form, protocol) {
+                    const btn = form.querySelector('button[type="submit"]');
+                    if(!btn) return true;
+                    btn.disabled = true;
+                    btn.classList.add('cursor-wait', 'opacity-80');
+                    const span = btn.querySelector('span.z-10');
+                    if(span) {
+                        span.innerHTML = `<span class="material-symbols-outlined animate-spin text-[16px]">sync</span> ENGAGING MATRICES`;
+                    }
+                    showToast(protocol);
+                    return true;
+                }
+            };
+        })();
+
+        document.addEventListener('DOMContentLoaded', CoreController.init);
     </script>
 
     <style>
-        /* Typography: Inter for UI, JetBrains Mono for Data */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@400;700;800&display=swap');
         
         :root { 
@@ -382,20 +557,25 @@
             --font-mono: 'JetBrains Mono', monospace; 
         }
 
-        /* Material Symbols Outline Reset */
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+        .gpu-accelerated {
+            will-change: transform, opacity;
+            transform: translateZ(0);
         }
 
-        /* Custom Input Styling */
+        .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 24; }
+
         input::placeholder { color: #94a3b8; font-weight: 600; }
-        .dark input { background: rgba(255,255,255,0.02); }
-        .dark input:focus { background: rgba(0,0,0,0.5); }
+        .dark input, .dark select { background: rgba(255,255,255,0.02); }
+        .dark input:focus, .dark select:focus { background: rgba(0,0,0,0.5); }
         
-        /* Tactical Radio Buttons */
         .peer:checked + div { border-color: inherit !important; box-shadow: inset 0 0 0 1px inherit; }
 
-        /* Scrollbar Stealth */
+        /* Tactical Terminal Scrollbar */
+        .terminal-scroll::-webkit-scrollbar { width: 4px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: transparent; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .terminal-scroll:hover::-webkit-scrollbar-thumb { background: #555; }
+        
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-track { background: transparent; }

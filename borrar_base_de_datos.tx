@@ -1,0 +1,38 @@
+docker-compose exec web python manage.py shell -c "
+import time
+from django.db import connection, transaction
+from django.apps import apps
+from django.core.cache import cache
+from django.contrib.sessions.models import Session
+
+print('\n' + '☢️'*15 + '\nINICIANDO PURGA CUÁNTICA EN MEMORIA\n' + '☢️'*15)
+
+try:
+    cache.clear()
+    Session.objects.all().delete()
+    print('[-] Caché y Sesiones eliminadas.')
+except: 
+    pass
+
+sales_app = apps.get_app_config('sales')
+models = list(sales_app.get_models())
+tables = [m._meta.db_table for m in models]
+
+if tables:
+    tables_fmt = ', '.join([f'\"{t}\"' for t in tables])
+    try:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(f'TRUNCATE TABLE {tables_fmt} RESTART IDENTITY CASCADE;')
+        print('✅ PURGA SQL COMPLETADA. Sector absolutamente estéril.')
+    except Exception as e:
+        print(f'❌ Truncate bloqueado ({e}). Ejecutando Plan B (ORM)...')
+        try:
+            for m in reversed(models):
+                m.objects.all().delete()
+            print('✅ PURGA DE EMERGENCIA (ORM) COMPLETADA. Sector estéril.')
+        except Exception as e2:
+            print(f'❌ FALLO TOTAL: {e2}')
+else:
+    print('⚠️ No hay tablas para borrar.')
+"

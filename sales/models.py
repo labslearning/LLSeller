@@ -5,7 +5,8 @@ from django.core.validators import MinValueValidator, MaxValueValidator, RegexVa
 from django.db.models import Count, Q, Avg, CheckConstraint, F
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-
+#from .base_models import TimeStampedModel # <-- Ajusta este import a tu arquitectura
+#from model_utils.models import TimeStampedModel
 # ======================================================================
 # 0. CORE: ABSTRACT BASE (AUDIT TRAIL & DDD)
 # ======================================================================
@@ -34,6 +35,13 @@ class TimeStampedModel(models.Model):
 # 1. TIER 0: MASTER NODE (INSTITUTION & STATE MACHINE)
 # ======================================================================
 
+class TimeStampedModel(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
 class Institution(TimeStampedModel):
     """
     [C2 Master Node & State Machine]
@@ -58,7 +66,7 @@ class Institution(TimeStampedModel):
         GOV_DATA = 'gov_data', _('Directorio Gubernamental')
         SERP = 'serp', _('SERP Engine (Web Scraping)')
         MANUAL = 'manual', _('CRM Inbound / Manual')
-        GHOST = 'Ghost_V20', _('Ghost Sniper V20 (Autonomous)')
+        GHOST = 'Ghost_V23', _('Ghost Sniper V23 (Autonomous)') # Actualizado a V23
 
     # [GOD TIER: STATE MACHINE] Control de flujo anti-duplicación
     class ProcessingStatus(models.TextChoices):
@@ -89,9 +97,14 @@ class Institution(TimeStampedModel):
     )
     
     email = models.EmailField(blank=True, null=True, verbose_name="Email Principal (Sanitizado)")
+    
+    # [GOD TIER FIX]: Campo de teléfono agnóstico.
+    # 1. Eliminamos el RegexValidator restrictivo para permitir la sintaxis "W:300... T:601...".
+    # 2. Aumentamos el max_length a 120 para soportar múltiples canales de comunicación sin Truncation.
     phone = models.CharField(
-        max_length=50, blank=True, null=True, verbose_name="Línea Directa / PBX",
-        validators=[RegexValidator(r'^\+?1?\d{8,15}$', message="Formato E.164 o local válido requerido.")]
+        max_length=120, blank=True, null=True, 
+        verbose_name="Omni-Canal (WA/TEL)",
+        help_text="Soporta formato Ghost Sniper (Ej: W:3001234567 T:6011234567)"
     )
     
     # --- CLASIFICACIÓN DE NEGOCIO (B2B TARGETING) ---

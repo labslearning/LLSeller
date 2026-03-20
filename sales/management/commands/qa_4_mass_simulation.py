@@ -3,9 +3,9 @@ import uuid
 import random
 import time
 from datetime import timedelta
-from typing import Any
+from typing import Any, List, Dict
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandParser
 from django.db import transaction, DatabaseError
 from django.utils import timezone
 from django.db.models import Q
@@ -13,11 +13,9 @@ from django.db.models import Q
 from sales.models import Institution, Contact, Interaction
 
 class Command(BaseCommand):
-    help = '🚀 [QA TIER GOD] Motor Cuántico de Inyección B2B. Telemetría Orgánica, Tolerancia a Fallos y Diseño Orientado al Dominio.'
+    help = '🚀 [QA TIER GOD] Motor Cuántico de Inyección B2B. Operaciones Vectoriales (Bulk), Complejidad O(1) en latencia de red.'
 
-    # --- CONSTANTES DE CONFIGURACIÓN ---
-    TOTAL_TARGETS = 20
-    
+    # --- CONSTANTES DE VANGUARDIA ---
     FAKE_NAMES = [
         "Stanford QA", "MIT Simulator", "Oxford Test", "Harvard QA", "Cambridge Node", 
         "Yale Sandbox", "Princeton Mock", "Columbia DB", "Cornell Tech", "Duke Data",
@@ -44,151 +42,227 @@ class Command(BaseCommand):
         "WhatsApp/2.23.25.76 A"
     ]
 
+    def add_arguments(self, parser: CommandParser) -> None:
+        parser.add_argument(
+            '--targets', 
+            type=int, 
+            default=200, 
+            help='Número de nodos sintéticos a inyectar masivamente. Default: 200.'
+        )
+        parser.add_argument(
+            '--batch-size', 
+            type=int, 
+            default=1000, 
+            help='Tamaño de fragmentación (Chunking) para evitar bloqueos OOM en PostgreSQL.'
+        )
+
     def handle(self, *args: Any, **options: Any) -> None:
+        total_targets = options['targets']
+        batch_size = options['batch_size']
+
         self.stdout.write(self.style.WARNING("╔" + "═" * 85 + "╗"))
-        self.stdout.write(self.style.WARNING("║ ") + self.style.SUCCESS("🚀 INICIANDO MOTOR CUÁNTICO DE ESTRÉS: INYECCIÓN MASIVA DE TELEMETRÍA ORGÁNICA") + self.style.WARNING("  ║"))
+        self.stdout.write(self.style.WARNING("║ ") + self.style.SUCCESS(f"🚀 INICIANDO MOTOR MASIVO: INYECTANDO {total_targets} NODOS (BULK MODE O(1) LATENCY)") + self.style.WARNING("   ║"))
         self.stdout.write(self.style.WARNING("╚" + "═" * 85 + "╝"))
 
         now = timezone.now()
-        success_count = 0
-        failed_count = 0
 
-        # Distribución de probabilidad de estados (Curva de embudo de ventas)
-        statuses = [('REPLIED', 4), ('OPENED', 6), ('SENT', 6), ('BOUNCED', 2), ('MEETING', 2)]
-        distribution = [status for status, count in statuses for _ in range(count)]
-        random.shuffle(distribution)
-
+        # Generación de distribución probabilística O(N) en memoria
+        statuses = [('REPLIED', 15), ('OPENED', 25), ('SENT', 40), ('BOUNCED', 10), ('MEETING', 10)]
+        distribution = []
+        for status, weight in statuses:
+            distribution.extend([status] * weight)
+        
         # ==========================================
-        # 1. PURGA QUIRÚRGICA (CLEANUP)
+        # 1. PURGA QUIRÚRGICA (VECTORIAL CLEANUP)
         # ==========================================
-        self.stdout.write(self.style.NOTICE("\n[SYS] Ejecutando algoritmo de limpieza para evitar colisiones espectrales..."))
+        self.stdout.write(self.style.NOTICE("\n[SYS] Ejecutando purga vectorial de colisiones espectrales..."))
         
         cleanup_query = Q()
         suffixes = ["QA", "Simulator", "Mock", "Node", "Sandbox", "DB", "Tech", "Test", "Data"]
         for suffix in suffixes:
             cleanup_query |= Q(name__icontains=suffix)
         
+        # Eliminación masiva delegada enteramente al motor de Base de Datos (O(1) llamadas)
         deleted_count, _ = Institution.objects.filter(cleanup_query).delete()
-        self.stdout.write(self.style.SUCCESS(f"🧹 Sector purgado exitosamente: {deleted_count} registros fantasmas eliminados.\n"))
+        self.stdout.write(self.style.SUCCESS(f"🧹 Sector purgado: {deleted_count} registros fantasmas vaporizados.\n"))
 
         start_time = time.perf_counter()
 
         # ==========================================
-        # 2. INYECCIÓN ATÓMICA CON SAVEPOINTS
+        # 2. EVALUACIÓN DIFERIDA (RAM FABRICATION)
         # ==========================================
-        self.stdout.write(self.style.WARNING("┌─[ PIPELINE DE INYECCIÓN EN TIEMPO REAL ]" + "─" * 46 + "┐"))
+        self.stdout.write(self.style.WARNING("┌─[ CONSTRUYENDO MATRIZ DE DATOS SINTÉTICA EN RAM ]" + "─" * 33 + "┐"))
 
-        for i in range(self.TOTAL_TARGETS):
-            inst_name = self.FAKE_NAMES[i]
-            target_status = distribution[i]
-            channel_choice = Interaction.Channel.WHATSAPP if random.random() < 0.3 else Interaction.Channel.EMAIL
+        institutions_to_create = []
+        
+        # Diccionarios temporales para mantener la relación relacional (Foreign Keys) en memoria
+        institution_meta = {} # Mapea uuid -> (status, created, updated)
+
+        for i in range(total_targets):
+            inst_name = random.choice(self.FAKE_NAMES)
+            target_status = random.choice(distribution)
             lead_score = 100 if target_status in ['REPLIED', 'MEETING'] else (70 if target_status == 'OPENED' else 40)
             
-            # Hash único para garantizar 0% colisiones en unique_constraints (God Tier Fix)
-            crypto_hash = uuid.uuid4().hex[:6]
+            crypto_hash = uuid.uuid4().hex[:8]
             base_domain = f"{inst_name.lower().replace(' ', '')}-{crypto_hash}"
+            inst_uuid = uuid.uuid4()
             
-            # --- PROTECCIÓN POR SAVEPOINT ---
-            # Si un registro falla, no rompe toda la simulación. Aisla el error.
-            try:
-                with transaction.atomic():
-                    # 1. Instanciación B2B (Master Node)
-                    inst = Institution.objects.create(
-                        name=f"{inst_name} {crypto_hash.upper()}",
-                        website=f"https://{base_domain}.edu",
-                        city=random.choice(["Silicon Wadi", "Silicon Valley", "London", "Bangalore"]),
-                        country=random.choice(["Israel", "USA", "UK", "India"]),
-                        institution_type="university",
-                        is_private=True,
-                        email=f"ceo@{base_domain}.edu",
-                        lead_score=lead_score,
-                        contacted=True,
-                        is_active=True
-                    )
+            days_ago = random.randint(1, 14)
+            created_time = now - timedelta(days=days_ago, hours=random.randint(1, 12))
+            updated_time = created_time + timedelta(minutes=random.randint(2, 2880)) if target_status != 'SENT' else created_time
 
-                    # 2. Creación del Tomador de Decisiones (Contact Node)
-                    contact = Contact.objects.create(
-                        institution=inst,
-                        name=f"Ingeniero Operativo {crypto_hash.upper()}",
-                        role=random.choice(self.ROLES),
-                        email=f"admin-{crypto_hash}@{base_domain}.edu",
-                        phone=f"+{random.randint(10000000000, 99999999999)}"
-                    )
+            institutions_to_create.append(
+                Institution(
+                    id=inst_uuid,
+                    name=f"{inst_name} {crypto_hash.upper()}",
+                    website=f"https://{base_domain}.edu",
+                    city=random.choice(["Silicon Wadi", "Silicon Valley", "London", "Bangalore"]),
+                    country=random.choice(["Israel", "USA", "UK", "India"]),
+                    institution_type="university",
+                    is_private=True,
+                    email=f"ceo@{base_domain}.edu",
+                    lead_score=lead_score,
+                    contacted=True,
+                    is_active=True,
+                    # Bypass auto_now_add forzando el valor
+                    created_at=created_time,
+                    updated_at=updated_time
+                )
+            )
+            
+            institution_meta[inst_uuid] = {
+                'status': target_status,
+                'created': created_time,
+                'updated': updated_time,
+                'hash': crypto_hash,
+                'domain': base_domain
+            }
 
-                    # 3. Time-Shifting Estocástico (Latencia Humana)
-                    days_ago = random.randint(1, 14)
-                    created_time = now - timedelta(days=days_ago, hours=random.randint(1, 12))
-                    updated_time = created_time + timedelta(minutes=random.randint(2, 2880)) if target_status != 'SENT' else created_time
+        # ==========================================
+        # 3. INYECCIÓN VECTORIAL (BULK INSERTS O(1) LATENCY)
+        # ==========================================
+        try:
+            with transaction.atomic():
+                self.stdout.write(self.style.NOTICE("💾 [NET] Despachando Instituciones hacia PostgreSQL (Bulk Insert)..."))
+                # Ignoramos conflictos (por si hay nombres repetidos por pura probabilidad extrema)
+                Institution.objects.bulk_create(institutions_to_create, batch_size=batch_size, ignore_conflicts=True)
+                
+                # Rescatamos los objetos reales creados para mapear los IDs correctamente a los Contactos
+                # (bulk_create en Postgres no siempre retorna los PKs si hay ignore_conflicts, así que hacemos un select optimizado)
+                created_insts = Institution.objects.filter(id__in=[inst.id for inst in institutions_to_create]).only('id', 'name')
+                
+                contacts_to_create = []
+                interactions_to_create = []
 
-                    # 4. Origen de la Interacción (Nace en estado legal SENT)
-                    interaction = Interaction.objects.create(
-                        institution=inst,
-                        contact=contact,
-                        channel=channel_choice,
-                        subject=f"Propuesta Estratégica para {inst.name}",
-                        message_sent=f"Hola equipo de {inst_name},\n\nSoy el Sovereign Engine. Adjunto propuesta B2B.",
-                        status=Interaction.Status.SENT, 
+                self.stdout.write(self.style.NOTICE("⚙️  [RAM] Ensamblando grafos de Contactos e Interacciones..."))
+                
+                for inst in created_insts:
+                    meta = institution_meta[inst.id]
+                    c_hash = meta['hash']
+                    b_domain = meta['domain']
+                    target_status = meta['status']
+                    created_time = meta['created']
+                    updated_time = meta['updated']
+                    
+                    contact_id = uuid.uuid4()
+                    channel_choice = Interaction.Channel.WHATSAPP if random.random() < 0.3 else Interaction.Channel.EMAIL
+                    
+                    contacts_to_create.append(
+                        Contact(
+                            id=contact_id,
+                            institution=inst,
+                            name=f"Ingeniero Operativo {c_hash.upper()}",
+                            role=random.choice(self.ROLES),
+                            email=f"admin-{c_hash}@{b_domain}.edu",
+                            phone=f"+{random.randint(10000000000, 99999999999)}",
+                            created_at=created_time,
+                            updated_at=created_time
+                        )
                     )
                     
-                    # 5. Domain-Driven State Machine (Evolución Orgánica)
+                    # Generación determinista de telemetría sin guardar aún
+                    telemetry = {}
+                    interaction_status = Interaction.Status.SENT
+                    subject = f"Propuesta Estratégica para {inst.name}"
+                    message_received = None
+                    replied = False
+                    intent = ""
+                    meeting_date = None
+                    
                     if target_status in ['OPENED', 'REPLIED', 'MEETING']:
-                        ip_fake = f"{random.randint(1, 255)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}"
-                        interaction.register_open(
-                            ip_address=ip_fake, 
-                            user_agent=random.choice(self.USER_AGENTS)
-                        )
-
+                        interaction_status = Interaction.Status.OPENED
+                        telemetry['opens'] = [{
+                            'timestamp': updated_time.isoformat(), 
+                            'ip': f"{random.randint(1, 255)}.X.X.X", 
+                            'user_agent': random.choice(self.USER_AGENTS)
+                        }]
+                        
                     if target_status in ['REPLIED', 'MEETING']:
-                        interaction.register_inbound_reply(
-                            raw_payload=random.choice(self.HUMAN_REPLIES),
-                            intent="POSITIVE" if target_status == 'MEETING' else random.choice(["NEUTRAL", "POSITIVE", "NEGATIVE"]),
-                            sentiment_score=round(random.uniform(0.10, 0.99), 2)
-                        )
-                        # Mutación cosmética del asunto para la UI
-                        interaction.subject = f"RE: {interaction.subject}"
-                        interaction.save(update_fields=['subject'])
-                        
-                    if target_status == 'MEETING':
-                        interaction.status = Interaction.Status.MEETING
-                        interaction.meeting_date = updated_time + timedelta(days=random.randint(1, 10))
-                        interaction.save(update_fields=['status', 'meeting_date'])
-                        
+                        interaction_status = Interaction.Status.MEETING if target_status == 'MEETING' else Interaction.Status.REPLIED
+                        message_received = random.choice(self.HUMAN_REPLIES)
+                        replied = True
+                        intent = "POSITIVE" if target_status == 'MEETING' else random.choice(["NEUTRAL", "POSITIVE", "NEGATIVE"])
+                        subject = f"RE: {subject}"
+                        telemetry['nlp_engine'] = {
+                            'intent': intent, 'sentiment_score': round(random.uniform(0.10, 0.99), 2), 'processed_at': updated_time.isoformat()
+                        }
+                        if target_status == 'MEETING':
+                            meeting_date = updated_time + timedelta(days=random.randint(1, 10))
+
                     if target_status == 'BOUNCED':
-                        interaction.status = Interaction.Status.BOUNCED
-                        interaction.save(update_fields=['status'])
+                        interaction_status = Interaction.Status.BOUNCED
 
-                    # 6. Sobreescritura de Cuarta Dimensión (Timestamps)
-                    Interaction.objects.filter(id=interaction.id).update(created_at=created_time, updated_at=updated_time)
-                    
-                    # Log Táctico Formateado
-                    c_tag = "🟢 WA" if channel_choice == Interaction.Channel.WHATSAPP else "📧 EM"
-                    status_colored = self.style.SUCCESS(f"{target_status:<7}") if target_status in ['REPLIED', 'MEETING'] else (self.style.WARNING(f"{target_status:<7}") if target_status == 'OPENED' else self.style.NOTICE(f"{target_status:<7}"))
-                    
-                    self.stdout.write(f"│  ↳ [{c_tag}] {inst.name:<30} │ SCORE: {str(lead_score).zfill(3)} │ ST: {status_colored} │")
-                    success_count += 1
+                    interactions_to_create.append(
+                        Interaction(
+                            id=uuid.uuid4(),
+                            institution=inst,
+                            contact_id=contact_id, # Linkeamos directamente la llave foránea
+                            channel=channel_choice,
+                            subject=subject,
+                            message_sent=f"Hola equipo,\n\nSoy el Sovereign Engine. Adjunto propuesta B2B.",
+                            message_received=message_received,
+                            telemetry_data=telemetry,
+                            opened_count=1 if target_status in ['OPENED', 'REPLIED', 'MEETING'] else 0,
+                            replied=replied,
+                            status=interaction_status,
+                            ai_sentiment=intent,
+                            meeting_date=meeting_date,
+                            created_at=created_time,
+                            updated_at=updated_time
+                        )
+                    )
 
-            except DatabaseError as e:
-                failed_count += 1
-                self.stdout.write(self.style.ERROR(f"│  ❌ [DB FAULT] Falla aislada en {inst_name}: {str(e)[:50]}... │"))
-            except Exception as e:
-                failed_count += 1
-                self.stdout.write(self.style.ERROR(f"│  ⚠️ [RUNTIME] Falla de ejecución en {inst_name}: {str(e)[:50]}... │"))
+                self.stdout.write(self.style.NOTICE("💾 [NET] Despachando Contactos e Interacciones hacia PostgreSQL..."))
+                
+                # Inyección masiva final
+                Contact.objects.bulk_create(contacts_to_create, batch_size=batch_size)
+                Interaction.objects.bulk_create(interactions_to_create, batch_size=batch_size)
+
+                success_count = len(created_insts)
+                self.stdout.write(self.style.SUCCESS(f"│  ↳ Matriz Vectorial Completada: {success_count} grafos institucionales generados. │"))
+
+        except Exception as e:
+            self.stdout.write(self.style.ERROR(f"│  ❌ [CRITICAL CRASH] Falla de Transacción Atómica: {str(e)} │"))
+            logger.exception("Mass Simulation Crash")
+            return
 
         self.stdout.write(self.style.WARNING("└" + "─" * 85 + "┘\n"))
 
         # ==========================================
-        # 3. REPORTE EJECUTIVO
+        # 3. REPORTE EJECUTIVO Y AUDITORÍA
         # ==========================================
-        elapsed = (time.perf_counter() - start_time) * 1000
+        elapsed = (time.perf_counter() - start_time)
+        velocity = success_count / elapsed if elapsed > 0 else 0
         
         self.stdout.write(self.style.SUCCESS("╔" + "═" * 85 + "╗"))
-        self.stdout.write(self.style.SUCCESS(f"║ 🏁 [MISSION ACCOMPLISHED] OPERACIÓN DE ESTRÉS COMPLETADA EN {elapsed:.2f} ms{' '*19}║"))
+        self.stdout.write(self.style.SUCCESS(f"║ 🏁 [MISSION ACCOMPLISHED] ESTRÉS CUÁNTICO COMPLETADO EN {elapsed:.3f} s{' '*19}║"))
         self.stdout.write(self.style.SUCCESS("╠" + "═" * 85 + "╣"))
-        self.stdout.write(self.style.SUCCESS(f"║  ✅ Nodos Sincronizados : {success_count}/{self.TOTAL_TARGETS} (Ready for ML Ingestion){' '*30}║"))
-        
-        if failed_count > 0:
-            self.stdout.write(self.style.ERROR(f"║  ❌ Nodos Rechazados    : {failed_count}/{self.TOTAL_TARGETS} (Revisar Constraints DB){' '*28}║"))
-        else:
-            self.stdout.write(self.style.SUCCESS(f"║  🛡️ Nodos Rechazados    : 0 (Cero colisiones, Integridad Estructural del 100%){' '*8}║"))
-            
+        self.stdout.write(self.style.SUCCESS(f"║  ✅ Nodos Sincronizados : {success_count}/{total_targets} (Ready for ML Ingestion){' '*30}║"))
+        self.stdout.write(self.style.SUCCESS(f"║  ⚡ Velocidad de Red    : {velocity:.0f} nodos / segundo{' '*43}║"))
         self.stdout.write(self.style.SUCCESS("╚" + "═" * 85 + "╝"))
+
+        # Desplegar distribución real
+        self.stdout.write(self.style.NOTICE("\n📊 DISTRIBUCIÓN REAL GENERADA EN LA BASE DE DATOS (EMBUDO B2B):"))
+        for stat in ['MEETING', 'REPLIED', 'OPENED', 'SENT', 'BOUNCED']:
+            count = Interaction.objects.filter(status=stat).count()
+            self.stdout.write(f"   - {stat:<10}: {count} nodos.")

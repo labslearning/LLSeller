@@ -1,6 +1,7 @@
 import json
 import logging
 import uuid
+import re
 from typing import Any, Dict
 
 from django.contrib import admin, messages
@@ -14,7 +15,7 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
-from django.utils.translation import gettext_lazy as _  # <--- [GOD TIER FIX: IMPORTACIÓN FALTANTE]
+from django.utils.translation import gettext_lazy as _  
 from django.conf import settings
 from django.db.models.functions import Coalesce
 
@@ -39,6 +40,10 @@ from .tasks import task_run_osm_radar, task_run_serp_resolver, task_run_ghost_sn
 # TELEMETRÍA Y LOGGING CENTRALIZADO
 # ==========================================
 logger = logging.getLogger("SovereignAdminGateway")
+
+# [GOD TIER OPTIMIZATION]: Pre-compilación O(1) para el renderizado del listado
+WA_REGEX = re.compile(r'W:\s*([\d\+\s]+)')
+TEL_REGEX = re.compile(r'T:\s*([\d\+\s]+)')
 
 # ==========================================
 # 1. FILTROS ESTRATÉGICOS (DATA WAREHOUSE)
@@ -141,7 +146,7 @@ class GlobalPipelineAdmin(ModelAdmin):
         'city',
     )
 
-    search_fields = ('name', 'website', 'email', 'city', 'country')
+    search_fields = ('name', 'website', 'email', 'city', 'country', 'phone')
     list_select_related = ('tech_profile', 'forensic_profile')
     readonly_fields = (
         'id', 'last_scored_at', 'display_performance_score',
@@ -158,31 +163,16 @@ class GlobalPipelineAdmin(ModelAdmin):
             'js/websocket_handler.js',)
 
     def get_ordering(self, request):
-        """
-        [GOD TIER FIX] 
-        Al retornar una tupla vacía, le prohibimos a Django Admin que 
-        aplique su ordenamiento por defecto, obligándolo a respetar 
-        exclusivamente el order_by() de nuestro get_queryset.
-        """
         return ()
     
     def get_queryset(self, request):
         from django.db.models import Case, When, Value, IntegerField, ExpressionWrapper, Q
         
-        """
-        [GOD TIER ENGINE V7.0 - DATA DENSITY SCORING]
-        Calculadora de gravedad B2B. Suma atributos acumulativos y penaliza 
-        URLs basura o sin LMS. Los objetivos para la IA siempre estarán arriba.
-        """
         return super().get_queryset(request).select_related(
             'tech_profile', 'forensic_profile'
         ).annotate(
-            # 🧠 ALGORITMO DE DENSIDAD DE INTELIGENCIA ACUMULATIVO
             data_density=ExpressionWrapper(
-                # 1. Munición Principal: Email validado (+20 pts)
                 Case(When(Q(email__isnull=False) & ~Q(email=''), then=Value(20)), default=Value(0)) +
-                
-                # 2. EL SANTO GRIAL: LMS Confirmado (+35 pts) -> REQUISITO CRÍTICO PARA LEARNING LABS
                 Case(
                     When(
                         Q(tech_profile__has_lms=True) & 
@@ -192,68 +182,45 @@ class GlobalPipelineAdmin(ModelAdmin):
                     ), 
                     default=Value(0)
                 ) +
-                
-                # 3. Vector Secundario: Teléfono / WhatsApp (+10 pts)
                 Case(When(Q(phone__isnull=False) & ~Q(phone=''), then=Value(10)), default=Value(0)) +
-                
-                # 4. Presencia Digital: URL Confirmada por Levenshtein (+10 pts)
                 Case(When(Q(website__isnull=False) & ~Q(website=''), then=Value(10)), default=Value(0)) +
-                
-                # 5. INTELIGENCIA FORENSE STACKEABLE (¡Ahora sí se suman todos!)
-                # A. Nivel de Idioma
                 Case(
                     When(forensic_profile__is_trilingual=True, then=Value(15)),
                     When(forensic_profile__is_bilingual=True, then=Value(10)),
                     default=Value(0)
                 ) +
-                # B. Certificación IB (+5 pts extra)
                 Case(When(forensic_profile__has_ib_cert=True, then=Value(5)), default=Value(0)) +
-                # C. Certificación Cambridge (+5 pts extra)
                 Case(When(forensic_profile__has_cambridge_cert=True, then=Value(5)), default=Value(0)) +
-                
-                # 6. MULTIPLICADORES DE ESTADO TÁCTICO (El toque final)
                 Case(
-                    When(processing_status='ENRICHED', then=Value(10)), # Bono por escaneo perfecto
-                    When(processing_status='DISCARDED', then=Value(-100)), # Penalización masiva a la basura
+                    When(processing_status='ENRICHED', then=Value(10)), 
+                    When(processing_status='DISCARDED', then=Value(-100)), 
                     default=Value(0)
                 ),
-                
                 output_field=IntegerField()
             )
         ).order_by(
-            '-data_density',   # 🥇 PRIMERO: Los Dioses (LMS + Email + IB + Trilingüe = ~110 pts)
-            '-lead_score',     # 🥈 SEGUNDO: El Score predictivo
-            '-updated_at'      # 🥉 TERCERO: Los más frescos
+            '-data_density',   
+            '-lead_score',     
+            '-updated_at'      
         )
     
-    # ----------------------------------------------------------------------
-    # PEGA ESTO JUSTO DEBAJO DE TU get_queryset DENTRO DE GlobalPipelineAdmin
-    # ----------------------------------------------------------------------
     @display(description="Data Density (Intel)", ordering='-data_density')
     def data_density_badge(self, obj):
-        """
-        Renderiza el estado de inteligencia del objetivo.
-        Colores tipo Semáforo APT para rápida toma de decisiones.
-        """
         score = getattr(obj, 'data_density', 0)
         
         if score >= 80:
-            # Verde: Objetivo rico en inteligencia (Listo para IA)
             color = "bg-[#022c22] text-[#34d399] border-[#10b981]"
             shadow = "shadow-[0_0_10px_rgba(16,185,129,0.3)]"
             icon = "verified_user"
         elif score >= 50:
-            # Naranja: Faltan datos (Quizás no hay email pero sí LMS)
             color = "bg-amber-900/40 text-amber-400 border-amber-500/50"
             shadow = ""
             icon = "warning"
         elif score > 0:
-            # Azul: Inteligencia mínima (Quizás solo URL y Teléfono)
             color = "bg-blue-900/40 text-blue-400 border-blue-500/50"
             shadow = ""
             icon = "troubleshoot"
         else:
-            # Gris oscuro: Fantasma (Solo Nombre y Ciudad)
             color = "bg-slate-900/80 text-slate-500 border-slate-700"
             shadow = ""
             icon = "visibility_off"
@@ -264,9 +231,6 @@ class GlobalPipelineAdmin(ModelAdmin):
             f'  <span class="text-[10px] font-black tracking-widest uppercase">{score} PTS</span>'
             f'</div>'
         )
-
-
-
 
     def changelist_view(self, request, extra_context=None):
         qs = self.get_queryset(request)
@@ -380,7 +344,7 @@ class GlobalPipelineAdmin(ModelAdmin):
         flag = "🇨🇴" if "colombia" in (obj.country or "").lower() else "🌎"
         city = obj.city or "Global"
         
-        url_html = format_html('<a href="{}" target="_blank" class="text-blue-600 dark:text-blue-400 text-xs font-mono">{}</a>', url, clean_url[:25]) if url else format_html('<span class="text-red-500 text-xs font-mono">URL Pendiente</span>')
+        url_html = format_html('<a href="{}" target="_blank" class="text-blue-600 dark:text-blue-400 text-xs font-mono hover:underline">{}</a>', url, clean_url[:25]) if url else format_html('<span class="text-red-500 text-xs font-mono">URL Pendiente</span>')
 
         return format_html(
             '<div class="whitespace-nowrap min-w-[240px]">'
@@ -460,20 +424,20 @@ class GlobalPipelineAdmin(ModelAdmin):
         tech = obj.tech_profile
         forensic = getattr(obj, 'forensic_profile', None)
         badges = []
-        b_class = "inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase text-white mb-1"
+        b_class = "inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase text-white mb-1 shadow-sm"
 
         if tech.has_lms and tech.lms_provider:
             lms = str(tech.lms_provider).upper()
             color = "bg-orange-500" if "SCHOOLNET" in lms else "bg-purple-600" if "PHIDIAS" in lms else "bg-blue-600" if "CIBER" in lms else "bg-gray-700"
             badges.append(format_html('<span class="{} {}">{}</span><br>', b_class, color, lms))
         elif obj.last_scored_at:
-            badges.append(format_html('<span class="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-300 mb-1">SIN LMS</span><br>'))
+            badges.append(format_html('<span class="inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-300 mb-1 border border-slate-700">SIN LMS</span><br>'))
 
         if forensic:
             if forensic.is_trilingual:
-                badges.append(format_html('<span class="inline-block px-2 py-0.5 mr-1 rounded text-[9px] font-bold uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">TRILINGÜE</span>'))
+                badges.append(format_html('<span class="inline-block px-2 py-0.5 mr-1 rounded text-[9px] font-bold uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 border border-indigo-700/30">TRILINGÜE</span>'))
             elif forensic.is_bilingual:
-                badges.append(format_html('<span class="inline-block px-2 py-0.5 mr-1 rounded text-[9px] font-bold uppercase bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">BILINGÜE</span>'))
+                badges.append(format_html('<span class="inline-block px-2 py-0.5 mr-1 rounded text-[9px] font-bold uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-700/30">BILINGÜE</span>'))
 
         if not badges:
             return format_html('<div id="tech-radar-{}" class="whitespace-nowrap min-w-[100px]"><span class="text-xs text-gray-400 italic">-</span></div>', obj.pk)
@@ -486,28 +450,67 @@ class GlobalPipelineAdmin(ModelAdmin):
         color = "text-emerald-600" if score >= 80 else "text-amber-500" if score >= 50 else "text-red-500"
         return format_html(
             '<div id="score-panel-{}" class="whitespace-nowrap min-w-[60px]">'
-            '  <strong class="text-sm {}">{} PTS</strong>'
+            '  <strong class="text-sm {} font-black">{} PTS</strong>'
             '</div>', obj.pk, color, score
         )
 
-    @display(description='Contacto')
+    # =========================================================
+    # [GOD TIER RENDER]: OMNI-CHANNEL CONTACT DISPLAY
+    # =========================================================
+    @display(description='Contacto / Vectores')
     def display_contact_card(self, obj):
+        """
+        Interpreta la sintaxis W:/T: inyectada por el Sniper y genera 
+        componentes UI (Píldoras funcionales) con Tailwind.
+        """
+        html = '<div class="flex flex-col gap-1.5 min-w-[160px]">'
+
+        # 1. VECTOR EMAIL
         if obj.email:
-            return format_html(
-                '<div class="whitespace-nowrap min-w-[140px] leading-tight">'
-                '  <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">✅ Validado</span><br>'
-                '  <a href="mailto:{}" class="text-xs text-gray-600 dark:text-gray-400 hover:text-blue-500 mt-1 inline-block">{}</a>'
-                '</div>',
-                obj.email, obj.email[:20] + "..." if len(obj.email) > 20 else obj.email
-            )
-        return format_html('<div class="whitespace-nowrap min-w-[140px]"><span class="text-[10px] font-bold text-red-500 uppercase">❌ Missing</span></div>')
+            html += f'''
+            <div class="flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-[12px] text-emerald-500">mail</span>
+                <a href="mailto:{obj.email}" class="text-[10px] font-mono text-slate-800 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors truncate max-w-[140px]" title="{obj.email}">{obj.email}</a>
+            </div>
+            '''
+        else:
+            html += '<div class="text-[9px] font-mono text-slate-500 dark:text-slate-600">✉️ NO EMAIL</div>'
+
+        # 2. VECTOR TELÉFONO MULTI-CANAL
+        if obj.phone:
+            phones_html = ""
+            
+            # Búsqueda O(1) con regex precompilada
+            wa_match = WA_REGEX.search(obj.phone)
+            tel_match = TEL_REGEX.search(obj.phone)
+
+            # Generador WhatsApp
+            if wa_match:
+                num = wa_match.group(1).strip()
+                phones_html += f'<a href="https://wa.me/{num}" target="_blank" class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30 rounded font-mono text-[9px] font-bold hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors flex items-center gap-1 w-fit shadow-sm"><span class="material-symbols-outlined text-[10px]">forum</span> {num}</a>'
+            
+            # Generador Teléfono
+            if tel_match:
+                num = tel_match.group(1).strip()
+                phones_html += f'<a href="tel:{num}" class="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-500/30 rounded font-mono text-[9px] font-bold hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors flex items-center gap-1 w-fit mt-1 shadow-sm"><span class="material-symbols-outlined text-[10px]">call</span> {num}</a>'
+            
+            # Generador Legacy (Si el número existe pero no tiene el formato W:/T: del Ghost Sniper V23)
+            if not wa_match and not tel_match:
+                phones_html += f'<span class="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded font-mono text-[9px] w-fit shadow-sm">📞 {obj.phone[:15]}</span>'
+            
+            html += f'<div class="flex flex-col gap-1 mt-1 border-t border-slate-200 dark:border-slate-800/50 pt-1.5">{phones_html}</div>'
+        else:
+            html += '<div class="text-[9px] font-mono text-slate-500 dark:text-slate-600 mt-1 border-t border-slate-200 dark:border-slate-800/50 pt-1.5">📞 NO PHONE</div>'
+
+        html += '</div>'
+        return format_html(html)
 
     @display(description='IA')
     def display_ai_readiness(self, obj):
         if hasattr(obj, 'forensic_profile') and obj.forensic_profile and obj.forensic_profile.ai_classification:
             return format_html(
                 '<div class="whitespace-nowrap min-w-[80px]">'
-                '  <span class="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 border border-purple-200 dark:border-purple-800">✨ READY</span>'
+                '  <span class="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50 shadow-sm">✨ READY</span>'
                 '</div>'
             )
         return format_html('<div class="whitespace-nowrap min-w-[80px]"><span class="text-xs text-gray-400 italic">No AI</span></div>')
@@ -517,7 +520,7 @@ class GlobalPipelineAdmin(ModelAdmin):
         if not obj.last_scored_at:
             return format_html('<div class="whitespace-nowrap min-w-[60px]"><span class="text-xs text-gray-400 italic">-</span></div>')
         return format_html(
-            '<div class="whitespace-nowrap min-w-[60px]"><span class="font-mono text-xs text-gray-500 dark:text-gray-400">{}</span></div>',
+            '<div class="whitespace-nowrap min-w-[60px]"><span class="font-mono text-[10px] text-gray-500 dark:text-gray-400 border border-slate-200 dark:border-slate-800 px-1.5 py-0.5 rounded">{}</span></div>',
             obj.last_scored_at.strftime("%d %b")
         )
 
@@ -529,17 +532,17 @@ class GlobalPipelineAdmin(ModelAdmin):
 
         profile = obj.forensic_profile
         classification = profile.ai_classification or "N/A"
-        color = "text-emerald-600" if "Alto" in classification else "text-amber-500"
+        color = "text-emerald-600 dark:text-emerald-400" if "Alto" in classification else "text-amber-600 dark:text-amber-400"
 
         return format_html(
             '<div class="p-6 bg-white dark:bg-[#161b22] rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm">'
             '  <div class="mb-4">'
-            '    <h4 class="text-[10px] uppercase font-bold text-gray-400 mb-1">Clasificación Estratégica</h4>'
+            '    <h4 class="text-[10px] uppercase font-bold text-gray-400 mb-1 tracking-widest">Clasificación Estratégica</h4>'
             '    <p class="text-lg font-black {}">{}</p>'
             '  </div>'
-            '  <div class="h-px bg-gray-100 dark:bg-gray-800 mb-4"></div>'
-            '  <h4 class="text-[10px] uppercase font-bold text-gray-400 mb-2">Resumen de Oportunidad</h4>'
-            '  <p class="text-[13px] text-gray-700 dark:text-gray-300 leading-relaxed">{}</p>'
+            '  <div class="h-px bg-gray-100 dark:bg-gray-800/50 mb-4"></div>'
+            '  <h4 class="text-[10px] uppercase font-bold text-gray-400 mb-2 tracking-widest">Resumen de Oportunidad</h4>'
+            '  <p class="text-[13px] text-gray-700 dark:text-gray-300 leading-relaxed font-serif">{}</p>'
             '</div>',
             color, classification, profile.executive_summary
         )
@@ -550,16 +553,16 @@ class GlobalPipelineAdmin(ModelAdmin):
         recs = obj.forensic_profile.sales_playbook
         if not isinstance(recs, list): return "-"
 
-        html_list = "".join([format_html('<li style="margin-bottom: 0.5rem; display: flex; align-items: start; gap: 0.5rem;"><span class="text-blue-500 text-sm">⚡</span><span class="text-[13px] text-gray-700 dark:text-gray-300 leading-snug">{}</span></li>', r) for r in recs])
-        return format_html('<div class="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-100 dark:border-blue-800"><ul class="m-0 p-0 list-none">{}</ul></div>', format_html(html_list))
+        html_list = "".join([format_html('<li style="margin-bottom: 0.5rem; display: flex; align-items: start; gap: 0.5rem;"><span class="text-blue-500 text-sm mt-0.5">⚡</span><span class="text-[13px] text-gray-700 dark:text-gray-300 leading-snug">{}</span></li>', r) for r in recs])
+        return format_html('<div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50"><ul class="m-0 p-0 list-none">{}</ul></div>', format_html(html_list))
 
     @display(description="📧 AI Copywriting (Borrador de Outreach)")
     def ai_copywriting_panel(self, obj):
         if not hasattr(obj, 'forensic_profile') or not obj.forensic_profile.predictive_copy: return "-"
         return format_html(
-            '<div class="relative bg-gray-50 dark:bg-[#0d1117] p-6 rounded-lg border border-gray-200 dark:border-gray-800">'
-            '  <div class="absolute top-3 right-3 text-[9px] font-bold text-gray-400 uppercase">Predictive Copy</div>'
-            '  <pre class="whitespace-pre-wrap text-[13px] text-gray-800 dark:text-gray-300 font-sans leading-relaxed mt-2">{}</pre>'
+            '<div class="relative bg-gray-50 dark:bg-[#0d1117] p-6 rounded-lg border border-gray-200 dark:border-gray-800 shadow-inner">'
+            '  <div class="absolute top-3 right-3 text-[9px] font-bold text-gray-400 uppercase tracking-widest">Predictive Copy</div>'
+            '  <pre class="whitespace-pre-wrap text-[13px] text-gray-800 dark:text-gray-300 font-mono leading-relaxed mt-2 p-4 bg-white dark:bg-black rounded border border-gray-100 dark:border-gray-800 shadow-sm">{}</pre>'
             '</div>', obj.forensic_profile.predictive_copy
         )
 
@@ -610,7 +613,6 @@ class CommandCenterAdmin(ModelAdmin):
             messages.error(request, "⛔ Acceso Denegado: Tu rango no permite acceso al Dashboard Ejecutivo.")
             return redirect('admin:index')
 
-        # === 1. MANEJO DE MISIONES (Botones de acción masiva) ===
         if request.method == "POST":
             action_type = request.POST.get('action_type')
             
@@ -629,7 +631,7 @@ class CommandCenterAdmin(ModelAdmin):
                     'success_msg': "🔍 Escuadrón SERP resolviendo URLs en los clústers de búsqueda."
                 },
                 'sniper': {
-                    'task': task_run_ghost_sniper_fleet, # Usa el Enjambre Anti-Duplicados
+                    'task': task_run_ghost_sniper_fleet, 
                     'kwargs': {'limit': int(request.POST.get('limit', 500)), 'city': request.POST.get('city', '')},
                     'success_msg': f"🕵️‍♂️ Flota Ghost Sniper activada. Escaneando {request.POST.get('limit', 500)} objetivos."
                 }
@@ -640,13 +642,12 @@ class CommandCenterAdmin(ModelAdmin):
                 try:
                     mission['task'].delay(**mission['kwargs'])
                     self.message_user(request, mission['success_msg'], level='SUCCESS')
-                    cache.delete('b2b_dashboard_metrics') # Forzar recálculo
+                    cache.delete('b2b_dashboard_metrics') 
                 except Exception as e:
                     logger.critical(f"Falla de conexión con Celery: {str(e)}")
                     self.message_user(request, "🚨 ERROR CRÍTICO: Infraestructura Celery inalcanzable.", level='ERROR')
             return HttpResponseRedirect(request.path)
 
-        # === 2. CÁLCULO ANALÍTICO DE ALTO RENDIMIENTO (BI) ===
         try:
             metrics = cache.get('b2b_dashboard_metrics')
         except Exception:
@@ -694,7 +695,6 @@ class CommandCenterAdmin(ModelAdmin):
             except Exception:
                 pass
 
-        # === 3. RENDERIZADO ===
         context = dict(self.admin_site.each_context(request))
         context.update({
             'title': 'Sovereign C-Level Dashboard',
@@ -926,14 +926,12 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
         from django.urls import reverse
         from django.http import HttpResponse
         
-        # [GOD TIER OPTIMIZATION]: Pre-fetch total
         results = Institution.objects.filter(mission_id=mission_id).select_related(
             'tech_profile', 'forensic_profile'
         ).order_by('-created_at')
         
         count = results.count()
         
-        # 1. Contador HTMX
         html_counter = f'''
         <div id="result-counter" hx-swap-oob="true" 
              class="bg-[#022c22] px-4 py-2 rounded-lg border border-emerald-700/50 font-mono text-[11px] font-black text-emerald-400 tracking-[0.2em] shadow-[inset_0_0_10px_rgba(16,185,129,0.2)]">
@@ -943,20 +941,17 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
         
         table_rows = []
         for i in results:
-            # --- A. URL / RED ---
             if i.website:
                 clean_url = i.website.replace("https://","").replace("http://","").replace("www.","").split("/")[0]
                 url_display = f'<a href="{i.website}" target="_blank" class="url-link">{clean_url}</a>'
             else:
                 url_display = '<span class="text-slate-600 text-[10px] font-mono italic flex items-center gap-1"><span class="material-symbols-outlined text-[12px] animate-spin">radar</span> Buscando...</span>'
             
-            # --- B. LMS CLASSIFICATION ENGINE (Global & LatAm Focus) ---
             lms_badge = '<span class="badge-lms-none animate-pulse">⏳ INFILTRANDO...</span>'
             if hasattr(i, 'tech_profile') and i.tech_profile:
                 if i.tech_profile.lms_provider:
                     lms = i.tech_profile.lms_provider.upper()
                     
-                    # Motor de Tinte Dinámico según plataforma
                     if 'MOODLE' in lms: 
                         lms_badge = f'<span class="badge-lms-custom" style="background:#f59e0b20; color:#fbbf24; border-color:#f59e0b40;">🟠 {lms}</span>'
                     elif 'PHIDIAS' in lms: 
@@ -983,16 +978,13 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
                 elif getattr(i.tech_profile, 'has_lms', None) == False:
                     lms_badge = '<span class="badge-lms-none">❌ SIN LMS</span>'
 
-            # --- C. INTELIGENCIA FORENSE (Idiomas y Certificaciones) ---
             lang_badges = []
             if hasattr(i, 'forensic_profile') and i.forensic_profile:
-                # Idiomas
                 if getattr(i.forensic_profile, 'is_trilingual', False): 
                     lang_badges.append('<span class="badge-lang" style="background:#f59e0b20; color:#fbbf24; border-color:#f59e0b40;">🌟 TRILINGÜE</span>')
                 elif getattr(i.forensic_profile, 'is_bilingual', False): 
                     lang_badges.append('<span class="badge-lang" style="background:#10b98120; color:#34d399; border-color:#10b98140;">⭐ BILINGÜE</span>')
                 
-                # Certificaciones Críticas
                 if getattr(i.forensic_profile, 'has_ib_cert', False): 
                     lang_badges.append('<span class="badge-lang" style="background:#db277720; color:#f472b6; border-color:#db277740;">🏆 IB BACHILLERATO</span>')
                 if getattr(i.forensic_profile, 'has_cambridge_cert', False): 
@@ -1002,7 +994,6 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
 
             lang_html = '<div class="flex flex-wrap gap-1.5 max-w-[200px]">' + " ".join(lang_badges) + '</div>' if lang_badges else '<span class="text-slate-600 text-[10px] font-mono italic">Escaneando HTML...</span>'
 
-            # --- D. VECTORES DE CONTACTO ---
             contact_html = ""
             if getattr(i, 'email', None):
                 contact_html += f'<div class="text-emerald-400 text-[10px] font-mono truncate max-w-[140px]" title="{i.email}">📧 {i.email}</div>'
@@ -1012,7 +1003,6 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
             if not contact_html:
                 contact_html = '<span class="text-slate-600 text-[10px] font-mono italic">Buscando endpoints...</span>'
 
-            # --- E. BOTÓN INDIVIDUAL (FORCE SCAN) ---
             profile_url = reverse("admin:sales_globalpipeline_change", args=[i.id])
             sniper_url = reverse("admin:sales_globalpipeline_auto_sniper", args=[i.id]) 
             
@@ -1069,7 +1059,6 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
 # 4. BÓVEDA FORENSE (LOG DE INTERACCIONES / FULL THREAD)
 # ==========================================
 class EngagementFilter(admin.SimpleListFilter):
-    """Filtro Heurístico de Temperatura Operativa."""
     title = '🔥 Temperatura del Lead'
     parameter_name = 'engagement_temp'
 
@@ -1091,10 +1080,6 @@ class EngagementFilter(admin.SimpleListFilter):
 
 @admin.register(Interaction)
 class InteractionAdmin(ModelAdmin):
-    """
-    [GOD TIER ZENITH MAX] Bóveda Forense de Comunicación.
-    Renderiza el historial completo (Thread) con motor O(1) y UI de Ciberseguridad.
-    """
     list_display = (
         'display_hash_id', 
         'target_identity', 
@@ -1107,7 +1092,6 @@ class InteractionAdmin(ModelAdmin):
     search_fields = ('institution__name', 'contact__email', 'subject', 'message_sent')
     search_help_text = _("Búsqueda Vectorial: Nombre, Email, UUID, o Texto del Payload.")
     
-    # ⚡ HYPER-OPTIMIZATION: Pre-fetch y proyección estricta
     list_select_related = ('institution', 'contact')
     list_per_page = 30
     show_full_result_count = True
@@ -1121,12 +1105,10 @@ class InteractionAdmin(ModelAdmin):
             'institution__name', 'contact__email'
         )
     
-    # 🔒 ZERO-TRUST SECURITY
     def has_add_permission(self, request): return False
     def has_change_permission(self, request, obj=None): return False
     def has_delete_permission(self, request, obj=None): return False
 
-    # 🖥️ COMMAND CENTER (DETAIL VIEW)
     fieldsets = (
         ('📡 TELEMETRÍA DE LA OPERACIÓN', {
             'classes': ('collapse', 'wide'),
@@ -1254,10 +1236,6 @@ class InteractionAdmin(ModelAdmin):
 
     @display(description='HISTORIAL DEL HILO (THREAD HISTORY)')
     def communication_thread(self, obj):
-        """
-        [MAX LEVEL] Renderiza toda la comunicación en formato CRM Dual-Pane.
-        Detecta y muestra qué envió la IA y qué respondió el humano.
-        """
         outbound_content = obj.message_sent.replace('\n', '<br>') if obj.message_sent else "Sin contenido."
         subject_clean = obj.subject.replace('[EMAIL] ', '').replace('[WHATSAPP] ', '') if obj.subject else "Sin Asunto"
         target_email = obj.contact.email if obj.contact else "unknown@target.com"
@@ -1267,7 +1245,6 @@ class InteractionAdmin(ModelAdmin):
         inbound_content = getattr(obj, 'message_received', getattr(obj, 'reply_text', getattr(obj, 'inbound_payload', None)))
         in_time = obj.updated_at.strftime("%d %b %Y, %H:%M:%S UTC") if obj.updated_at else "---"
 
-        # BLOQUE 1: MENSAJE DE SALIDA (OUTBOUND - SOVEREIGN AI)
         outbound_html = f"""
         <div class="bg-[#0f172a] border border-slate-700/50 rounded-xl overflow-hidden shadow-lg mb-6 relative">
             <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
@@ -1287,7 +1264,6 @@ class InteractionAdmin(ModelAdmin):
         </div>
         """
 
-        # BLOQUE 2: RESPUESTA DEL CLIENTE (INBOUND - HUMANO)
         inbound_html = ""
         if obj.status in ['REPLIED', 'MEETING']:
             display_reply = inbound_content.replace('\n', '<br>') if inbound_content else "<i>[El texto de respuesta fue procesado por el Neural Engine, pero no se almacenó el payload crudo en la base de datos de Interacciones. El sistema determinó que el Lead es positivo.]</i>"

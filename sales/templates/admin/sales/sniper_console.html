@@ -10,11 +10,11 @@
       x-data="ghostSwarmTerminal()" 
       x-init="initializeSystem()">
 
-    <div class="pointer-events-none fixed inset-0 z-[100] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.4)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_4px,3px_100%] opacity-40 mix-blend-overlay"></div>
+    <div class="pointer-events-none fixed inset-0 z-[100] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.4)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_4px,3px_100%] opacity-40 mix-blend-overlay" style="will-change: transform;"></div>
     <div class="pointer-events-none fixed inset-0 z-[90] shadow-[inset_0_0_300px_rgba(0,0,0,0.99)]"></div>
     
     <div class="fixed inset-0 z-0 pointer-events-none opacity-[0.25] bg-grid-tactical" 
-         style="background-image: linear-gradient(rgba(220,38,38,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(220,38,38,0.15) 1px, transparent 1px); background-size: 40px 40px;">
+         style="background-image: linear-gradient(rgba(220,38,38,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(220,38,38,0.15) 1px, transparent 1px); background-size: 40px 40px; will-change: transform;">
         <div class="absolute inset-0 bg-gradient-to-b from-[#000000] via-transparent to-[#000000] opacity-90"></div>
         <div class="absolute inset-0 bg-gradient-to-r from-[#000000] via-transparent to-[#000000] opacity-90"></div>
     </div>
@@ -53,9 +53,9 @@
                         <span class="text-slate-500 tracking-widest">SAT_UPLINK</span>
                         <span class="font-bold drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]" :class="isScanning ? 'text-red-500' : 'text-emerald-500'" x-text="metrics.uplink + ' MS'"></span>
                     </div>
-                    <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                    <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden transform-gpu">
                         <div class="h-full transition-all duration-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" 
-                             :class="isScanning ? 'bg-red-500' : 'bg-emerald-500'" :style="'width: ' + (100 - metrics.uplink/3) + '%'"></div>
+                             :class="isScanning ? 'bg-red-500' : 'bg-emerald-500'" :style="'width: ' + Math.max(5, (100 - metrics.uplink/3)) + '%'"></div>
                     </div>
                 </div>
 
@@ -64,7 +64,7 @@
                         <span class="text-slate-500 tracking-widest">DRONES_CELERY</span>
                         <span class="text-purple-400 font-bold drop-shadow-[0_0_5px_rgba(168,85,247,0.8)]" x-text="metrics.nodes + '/256'"></span>
                     </div>
-                    <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                    <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden transform-gpu">
                         <div class="bg-purple-500 h-full transition-all duration-300" :style="'width: ' + (metrics.nodes/256)*100 + '%'"></div>
                     </div>
                 </div>
@@ -74,13 +74,13 @@
                         <span class="text-slate-500 tracking-widest">DNS_PRE_RECON</span>
                         <span class="text-blue-400 font-bold drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]" x-text="metrics.dns_queries + ' RQ'"></span>
                     </div>
-                    <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-                        <div class="bg-blue-500 h-full transition-all duration-300 animate-pulse" :style="'width: ' + (metrics.dns_queries > 0 ? '100%' : '0%')"></div>
+                    <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden transform-gpu">
+                        <div class="bg-blue-500 h-full transition-all duration-300" :class="metrics.dns_queries > 0 ? 'animate-pulse' : ''" :style="'width: ' + (metrics.dns_queries > 0 ? '100%' : '0%')"></div>
                     </div>
                 </div>
             </div>
 
-            <div class="h-[350px] border border-red-900/50 bg-[#000000] rounded-lg p-4 overflow-hidden relative font-mono text-[9px] uppercase leading-relaxed shadow-[inset_0_0_30px_rgba(0,0,0,1)]">
+            <div class="h-[350px] border border-red-900/50 bg-[#000000] rounded-lg p-4 overflow-hidden relative font-mono text-[9px] uppercase leading-relaxed shadow-[inset_0_0_30px_rgba(0,0,0,1)] transform-gpu">
                 <div class="absolute top-0 left-0 w-full h-10 bg-gradient-to-b from-[#000000] to-transparent z-10 pointer-events-none"></div>
                 <div class="absolute bottom-0 left-0 w-full h-10 bg-gradient-to-t from-[#000000] to-transparent z-10 pointer-events-none"></div>
                 
@@ -114,8 +114,8 @@
                             GHOST_SNIPER
                         </h1>
                         <div class="flex items-center gap-3 mt-1.5">
-                            <span class="px-2 py-0.5 bg-red-900/60 border border-red-500 text-white font-mono text-[10px] tracking-[0.4em] uppercase shadow-[0_0_10px_rgba(220,38,38,0.5)] font-black">STRICT LEVEL 10</span>
-                            <span class="text-slate-500 font-mono text-[10px] tracking-[0.3em] uppercase border-l border-white/20 pl-3">Weaponized OSINT Engine</span>
+                            <span class="px-2 py-0.5 bg-red-900/60 border border-red-500 text-white font-mono text-[10px] tracking-[0.4em] uppercase shadow-[0_0_10px_rgba(220,38,38,0.5)] font-black">DEEP RENDER MODE</span>
+                            <span class="text-slate-500 font-mono text-[10px] tracking-[0.3em] uppercase border-l border-white/20 pl-3">Headless Web Extractor</span>
                         </div>
                     </div>
                 </div>
@@ -136,26 +136,24 @@
                 </div>
             </header>
 
-            <section class="relative z-20 animate-in fade-in zoom-in duration-500 flex-none">
+            <section class="relative z-20 animate-in fade-in zoom-in duration-500 flex-none transform-gpu">
                 
                 <form id="swarm-input-form" 
-                      hx-post="/api/ghost-swarm/search/" 
-                      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                      hx-target="#sniper-display" 
-                      hx-swap="innerHTML"
-                      @submit="executeAnalysis($event)"
+                      @submit.prevent="executeAnalysis()"
                       class="relative bg-[#050505]/95 backdrop-blur-3xl rounded-xl flex flex-col xl:flex-row border shadow-[0_20px_50px_rgba(0,0,0,0.8)] overflow-hidden transition-colors duration-500"
                       :class="isScanning ? 'border-red-500/60 shadow-[0_0_30px_rgba(220,38,38,0.2)]' : (isComplete ? 'border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'border-red-900/30')">
                     
+                    {% csrf_token %}
+
                     <div class="flex-1 flex flex-col p-4 gap-4 relative">
                         
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 bg-[#000000] p-3 rounded-lg border border-red-900/30 shadow-inner">
+                        <div class="grid grid-cols-1 lg:grid-cols-4 gap-3 bg-[#000000] p-3 rounded-lg border border-red-900/30 shadow-inner">
                             
                             <div class="col-span-1">
                                 <label class="text-[8px] text-slate-500 font-mono tracking-[0.3em] uppercase mb-1 block">Geo-Contexto: Ciudad</label>
                                 <div class="relative">
                                     <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 text-[14px]">location_on</span>
-                                    <input type="text" name="context_city" placeholder="Ej: Bogotá, Madrid..." 
+                                    <input type="text" id="context_city" placeholder="Ej: Bogotá, Madrid..." 
                                            class="w-full bg-[#0a0a0a] border border-white/5 rounded font-mono text-xs text-white py-2 pl-8 pr-2 focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:text-slate-700">
                                 </div>
                             </div>
@@ -164,21 +162,23 @@
                                 <label class="text-[8px] text-slate-500 font-mono tracking-[0.3em] uppercase mb-1 block">Geo-Contexto: País</label>
                                 <div class="relative">
                                     <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 text-[14px]">public</span>
-                                    <input type="text" name="context_country" placeholder="Ej: Colombia, España..." 
+                                    <input type="text" id="context_country" placeholder="Ej: Colombia, España..." 
                                            class="w-full bg-[#0a0a0a] border border-white/5 rounded font-mono text-xs text-white py-2 pl-8 pr-2 focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:text-slate-700">
                                 </div>
                             </div>
 
-                            <div class="col-span-1 flex flex-col justify-end pb-1">
-                                <label class="text-[8px] text-slate-500 font-mono tracking-[0.3em] uppercase mb-1.5 block">Vectores OSINT (Activos)</label>
+                            <div class="col-span-2 flex flex-col justify-end pb-1">
+                                <label class="text-[8px] text-slate-500 font-mono tracking-[0.3em] uppercase mb-1.5 block">Tácticas de Extracción (Nivel 4)</label>
                                 <div class="flex gap-2 flex-wrap">
-                                    <input type="hidden" name="osint_lms" :value="osintModules.lms">
-                                    <input type="hidden" name="osint_whatsapp" :value="osintModules.whatsapp">
-                                    <input type="hidden" name="osint_email" :value="osintModules.email">
-                                    
                                     <button type="button" @click="osintModules.lms = !osintModules.lms" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm" :class="osintModules.lms ? 'bg-red-900/40 border-red-500/50 text-red-400' : 'bg-black border-white/10 text-slate-600'">LMS/Tech</button>
                                     <button type="button" @click="osintModules.whatsapp = !osintModules.whatsapp" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm" :class="osintModules.whatsapp ? 'bg-emerald-900/40 border-emerald-500/50 text-emerald-400' : 'bg-black border-white/10 text-slate-600'">WhatsApp</button>
                                     <button type="button" @click="osintModules.email = !osintModules.email" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm" :class="osintModules.email ? 'bg-blue-900/40 border-blue-500/50 text-blue-400' : 'bg-black border-white/10 text-slate-600'">Correos/MX</button>
+                                    
+                                    <button type="button" @click="osintModules.deep_render = !osintModules.deep_render" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm flex items-center gap-1" :class="osintModules.deep_render ? 'bg-purple-900/40 border-purple-500/50 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.3)]' : 'bg-black border-white/10 text-slate-600'">
+                                        <span class="material-symbols-outlined text-[10px]" x-show="osintModules.deep_render">visibility</span>
+                                        <span class="material-symbols-outlined text-[10px]" x-show="!osintModules.deep_render">visibility_off</span>
+                                        Deep Render JS (Lento pero Real)
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -190,23 +190,25 @@
                             </div>
                             
                             <textarea id="target-input"
-                                   name="search_query" 
-                                   @input="handleInput($event)"
-                                   placeholder="&#10;&#10;> INYECTE AQUI LA LISTA DE OBJETIVOS (Soporta miles de líneas)&#10;> Automáticamente realizará peticiones DNS en vivo en el frontend.&#10;> Ej: Gimnasio Campestre, sanpatricio.edu.co, Liceo Francés"
-                                   class="w-full h-full bg-[#030303] border border-red-900/30 rounded-lg text-emerald-400 px-4 pt-10 pb-4 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 text-[15px] placeholder:text-red-900/20 font-medium resize-none font-mono leading-relaxed transition-all shadow-[inset_0_0_20px_rgba(0,0,0,1)] custom-scrollbar"
+                                   @input="handleInputDebounced($event)"
+                                   placeholder="&#10;&#10;> INYECTE AQUI LA LISTA DE OBJETIVOS (Soporta miles de líneas)&#10;> URLs, Dominios, Correos o Nombres Raw.&#10;> Ej: Gimnasio Campestre, info@sanpatricio.edu.co, liceofrances.edu.co"
+                                   class="w-full h-full bg-[#030303] border border-red-900/30 rounded-lg text-emerald-400 px-4 pt-10 pb-4 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 text-[15px] placeholder:text-red-900/30 font-medium resize-none font-mono leading-relaxed transition-all shadow-[inset_0_0_20px_rgba(0,0,0,1)] custom-scrollbar"
                                    autocomplete="off"
                                    spellcheck="false"
                                    required></textarea>
                             
                             <div class="absolute bottom-4 right-4 flex gap-2 pointer-events-none" x-show="targetCount > 0" x-transition>
                                 <div class="bg-slate-900/80 border border-slate-500/50 px-2 py-1 rounded text-slate-300 font-mono text-[9px] tracking-widest backdrop-blur-md font-bold shadow-lg">
-                                    LÍNEAS: <span x-text="targetCount" class="text-white"></span>
+                                    TOTAL LÍNEAS: <span x-text="targetCount" class="text-white"></span>
                                 </div>
                                 <div class="bg-blue-900/80 border border-blue-500/50 px-2 py-1 rounded text-blue-300 font-mono text-[9px] tracking-widest backdrop-blur-md font-bold shadow-[0_0_8px_rgba(59,130,246,0.3)]">
-                                    URLs: <span x-text="metrics.urls" class="text-white"></span>
+                                    DOMINIOS: <span x-text="metrics.urls" class="text-white"></span>
+                                </div>
+                                <div class="bg-emerald-900/80 border border-emerald-500/50 px-2 py-1 rounded text-emerald-300 font-mono text-[9px] tracking-widest backdrop-blur-md font-bold shadow-[0_0_8px_rgba(16,185,129,0.3)]">
+                                    EMAILS: <span x-text="metrics.emails" class="text-white"></span>
                                 </div>
                                 <div class="bg-yellow-900/80 border border-yellow-500/50 px-2 py-1 rounded text-yellow-300 font-mono text-[9px] tracking-widest backdrop-blur-md font-bold shadow-[0_0_8px_rgba(234,179,8,0.3)]">
-                                    NOMBRES RAW: <span x-text="metrics.names" class="text-white"></span>
+                                    RAW NAMES: <span x-text="metrics.names" class="text-white"></span>
                                 </div>
                             </div>
                         </div>
@@ -232,7 +234,7 @@
                                 <span>Operación Activa</span>
                                 <span x-text="scanProgress + '%'"></span>
                             </span>
-                            <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden">
+                            <div class="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden transform-gpu">
                                 <div class="bg-red-500 h-full transition-all duration-[2000ms] shadow-[0_0_8px_red]" :style="'width: ' + scanProgress + '%'"></div>
                             </div>
                             <span class="text-[7px] font-mono text-slate-500 uppercase tracking-widest block mt-1.5 text-center truncate" x-text="scanStatus"></span>
@@ -252,7 +254,8 @@
                                 ABORTAR MISIÓN
                             </button>
 
-                            <button type="submit" 
+                            <button type="button" 
+                                    @click="executeAnalysis()"
                                     x-show="!isScanning"
                                     :disabled="targetCount === 0"
                                     class="w-full py-4 font-black text-xs md:text-sm tracking-[0.2em] uppercase rounded-xl border shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all flex items-center justify-center gap-2 group relative overflow-hidden"
@@ -269,7 +272,6 @@
             </section>
 
             <div class="mt-2 flex flex-col h-full overflow-hidden">
-                
                 <h3 class="text-emerald-500 font-mono text-[10px] font-black uppercase tracking-[0.5em] mb-2 flex items-center gap-2">
                     <span class="material-symbols-outlined text-[14px]">table_chart</span> 
                     Paso 2: Base de Datos & Resultados de Inteligencia
@@ -311,8 +313,8 @@
                                 <span x-text="isScanning ? 'INYECTANDO DATOS AL BACKEND DJANGO...' : 'SISTEMA EN ESPERA'"></span>
                             </h3>
                             <p class="text-slate-400 text-xs leading-relaxed font-mono tracking-wider">
-                                <span x-show="!isScanning">Añada contexto (Ciudad/País) para extrema precisión. Active o desactive los vectores OSINT y presione Iniciar. El servidor de Python ejecutará la búsqueda en la web y los resultados se renderizarán aquí.</span>
-                                <span x-show="isScanning" class="text-red-300">Por favor espere. Django está ejecutando Celery/BeautifulSoup en segundo plano para raspar internet, evadir firewalls y extraer la información directamente a PostgreSQL.</span>
+                                <span x-show="!isScanning">Añada contexto. Seleccione Deep Render JS para forzar la carga de componentes dinámicos (Angular/React/Cloudflare). Esto asegura recolección de 100% de datos reales.</span>
+                                <span x-show="isScanning" class="text-red-300">Por favor espere. El motor Backend está aplicando Extracción Forense de 4 Pases (LMS, Emails ofuscados, Nodos WhatsApp, PBX Fijos). <strong x-show="osintModules.deep_render">ESTO TOMARÁ MÁS TIEMPO DEBIDO AL RENDERIZADO JS.</strong></span>
                             </p>
                         </div>
                     </div>
@@ -322,44 +324,6 @@
     </div>
 
     <script>
-        // CAPTURA ESTRICTA DE ERRORES DE BACKEND
-        document.body.addEventListener('htmx:responseError', function(evt) {
-            const alpine = document.querySelector('[x-data]').__x.$data;
-            alpine.stopScanSimulation();
-            alpine.addLog(`!!! [FATAL] EL SERVIDOR DEVOLVIÓ ERROR ${evt.detail.xhr.status}`, "text-red-500 font-black bg-white/10 p-1");
-            alpine.addLog("!!! ESTO SIGNIFICA QUE TU ARCHIVO views.py ESTÁ FALLANDO.", "text-red-400 font-bold");
-            
-            // Inyecta el error visual en el div para que no te quedes ciego
-            document.getElementById('sniper-display').innerHTML = `
-                <div class="p-8">
-                    <div class="bg-red-950/50 border-2 border-red-500 p-6 rounded-lg font-mono text-red-200">
-                        <h2 class="text-2xl font-black text-red-500 flex items-center gap-2 mb-4"><span class="material-symbols-outlined">warning</span> ERROR EN EL BACKEND (PYTHON)</h2>
-                        <p class="mb-4">El Frontend envió los datos correctamente, pero <strong>Django (views.py)</strong> falló al procesarlos. Revisa la terminal de tu servidor (donde corres <code>runserver</code>) para ver el Traceback de Python.</p>
-                        <p><strong>Código HTTP:</strong> ${evt.detail.xhr.status}</p>
-                    </div>
-                </div>
-            `;
-        });
-
-        // MANEJO DE INICIO Y LOGS EN VIVO
-        document.body.addEventListener('htmx:beforeRequest', (event) => {
-            if(event.detail.target.id === 'sniper-display') {
-                const alpine = document.querySelector('[x-data]').__x.$data;
-                alpine.startScanSimulation();
-            }
-        });
-        
-        // MANEJO DE ÉXITO
-        document.body.addEventListener('htmx:afterSwap', (event) => {
-            if(event.detail.target.id === 'sniper-display') {
-                const alpine = document.querySelector('[x-data]').__x.$data;
-                alpine.stopScanSimulation();
-                alpine.isComplete = true;
-                alpine.addLog("<<< [HTTP 200 OK] CARGA ÚTIL RECIBIDA DESDE EL SERVIDOR.", "text-emerald-500 font-black");
-                alpine.addLog("<<< [DB_SYNC] EXTRACCIÓN GUARDADA EN POSTGRESQL EXITOSAMENTE.", "text-emerald-400");
-            }
-        });
-
         // ==========================================
         // ALPINE.JS MOTOR CLIENT-SIDE (GOD TIER)
         // ==========================================
@@ -371,27 +335,27 @@
                 sysTime: '',
                 scanProgress: 0,
                 scanStatus: 'INICIANDO ENLACE SECURE...',
-                metrics: { uplink: 32, nodes: 120, proxies: 489, urls: 0, names: 0, dns_queries: 0 },
+                metrics: { uplink: 32, nodes: 120, urls: 0, emails: 0, names: 0, dns_queries: 0 },
                 logs: [],
-                osintModules: { lms: true, whatsapp: true, email: true },
+                osintModules: { lms: true, whatsapp: true, email: true, deep_render: true },
                 simInterval: null,
-                resolvedDomains: new Set(),
+                debounceTimer: null,
+                
+                parsedPayload: { urls: [], emails: [], names: [] },
                 
                 initializeSystem() {
                     this.updateTime();
                     setInterval(() => this.updateTime(), 1000);
                     
                     setInterval(() => {
-                        if(!this.isScanning) {
-                            this.metrics.uplink = Math.floor(Math.random() * (45 - 20 + 1) + 20);
-                        } else {
-                            this.metrics.uplink = Math.floor(Math.random() * (250 - 150 + 1) + 150);
-                        }
+                        this.metrics.uplink = this.isScanning 
+                            ? Math.floor(Math.random() * (250 - 150 + 1) + 150)
+                            : Math.floor(Math.random() * (45 - 20 + 1) + 20);
                     }, 1500);
 
-                    setTimeout(() => this.addLog("SYSTEM BOOT: GHOST SWARM V11.0 [LEVIATHAN CLASS]", "text-white font-black"), 300);
+                    setTimeout(() => this.addLog("SYSTEM BOOT: GHOST SWARM V12.0 [LEVIATHAN CLASS]", "text-white font-black"), 300);
                     setTimeout(() => this.addLog("ENCRYPTION: AES-256 GCM [VERIFIED]", "text-emerald-400"), 600);
-                    setTimeout(() => this.addLog("API HOOKS: HTMX READY | CLOUDFLARE DNS READY", "text-blue-400"), 900);
+                    setTimeout(() => this.addLog("OSINT VECTORS: NATIVE BINDING [STRICT MODE]", "text-blue-400"), 900);
                     setTimeout(() => this.addLog("AWAITING TARGET COORDINATES...", "text-slate-400"), 1200);
                 },
 
@@ -400,11 +364,17 @@
                     this.sysTime = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
                 },
 
-                // LÓGICA DE PARSEO Y PRE-RECONOCIMIENTO DNS (FRONTEND MAGIC)
-                async handleInput(e) {
-                    const text = e.target.value;
-                    if (!text.trim()) {
-                        this.targetCount = this.metrics.urls = this.metrics.names = 0;
+                handleInputDebounced(e) {
+                    clearTimeout(this.debounceTimer);
+                    this.debounceTimer = setTimeout(() => {
+                        this._parseIntelligence(e.target.value);
+                    }, 300);
+                },
+
+                _parseIntelligence(text) {
+                    if (!text || !text.trim()) {
+                        this.targetCount = this.metrics.urls = this.metrics.emails = this.metrics.names = 0;
+                        this.parsedPayload = { urls: [], emails: [], names: [] };
                         this.isComplete = false;
                         return;
                     }
@@ -414,73 +384,120 @@
                     this.targetCount = uniqueTargets.length;
                     
                     const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i;
+                    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
                     
-                    const newUrls = uniqueTargets.filter(t => urlRegex.test(t));
-                    this.metrics.urls = newUrls.length;
-                    this.metrics.names = this.targetCount - this.metrics.urls;
-                    
-                    // PRE-RECONOCIMIENTO EN VIVO: Si el usuario teclea un dominio, consultamos a Cloudflare DNS gratis!
-                    for (let domain of newUrls) {
-                        // Limpiamos dominio
-                        let cleanDomain = domain.replace(/^https?:\/\//, '').split('/')[0];
-                        if (!this.resolvedDomains.has(cleanDomain)) {
-                            this.resolvedDomains.add(cleanDomain);
-                            this.metrics.dns_queries++;
-                            this.addLog(`>>> [DNS_QUERY] RESOLVIENDO IP PARA: ${cleanDomain}...`, "text-slate-400");
-                            
-                            try {
-                                // Petición real al servidor de Cloudflare
-                                let res = await fetch(`https://cloudflare-dns.com/dns-query?name=${cleanDomain}&type=A`, {
-                                    headers: { 'Accept': 'application/dns-json' }
-                                });
-                                let data = await res.json();
-                                if(data.Status === 0 && data.Answer) {
-                                    let ip = data.Answer[0].data;
-                                    this.addLog(`<<< [DNS_HIT] ${cleanDomain} -> <span class="text-white bg-blue-900 px-1 rounded">${ip}</span>`, "text-blue-400 font-bold");
-                                }
-                            } catch (err) {
-                                // Ignoramos fallos silently en frontend
-                            }
+                    let parsed = { urls: [], emails: [], names: [] };
+
+                    for(let target of uniqueTargets) {
+                        if(emailRegex.test(target)) {
+                            parsed.emails.push(target);
+                        } else if(urlRegex.test(target)) {
+                            parsed.urls.push(target);
+                        } else {
+                            parsed.names.push(target);
                         }
                     }
+
+                    this.parsedPayload = parsed;
+                    this.metrics.urls = parsed.urls.length;
+                    this.metrics.emails = parsed.emails.length;
+                    this.metrics.names = parsed.names.length;
                 },
 
                 clearSystem() {
                     document.getElementById('swarm-input-form').reset();
                     document.getElementById('sniper-display').innerHTML = ''; 
-                    this.targetCount = this.metrics.urls = this.metrics.names = this.metrics.dns_queries = 0;
+                    this.targetCount = this.metrics.urls = this.metrics.emails = this.metrics.names = this.metrics.dns_queries = 0;
+                    this.parsedPayload = { urls: [], emails: [], names: [] };
                     this.isScanning = this.isComplete = false;
                     this.scanProgress = 0;
-                    this.resolvedDomains.clear();
                     this.addLog("[SYS_COMMAND] MEMORIA PURGADA POR EL OPERADOR.", "text-yellow-500 font-bold");
                 },
 
-                executeAnalysis(e) {
+                async executeAnalysis() {
                     if(this.targetCount === 0 || this.isScanning) {
-                        e.preventDefault();
-                        return false;
+                        return;
                     }
-                    this.isComplete = false;
+
+                    try {
+                        const rawText = document.getElementById('target-input').value;
+                        this._parseIntelligence(rawText); 
+                        
+                        this.startScanSimulation();
+                        
+                        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
+                        const city = document.getElementById('context_city').value;
+                        const country = document.getElementById('context_country').value;
+
+                        const formData = new FormData();
+                        formData.append('osint_lms', this.osintModules.lms ? '1' : '0');
+                        formData.append('osint_whatsapp', this.osintModules.whatsapp ? '1' : '0');
+                        formData.append('osint_email', this.osintModules.email ? '1' : '0');
+                        formData.append('deep_render', this.osintModules.deep_render ? '1' : '0'); // [NUEVO] Flag para el backend
+                        formData.append('context_city', city);
+                        formData.append('context_country', country);
+                        formData.append('structured_payload', JSON.stringify(this.parsedPayload));
+
+                        // No ponemos timeout en fetch, esperamos lo que tome el servidor
+                        const response = await fetch('/api/ghost-swarm/search/', {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': csrfToken,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: formData
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+
+                        const html = await response.text();
+                        
+                        this.stopScanSimulation();
+                        this.isComplete = true;
+                        document.getElementById('sniper-display').innerHTML = html;
+                        this.addLog("<<< [HTTP 200 OK] EXTRACCIÓN DE 4 PASES COMPLETADA.", "text-emerald-500 font-black");
+                        this.addLog("<<< [DB_SYNC] TELEMETRÍA Y NÚMEROS GUARDADOS EN POSTGRESQL.", "text-emerald-400");
+                        
+                    } catch(error) {
+                        this.stopScanSimulation();
+                        this.addLog(`!!! [FATAL] EL SERVIDOR DEVOLVIÓ ERROR: ${error.message}`, "text-red-500 font-black bg-white/10 p-1");
+                        
+                        document.getElementById('sniper-display').innerHTML = `
+                            <div class="p-8 relative z-20">
+                                <div class="bg-red-950/80 border-2 border-red-500 p-6 rounded-lg font-mono text-red-200 shadow-[0_0_30px_rgba(220,38,38,0.3)] backdrop-blur-md">
+                                    <h2 class="text-2xl font-black text-red-500 flex items-center gap-2 mb-4"><span class="material-symbols-outlined">warning</span> ERROR EN EL BACKEND (PYTHON)</h2>
+                                    <p class="mb-4">El proceso falló en Django. Verifica el archivo <code>views.py</code> y la consola Docker.</p>
+                                    <p><strong>Excepción capturada:</strong> ${error.message}</p>
+                                </div>
+                            </div>
+                        `;
+                    }
                 },
 
                 abortMission() {
-                    this.addLog("!!! ENVIANDO SEÑAL DE ABORTO AL NÚCLEO HTMX...", "text-red-500 font-black");
-                    htmx.trigger('#swarm-input-form', 'htmx:abort');
+                    this.addLog("!!! MISIÓN ABORTADA POR EL OPERADOR...", "text-red-500 font-black");
+                    this.stopScanSimulation();
+                    document.getElementById('sniper-display').innerHTML = '';
                 },
 
                 startScanSimulation() {
                     this.isScanning = true;
                     this.scanProgress = 0;
                     this.addLog("========================================", "text-slate-600");
-                    this.addLog(">>> [HTTP POST] ENVIANDO BATCH A DJANGO BACKEND...", "text-purple-400 font-bold");
+                    this.addLog(`>>> [CONFIG] LECTURA DE VECTORES: LMS(${this.osintModules.lms}), WA(${this.osintModules.whatsapp}), EMAIL(${this.osintModules.email}), DEEP_RENDER(${this.osintModules.deep_render})`, "text-yellow-400 font-mono");
+                    this.addLog(">>> [PRE-FLIGHT] PAYLOAD EMPAQUETADO Y ENVIADO...", "text-blue-400 font-bold");
                     
+                    // Intervalos más largos para simular el tiempo real del backend
                     const stages = [
-                        { p: 15, m: "ESPERANDO CONFIRMACIÓN DEL WORKER CELERY...", c: "text-slate-400" },
-                        { p: 30, m: "EJECUTANDO GOOGLE DORKS PARA RESOLUCIÓN URL...", c: "text-yellow-400" },
-                        { p: 45, m: "BYPASS CLOUDFLARE E INICIANDO SCRAPER BS4...", c: "text-red-400" },
-                        { p: 65, m: "RASTREANDO CÓDIGO FUENTE (LMS, EMAILS, WA)...", c: "text-blue-400" },
-                        { p: 85, m: "LLAMANDO A LA API DE DEEPSEEK IA PARA LIMPIEZA...", c: "text-emerald-400" },
-                        { p: 95, m: "GUARDANDO ESTRUCTURA EN POSTGRESQL DB...", c: "text-purple-400 font-bold" }
+                        { p: 10, m: "PASE 1: CONECTANDO CON EL OBJETIVO...", c: "text-slate-400" },
+                        { p: 25, m: "PASE 2: EVADIENDO CLOUDFLARE/WAF...", c: "text-yellow-400" },
+                        { p: 40, m: "PASE 3: RENDERIZANDO JAVASCRIPT Y CASCADAS DOM...", c: "text-purple-400" },
+                        { p: 55, m: "PASE 3B: ESPERANDO CARGA DE ELEMENTOS ASÍNCRONOS...", c: "text-purple-500 font-bold" },
+                        { p: 70, m: "PASE 4: EXTRACCIÓN CRUDA (EMAILS/PHONES/WA)...", c: "text-blue-400" },
+                        { p: 85, m: "PASE 5: PURGA DE DATOS BASURA Y VALIDACIÓN...", c: "text-emerald-400" },
+                        { p: 95, m: "PASE FINAL: INYECTANDO EN BASE DE DATOS...", c: "text-emerald-500 font-bold" }
                     ];
 
                     let step = 0;
@@ -492,9 +509,9 @@
                             step++;
                         } else {
                             this.scanProgress = 99;
-                            this.scanStatus = "ESPERANDO RESPUESTA FINAL DE LA VISTA DJANGO...";
+                            this.scanStatus = "ESPERANDO CONFIRMACIÓN DEL NÚCLEO PYTHON...";
                         }
-                    }, 2500);
+                    }, 4000); // 4 segundos entre fases, indicando un proceso más lento y real.
                 },
 
                 stopScanSimulation() {
@@ -507,7 +524,7 @@
                     const time = new Date().toISOString().substring(11, 19);
                     const htmlLog = `<span class="text-slate-600 font-bold">[${time}]</span> <span class="${colorClass}">${msg}</span>`;
                     this.logs.unshift(htmlLog);
-                    if(this.logs.length > 50) this.logs.pop(); // Guarda hasta 50 logs 
+                    if(this.logs.length > 50) this.logs.pop(); 
                 }
             }
         }
@@ -518,22 +535,15 @@
         
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* Custom Scrollbar Ultra-Delgada */
         .custom-scrollbar::-webkit-scrollbar, ::-webkit-scrollbar { width: 5px; height: 5px; background: transparent; }
         ::-webkit-scrollbar-thumb { background: #450a0a; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #dc2626; }
         ::-webkit-scrollbar-corner { background: transparent; }
 
-        /* Comportamiento Vital de HTMX */
-        .htmx-indicator { opacity: 0; pointer-events: none; transition: opacity 300ms ease-in-out; display: flex !important; visibility: hidden; }
-        .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; pointer-events: all; visibility: visible; }
-
-        /* Formas Geométricas CSS */
         .hexagon-clip { clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
         .cyber-clip { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%); }
         .panel-clip { clip-path: polygon(0 0, calc(100% - 25px) 0, 100% 25px, 100% 100%, 0 100%); }
 
-        /* Animaciones Core */
         @keyframes scanline-h { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
         @keyframes scanline-v { 0% { top: 0; } 100% { top: 100%; } }
         @keyframes scanner-down { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
@@ -544,7 +554,6 @@
         .animate-scanner-down { animation: scanner-down 2s ease-in-out infinite; }
         .animate-shine { animation: shine 2s ease-in-out infinite; }
 
-        /* Texto Glitch (Puro CSS God Tier) */
         .glitch { position: relative; }
         .glitch::before, .glitch::after { content: attr(data-text); position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; }
         .glitch::before { left: 3px; text-shadow: -2px 0 red; clip: rect(24px, 550px, 90px, 0); animation: glitch-anim-2 3s infinite linear alternate-reverse; }

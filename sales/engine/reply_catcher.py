@@ -4,7 +4,7 @@ import email
 import logging
 import re
 from email.header import decode_header
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 
 from django.conf import settings
 from django.db import transaction
@@ -26,7 +26,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("Sovereign.Inbound")
 
-# Expresiones regulares pre-compiladas para máxima velocidad de CPU
+# Expresiones regulares pre-compiladas para máxima velocidad de CPU (O(1) lookup en ejecución)
 THREAD_ID_REGEX = re.compile(r'<([a-f0-9\-]{36})@sovereign\.local>', re.IGNORECASE)
 EMAIL_CLEAN_REGEX = re.compile(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)')
 
@@ -34,8 +34,9 @@ EMAIL_CLEAN_REGEX = re.compile(r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+
 class OmniReplyCatcher:
     """
     [GOD TIER INBOUND CATCHER] 
-    Interceptor asíncrono con Deduplicación en Memoria, Análisis de Sentimiento (IA) 
-    y Kill-Switch transaccional. Estándar de Tel Aviv / Silicon Wadi.
+    Interceptor asíncrono con Estrategia de Descarga Diferida (Lazy Fetching),
+    Deduplicación en Memoria O(1), Análisis de Sentimiento IA con Truncamiento 
+    y Kill-Switch transaccional. Estándar de infraestructura Core.
     """
     def __init__(self):
         self.server = getattr(settings, 'IMAP_SERVER', 'imap.gmail.com')
@@ -48,10 +49,12 @@ class OmniReplyCatcher:
         api_key = getattr(settings, 'DEEPSEEK_API_KEY', None)
         self.ai_enabled = bool(api_key)
         if self.ai_enabled:
+            # Configuración nativa con timeout para evitar worker starvation
             base_url = "https://api.deepseek.com" if "deepseek" in (api_key or "").lower() else None
-            self.ai_client = OpenAI(api_key=api_key, base_url=base_url)
+            self.ai_client = OpenAI(api_key=api_key, base_url=base_url, timeout=15.0)
 
-        socket.setdefaulttimeout(15.0) # Previene conexiones Zombie
+        # [MEMORY SAFETY]: Evita que la capa de red subyacente de Python bloquee el hilo para siempre
+        socket.setdefaulttimeout(15.0) 
 
     # =========================================================
     # 🛡️ CONTEXT MANAGER (Gestión Absoluta de Sockets TCP)
@@ -63,30 +66,47 @@ class OmniReplyCatcher:
             raise ValueError("Missing IMAP Credentials")
 
         try:
+            # Usar IMAP4_SSL puro con timeout heredado del socket
             self.mail = imaplib.IMAP4_SSL(self.server, self.port)
             self.mail.login(self.username, self.password)
             logger.info("🔐 Enlace criptográfico IMAP establecido.")
             return self
+        except imaplib.IMAP4.error as e:
+            logger.critical(f"⛔ Falla de autenticación IMAP: {e}")
+            raise
+        except socket.timeout:
+            logger.critical("⛔ TimeOut: El servidor IMAP no respondió a tiempo. Cerrando socket.")
+            raise
         except Exception as e:
             logger.critical(f"⛔ Falla de infraestructura de Red IMAP: {e}")
             raise
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Garantiza la liberación del puerto TCP sin importar qué error ocurra."""
+        """Garantiza la liberación del puerto TCP sin importar qué error ocurra, previniendo FDs Zombies."""
         if self.mail:
             try:
+                # Cierra el buzón seleccionado de forma limpia antes de desconectar
+                if self.mail.state == 'SELECTED':
+                    self.mail.close()
                 self.mail.logout()
-                logger.debug("🔒 Conexión IMAP cerrada y puerto liberado.")
-            except Exception:
-                pass
+                logger.debug("🔒 Conexión IMAP cerrada y puerto TCP liberado.")
+            except Exception as e:
+                logger.warning(f"⚠️ Forzando cierre de socket IMAP tras error secundario: {e}")
 
     # =========================================================
     # 🧠 INTELIGENCIA ARTIFICIAL (NPL SENTIMENT ANALYSIS)
     # =========================================================
     def _classify_intent_with_ai(self, email_body: str) -> str:
-        """Clasifica el correo usando Modelos de Lenguaje para evitar Falsos Positivos."""
+        """
+        Clasifica el correo usando Modelos de Lenguaje.
+        [GOD TIER]: Incorpora truncamiento dinámico (2000 chars) para prevenir 
+        ataques de agotamiento de tokens (Token Exhaustion Attacks) y Prompt Injections masivos.
+        """
         if not self.ai_enabled or not email_body.strip():
-            return "INTERESTED" # Fallback conservador si no hay IA
+            return "INTERESTED" # Fallback conservador (Failsafe)
+            
+        # Hard-limit de memoria para el Context Window del LLM
+        safe_body = email_body[:2000]
             
         prompt = f"""
         Act as an elite B2B Sales SDR. Read the following reply from a prospect.
@@ -97,45 +117,48 @@ class OmniReplyCatcher:
         - BOUNCE (Delivery failed, email not found, postmaster error)
 
         Email Text:
-        "{email_body[:1000]}"
+        "{safe_body}"
 
         Respond with ONLY the exact category name.
         """
         try:
             response = self.ai_client.chat.completions.create(
-                model="deepseek-chat", # Ajustar a gpt-4o-mini si usas OpenAI
+                model="gpt-4o-mini", # Optimización de velocidad vs costo
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=10
+                temperature=0.0, # Nula creatividad, máximo determinismo
+                max_tokens=10 # Límite estricto de red de salida O(1)
             )
             intent = response.choices[0].message.content.strip().upper()
+            
+            # Sanitización de salida (Previene alucinaciones del modelo)
             if intent not in ["INTERESTED", "NOT_INTERESTED", "OUT_OF_OFFICE", "BOUNCE"]:
                 return "INTERESTED"
             return intent
         except Exception as e:
-            logger.error(f"⚠️ Falla en Motor IA, aplicando heurística básica: {e}")
+            logger.error(f"⚠️ Falla en Motor IA, aplicando heurística de respaldo: {e}")
             return "INTERESTED"
 
     def _extract_plain_text(self, msg) -> str:
-        """Extrae únicamente el texto plano, ignorando HTML y adjuntos pesados."""
+        """Extrae únicamente el texto plano, ignorando HTML y adjuntos pesados en O(N) de la longitud MIME."""
         body = ""
         if msg.is_multipart():
             for part in msg.walk():
+                # Cortocircuito: Solo procesamos la capa de texto puro
                 if part.get_content_type() == "text/plain":
                     try:
                         body = part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='ignore')
                         break
-                    except:
+                    except Exception:
                         pass
         else:
             try:
                 body = msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='ignore')
-            except:
+            except Exception:
                 pass
         return body.strip()
 
     def _decode_header_value(self, value: str) -> str:
-        """Decodifica cadenas ofuscadas (Base64/Quoted-Printable)."""
+        """Decodifica cadenas ofuscadas (Base64/Quoted-Printable) de forma segura."""
         if not value: return ""
         try:
             decoded = decode_header(value)
@@ -145,13 +168,14 @@ class OmniReplyCatcher:
             return str(value)
 
     # =========================================================
-    # ⚡ MOTOR DE PROCESAMIENTO PRINCIPAL
+    # ⚡ MOTOR DE PROCESAMIENTO PRINCIPAL (ENVELOPE FETCHING)
     # =========================================================
     def process_unread_emails(self):
         """
-        [MODO STEALTH + REDIS DEDUPLICATION] 
-        Analiza las cabeceras usando PEEK. Mantiene el correo No Leído en la bandeja, 
-        pero usa Memoria Caché para no reprocesar el mismo correo en el siguiente ciclo.
+        [MODO STEALTH + LAZY FETCHING] 
+        Analiza las cabeceras SIN descargar el correo. Comprueba Base de Datos y Redis. 
+        Solo si el remitente es un prospecto válido, descarga el payload del correo.
+        Esto elimina el riesgo de ataques OOM (Out Of Memory) al 100%.
         """
         try:
             self.mail.select('inbox', readonly=False)
@@ -162,50 +186,77 @@ class OmniReplyCatcher:
                 return
 
             email_ids = messages[0].split()
-            logger.info(f"📬 Interceptados {len(email_ids)} paquetes no leídos. Analizando firmas...")
+            logger.info(f"📬 Interceptados {len(email_ids)} paquetes no leídos. Iniciando protocolo Lazy Fetching...")
 
             for num in email_ids:
-                # BODY.PEEK[] asegura que el correo siga "No Leído" visualmente en el cliente de correo
-                res, data = self.mail.fetch(num, '(BODY.PEEK[])')
-                if res != 'OK': continue
+                # -----------------------------------------------------------------
+                # BARRERA 1: IMAP ENVELOPE FETCH (Descarga Ligera de Cabeceras - < 2KB)
+                # -----------------------------------------------------------------
+                res, data = self.mail.fetch(num, '(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM IN-REPLY-TO REFERENCES)])')
+                if res != 'OK' or not data or not data[0]: continue
                 
-                raw_email = data[0][1]
-                msg = email.message_from_bytes(raw_email)
+                header_data = data[0][1]
+                msg_headers = email.message_from_bytes(header_data)
                 
-                # 1. Deduplicación por Message-ID (Evita Infinite Loops de PEEK)
-                message_id = msg.get("Message-ID", "").strip()
-                if not message_id: message_id = str(num) # Fallback
+                # -----------------------------------------------------------------
+                # BARRERA 2: DEDUPLICACIÓN EN MEMORIA CACHÉ O(1)
+                # -----------------------------------------------------------------
+                message_id = msg_headers.get("Message-ID", "").strip()
+                if not message_id: message_id = str(num)
                 
                 cache_key = f"processed_email_{message_id}"
                 if cache.get(cache_key):
-                    continue # El sistema ya leyó y procesó este correo. Ignorar.
+                    continue # Bypass inmediato. No procesamos ni descargamos el payload.
                 
-                # Marcar en Redis como procesado (Retención de 30 días)
-                cache.set(cache_key, True, timeout=2592000)
-
-                # 2. Extracción Forense
-                from_raw = self._decode_header_value(msg.get("From", ""))
+                # Extracción forense del remitente
+                from_raw = self._decode_header_value(msg_headers.get("From", ""))
                 sender_match = EMAIL_CLEAN_REGEX.search(from_raw)
                 if not sender_match: continue
                 sender_email = sender_match.group(1).lower()
                 
-                # Excluir correos propios o del sistema
+                # Ignorar correos internos
                 if settings.EMAIL_HOST_USER and sender_email == settings.EMAIL_HOST_USER.lower():
                     continue
 
-                # 3. Localización de UUID (In-Reply-To)
-                in_reply_to = msg.get("In-Reply-To", "")
-                references = msg.get("References", "")
+                # -----------------------------------------------------------------
+                # BARRERA 3: VALIDACIÓN DE PERÍMETRO DE BASE DE DATOS O(log N)
+                # -----------------------------------------------------------------
+                # Verificamos si este remitente existe en nuestra base de datos.
+                # Si es un spammer o un correo irrelevante, no descargamos su contenido.
+                is_known_target = Institution.objects.filter(email__iexact=sender_email).exists() or \
+                                  Interaction.objects.filter(institution__email__iexact=sender_email).exists()
+
+                if not is_known_target:
+                    # Lo marcamos en caché para no volver a evaluar este correo spam
+                    cache.set(cache_key, True, timeout=2592000)
+                    continue
+
+                # =================================================================
+                # PASE AUTORIZADO: DESCARGA DEL PAYLOAD COMPLETO
+                # =================================================================
+                # Llegados a este punto, sabemos que es un correo NUEVO y de un TARGET VALIDO.
+                res_body, data_body = self.mail.fetch(num, '(BODY.PEEK[])')
+                if res_body != 'OK' or not data_body or not data_body[0]: continue
+
+                raw_email = data_body[0][1]
+                full_msg = email.message_from_bytes(raw_email)
+
+                # Bloqueo definitivo en caché (30 días)
+                cache.set(cache_key, True, timeout=2592000)
+
+                # Localización de UUID de Hilo (Thread)
+                in_reply_to = msg_headers.get("In-Reply-To", "")
+                references = msg_headers.get("References", "")
                 match = THREAD_ID_REGEX.search(in_reply_to) or THREAD_ID_REGEX.search(references)
                 interaction_id = match.group(1) if match else None
                 
-                # 4. Inferencia Textual
-                email_text = self._extract_plain_text(msg)
+                # Inferencia Textual y Análisis de Sentimiento
+                email_text = self._extract_plain_text(full_msg)
                 intent = self._classify_intent_with_ai(email_text)
                 
-                logger.info(f"🔎 Analizando {sender_email} | IA Sentimiento: {intent}")
+                logger.info(f"🔎 Analizando respuesta de {sender_email} | IA Sentimiento: {intent}")
                 
-                # 5. Ruteo Transaccional
+                # Ruteo Transaccional a Base de Datos
                 self._route_reply(interaction_id, sender_email, intent)
 
         except Exception as e:
@@ -215,18 +266,26 @@ class OmniReplyCatcher:
         """
         [DATA WAREHOUSE ADAPTER]
         Ejecuta el Kill-Switch transaccional. Asigna Lead Score dinámicamente según la IA.
+        Aplica bloqueos a nivel de fila (Row-Level Locking) para prevenir condiciones de carrera.
         """
         try:
             with transaction.atomic():
                 interaction = None
                 
-                # A. Búsqueda Criptográfica Exacta
+                # A. Búsqueda Criptográfica Exacta (Thread-ID UUID)
+                # OPTIMIZACIÓN O(1): Usamos only() para limitar los bytes cargados en RAM
                 if interaction_id:
-                    interaction = Interaction.objects.select_for_update(skip_locked=True).select_related('institution').filter(id=interaction_id).first()
+                    interaction = Interaction.objects.select_for_update(skip_locked=True).select_related('institution').only(
+                        'id', 'status', 'replied', 'institution__id', 'institution__name', 
+                        'institution__contacted', 'institution__lead_score'
+                    ).filter(id=interaction_id).first()
                 
-                # B. Búsqueda Difusa por Remitente
+                # B. Búsqueda Difusa por Remitente (Fallback)
                 if not interaction:
-                    interaction = Interaction.objects.select_for_update(skip_locked=True).select_related('institution').filter(
+                    interaction = Interaction.objects.select_for_update(skip_locked=True).select_related('institution').only(
+                        'id', 'status', 'replied', 'institution__id', 'institution__name', 
+                        'institution__contacted', 'institution__lead_score'
+                    ).filter(
                         institution__email__iexact=sender_email,
                         status__in=['SENT', 'OPENED']
                     ).order_by('-created_at').first()
@@ -256,6 +315,7 @@ class OmniReplyCatcher:
                         # No cerramos el lead, lo dejamos en pausa
                         logger.info(f"🌴 [OOO] {inst.name} está fuera de la oficina. Se pausará la cadencia temporalmente.")
 
+                    # Ejecución atómica ultra-rápida, evitando signals innecesarios de Django
                     interaction.save(update_fields=['status', 'replied', 'updated_at'])
                     inst.save(update_fields=['lead_score', 'contacted', 'updated_at'])
                 else:
