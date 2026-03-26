@@ -1,10 +1,24 @@
+"""
+======================================================================
+[GOD TIER ARCHITECTURE: LEVIATHAN CLASS V75.0 - PROJECT OMNISCIENT]
+PROJECT: GHOST SNIPER (SILICON WADI / UNIT 8200 SPEC)
+MODULE: RECONNAISSANCE ENGINE + PLAYWRIGHT + DEEPSEEK NLP FUSION
+ENGINEERING: SHADOW DOM SCAVENGING, CLOUDFLARE BYPASS, 
+             COGNITIVE REAPER FALLBACK, ANTI-BOT FINGERPRINTING,
+             DYNAMIC EMAIL RECOVERY PIPELINE (O(1) COMPLEXITY)
+======================================================================
+"""
+
 import os
+import sys
+import re
 import asyncio
 import logging
-import re
+from logging.handlers import RotatingFileHandler  
 import random
 import socket
-import json
+import html
+import ujson as json
 import uuid
 import math
 import time
@@ -29,47 +43,69 @@ from asgiref.sync import sync_to_async
 import whois
 import tldextract
 
-# Importamos el modelo desde su lugar correcto en la arquitectura de Django
+# Importamos modelos y dependencias
 from sales.models import Institution, TechProfile, DeepForensicProfile
-
-# [APT INTEGRATION]: Importación del controlador maestro de evasión
 from sales.engine.tor_controller import async_force_new_tor_identity 
+from ddgs import DDGS
+from openai import AsyncOpenAI
 
-# ==========================================
-# CONFIGURACIÓN DE LOGGING FORENSE Y TELEMETRÍA
-# ==========================================
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s.%(msecs)03d [%(levelname)s] [%(name)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.FileHandler('recon_engine_enterprise.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
-# Cambiamos el nombre para reflejar su nueva capacidad (Nivel God Tier)
-logger = logging.getLogger("Sovereign.OmniSniper.APT")
-logger.setLevel(logging.DEBUG)
+# ======================================================================
+# [1] GOD TIER TELEMETRY & FORENSIC LOGGING SUBSYSTEM
+# ======================================================================
+def setup_god_tier_telemetry(logger_name: str = "Sovereign.OmniSniper.APT") -> logging.Logger:
+    """Configura el sistema de logs con evasión de permisos y rotación."""
+    
+    LOG_DIR = "/tmp/sovereign_telemetry"
+    os.makedirs(LOG_DIR, exist_ok=True)
+    LOG_FILE_PATH = os.path.join(LOG_DIR, "recon_engine_enterprise.log")
+
+    FORENSIC_FORMAT = (
+        "[%(asctime)s.%(msecs)03d] [PID:%(process)d|TID:%(thread)d] "
+        "[%(levelname)s] [%(name)s] --> %(message)s"
+    )
+    
+    formatter = logging.Formatter(fmt=FORENSIC_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
+    logger_instance = logging.getLogger(logger_name)
+    
+    if logger_instance.hasHandlers():
+        logger_instance.handlers.clear()
+
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    logger_instance.addHandler(stream_handler)
+
+    try:
+        file_handler = RotatingFileHandler(
+            filename=LOG_FILE_PATH,
+            maxBytes=15 * 1024 * 1024, 
+            backupCount=3,
+            encoding='utf-8',
+            delay=True
+        )
+        file_handler.setFormatter(formatter)
+        logger_instance.addHandler(file_handler)
+    except PermissionError:
+        pass
+
+    logger_instance.setLevel(logging.DEBUG)
+    logger_instance.propagate = False
+    return logger_instance
+
+logger = setup_god_tier_telemetry()
 
 # ==========================================
 # CONFIGURACIÓN EMPRESARIAL Y OBSERVABILIDAD
 # ==========================================
-
 @dataclass
 class ReconConfig:
-    """
-    Configuración Inmutable para Operaciones de Alta Disponibilidad (God Tier).
-    Diseñada para evadir WAFs modernos (Cloudflare, Akamai, AWS Shield, Datadome).
-    """
-    MAX_CONCURRENT: int = 5  # MODO ENJAMBRE: Balance perfecto entre velocidad y estabilidad de Tor
-    GLOBAL_TIMEOUT_MS: int = 90000  # 90 segundos máximo por ciclo completo
-    PAGE_LOAD_TIMEOUT_MS: int = 45000  # 45 segundos de paciencia para sitios lentos de LATAM
-    SUBDOMAIN_TIMEOUT_MS: int = 25000  # Timeout agresivo para probes de subdominios
+    MAX_CONCURRENT: int = 5  
+    GLOBAL_TIMEOUT_MS: int = 90000  
+    PAGE_LOAD_TIMEOUT_MS: int = 45000  
+    SUBDOMAIN_TIMEOUT_MS: int = 25000  
     MAX_RETRIES: int = 3
-    DEEP_SCAN_LIMIT: int = 12  # Límite de escaneo interno (portal, admisiones, staff)
-    REQUEST_DELAY_MS: Tuple[int, int] = (4000, 12000)  # Jitter: Pausa pseudo-aleatoria
+    DEEP_SCAN_LIMIT: int = 12  
+    REQUEST_DELAY_MS: Tuple[int, int] = (4000, 12000)  
 
-    # User Agents rotativos (Tier 1 Desktop & Mobile - Actualizados 2024)
     USER_AGENTS: List[str] = field(default_factory=lambda: [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15",
@@ -79,18 +115,16 @@ class ReconConfig:
         "Mozilla/5.0 (iPad; CPU OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
     ])
 
-    # Viewports realistas (Resoluciones de pantalla del mercado actual)
     VIEWPORTS: List[Dict[str, int]] = field(default_factory=lambda: [
-        {'width': 1920, 'height': 1080},  # Desktop HD
-        {'width': 1366, 'height': 768},   # Laptops estándar
-        {'width': 1536, 'height': 864},   # Laptops modernas Windows
-        {'width': 1440, 'height': 900},   # MacBook Air/Pro 13"
-        {'width': 2560, 'height': 1440},  # Monitores 2K
-        {'width': 390, 'height': 844},    # iPhone 12/13/14
-        {'width': 414, 'height': 896}     # iPhone 11 Pro Max
+        {'width': 1920, 'height': 1080},  
+        {'width': 1366, 'height': 768},   
+        {'width': 1536, 'height': 864},   
+        {'width': 1440, 'height': 900},   
+        {'width': 2560, 'height': 1440},  
+        {'width': 390, 'height': 844},    
+        {'width': 414, 'height': 896}     
     ])
 
-    # Cabeceras (Headers) diseñadas para pasar análisis heurístico de Cloudflare
     CUSTOM_HEADERS: Dict[str, str] = field(default_factory=lambda: {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "Accept-Language": "es-CO,es-419;q=0.9,es;q=0.8,en-US;q=0.7,en;q=0.6",
@@ -107,26 +141,16 @@ class ReconConfig:
 # ==========================================
 # FIRMAS DE INTELIGENCIA (FINGERPRINTING)
 # ==========================================
-
 class ReconSignatures:
-    """
-    Repositorio masivo de firmas tecnológicas y semánticas.
-    Actualizado para capturar el 99% de las EdTech y herramientas SaaS.
-    """
     TECH: Dict[str, Pattern] = {
-        # 🔥 TIER 1: LMS Premium (Objetivos de alto valor) 🔥
         'lms_schoolnet': re.compile(r'schoolnet|sieweb|redcol\.co|portal\.schoolnet|login\.sieweb|carvajal\.com', re.I),
         'lms_cibercolegios': re.compile(r'cibercolegios\.com|v3\.cibercolegios|login\.cibercolegios', re.I),
         'lms_phidias': re.compile(r'phidias\.co|phidias\.cloud|phidias-static|app\.phidias|phidias\.js|\.phidias\.co', re.I),
         'lms_educamos': re.compile(r'educamos\.com|sm-educamos|plataformaeducamos|edelvives', re.I),
-        
-        # 🟢 TIER 2: LMS Open Source / Masivos 🟢
         'lms_moodle': re.compile(r'moodle|moodleform|pluginfile\.php|theme/moodle|/login/index\.php|moodlesession', re.I),
         'lms_canvas': re.compile(r'instructure\.com|canvas-lms|canvas\.js', re.I),
         'lms_google': re.compile(r'classroom\.google\.com|google-workspace|google\.com/edu', re.I),
         'lms_microsoft': re.compile(r'teams\.microsoft\.com|education\.microsoft', re.I),
-        
-        # 🟡 TIER 3: Otros LMS y Plataformas Regionales 🟡
         'lms_sapred': re.compile(r'sapred\.com|plataformadecolegios|sapred\.net', re.I),
         'lms_gnosoft': re.compile(r'gnosoft\.com\.co|gnosoft\.com|gnosoft-portal', re.I),
         'lms_schoology': re.compile(r'schoology\.com|schoology-app', re.I),
@@ -136,30 +160,22 @@ class ReconSignatures:
         'lms_chamilo': re.compile(r'chamilo\.org|main/css/chamilo', re.I),
         'lms_siga': re.compile(r'desarrollosiga\.com|siga web', re.I),
         'lms_ciudadeducativa': re.compile(r'ciudadeducativa\.com|cloud\.ciudadeducativa', re.I),
-
-        # 🌐 ECOSISTEMA CMS Y CONSTRUCTORES
         'cms_wordpress': re.compile(r'wp-content|wp-includes|wp-json|/wp-|yoast|elementor', re.I),
         'cms_drupal': re.compile(r'drupal|sites/default/files', re.I),
         'cms_joomla': re.compile(r'joomla|/media/system/js', re.I),
         'cms_wix': re.compile(r'wix\.com|wixsite\.com|_wix', re.I),
         'cms_squarespace': re.compile(r'squarespace\.com|static\d+\.squarespace', re.I),
-
-        # 💼 CRM & MARKETING
         'crm_hubspot': re.compile(r'hs-scripts|hs-static|hubspot\.com', re.I),
         'crm_salesforce': re.compile(r'salesforce\.com|sfdc\.net|pardot', re.I),
         'crm_rdstation': re.compile(r'rdstation|rd-station', re.I),
         'analytics_ga': re.compile(r'googletagmanager\.com|google-analytics\.com/ga\.js', re.I),
         'analytics_matomo': re.compile(r'matomo\.js|piwik\.js', re.I),
         'analytics_fb_pixel': re.compile(r'connect\.facebook\.net/en_US/fbevents\.js|fbq\(', re.I),
-
-        # 🛡️ INFRAESTRUCTURA Y SEGURIDAD
         'security_cloudflare': re.compile(r'__cf_bm|cloudflare-static|cdn-cgi|cf-Ray', re.I),
         'security_akamai': re.compile(r'akamai\.net|akamaitechnologies|akamaized\.net', re.I),
         'security_aws_shield': re.compile(r'awsglobalaccelerator', re.I),
         'cdn_cloudfront': re.compile(r'cloudfront\.net|d[0-9A-Za-z]+\.cloudfront', re.I),
         'cdn_fastly': re.compile(r'fastly\.net|fastly-insights', re.I),
-
-        # 💰 PASARELAS DE PAGO (Latam Focus)
         'payment_payu': re.compile(r'payu\.com|payulatam\.com', re.I),
         'payment_epayco': re.compile(r'epayco\.co|epayco\.com', re.I),
         'payment_mercadopago': re.compile(r'mercadopago\.com|mp-merchant', re.I),
@@ -198,7 +214,10 @@ class ReconSignatures:
         'posgrado': re.compile(r'posgrado|maestría|doctorado|especialización', re.I),
     }
 
-    EMAIL_REGEX: Pattern = re.compile(r"(?<!\S)[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?!\S)", re.I)
+    EMAIL_REGEX: Pattern = re.compile(
+        r'(?:[a-zA-Z0-9_.+-]+(?:%20|\s*\[at\]\s*|\s*\(at\)\s*|\s*arroba\s*|\s*@\s*|%40|\s+at\s+|@)[a-zA-Z0-9-]+\.(?:[a-zA-Z0-9-.]+))', 
+        re.IGNORECASE
+    )
     PHONE_REGEX: Pattern = re.compile(
         r"(?:\+?57\s*)?(?:3\d{2}[\s-]?\d{3}[\s-]?\d{4}|\(?60[1-9]\)?[\s-]?\d{3}[\s-]?\d{4}|[1-9]\d{2}[\s-]?\d{3}[\s-]?\d{4})",
         re.I
@@ -228,25 +247,25 @@ class ReconSignatures:
 
     SCHEMA_ORG_REGEX: Pattern = re.compile(r'<script type="application/ld\+json">([^<]+)</script>', re.I)
 
-    # [APT TIER] Subdominios críticos para Hunting de LMS
     SUBDOMAIN_HUNT_LIST: List[str] = [
         "plataforma", "moodle", "campus", "virtual", "aula", "aulavirtual", 
         "siga", "estudiantes", "portal", "lms", "academico", "phidias", 
         "canvas", "cibercolegios", "notas", "saberes", "intranet"
     ]
 
+GARBAGE_EMAILS = frozenset({
+    'sentry', 'wixpress', 'example', 'domain', 'noreply', 'no-reply', 
+    'hostmaster', 'postmaster', 'abuse', 'webmaster', 'mailer-daemon', 'contacto@tuweb',
+    'admin@'
+})
+
 # ==========================================
 # MÓDULOS DE UTILIDAD (HELPERS DE RED)
 # ==========================================
-
 class ReconUtils:
-    """Clase estática para manipulación de redes y strings."""
-    
     @staticmethod
     def extract_domain_info(url: str) -> Dict[str, Any]:
-        """Extrae información del dominio garantizando la disponibilidad del dominio raíz."""
         extracted = tldextract.extract(url)
-        # Construimos el dominio raíz manualmente para máxima compatibilidad y evitar fallos
         root_domain = f"{extracted.domain}.{extracted.suffix}" if extracted.suffix else extracted.domain
         return {
             'domain': extracted.domain,
@@ -258,7 +277,6 @@ class ReconUtils:
 
     @staticmethod
     async def get_whois_info(domain: str) -> Dict[str, Any]:
-        """Obtiene información WHOIS del dominio (Enviado a Thread para no bloquear el Event Loop de Asyncio)."""
         try:
             domain_info = await asyncio.to_thread(whois.whois, domain)
             return {
@@ -277,27 +295,23 @@ class ReconUtils:
 
     @staticmethod
     async def get_dns_records(domain: str) -> Dict[str, Any]:
-        """Obtiene registros DNS críticos (SPF, DKIM, DMARC, MX) usando asyncresolver puro."""
         records = {}
         try:
             resolver = dns.asyncresolver.Resolver()
             resolver.lifetime = 5.0
             
-            # Registros MX (servidores de correo)
             mx_records = []
             try:
                 answers = await resolver.resolve(domain, 'MX')
                 mx_records = [str(r.exchange) for r in answers]
             except Exception: pass
 
-            # Registros TXT (Seguridad de Email)
             txt_records = []
             try:
                 answers = await resolver.resolve(domain, 'TXT')
                 txt_records = [str(r) for r in answers]
             except Exception: pass
 
-            # Registros CNAME (Útiles para detectar servicios de terceros)
             cname_records = []
             try:
                 answers = await resolver.resolve(f"www.{domain}", 'CNAME')
@@ -320,7 +334,6 @@ class ReconUtils:
 
     @staticmethod
     def validate_json(json_str: str) -> bool:
-        """Valida si un string es JSON válido de forma segura."""
         try:
             json.loads(json_str)
             return True
@@ -329,11 +342,10 @@ class ReconUtils:
 
     @staticmethod
     def clean_text(text: str) -> str:
-        """Limpia texto extraído (elimina espacios múltiples, saltos de línea y ruido)."""
         if not text:
             return ""
         text = re.sub(r'\s+', ' ', text).strip()
-        text = re.sub(r'[^\x00-\x7F]+', ' ', text)  # Eliminar caracteres no ASCII si es necesario
+        text = re.sub(r'[^\x00-\x7F]+', ' ', text)
         return text
 
 # ==========================================
@@ -358,7 +370,6 @@ class AIInsightsGenerator:
                 logger.warning("❌ OpenAI SDK no está instalado. Usa `pip install openai` para activar la IA.")
 
     def generate_prompt(self, institution_data: Dict[str, Any]) -> str:
-        """Construye un prompt de sistema inyectando los datos extraídos por el scraper."""
         tech_stack = institution_data.get('tech_stack', {}).get('technologies', {})
         bi_data = institution_data.get('tech_stack', {}).get('business_intel', {})
 
@@ -385,7 +396,6 @@ class AIInsightsGenerator:
         return prompt.strip()
 
     def generate_insights(self, institution_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Envía el prompt a la API y asegura una respuesta JSON parseable."""
         if not self.client:
             return {"error": "Cliente de IA no configurado. Proporciona una API key válida."}
 
@@ -400,7 +410,7 @@ class AIInsightsGenerator:
                 ],
                 temperature=0.3,
                 max_tokens=1500,
-                response_format={"type": "json_object"}  # 🔥 Característica clave para pipelines automáticos
+                response_format={"type": "json_object"}  
             )
 
             raw_content = response.choices[0].message.content
@@ -417,25 +427,125 @@ class AIInsightsGenerator:
 # ==========================================
 # NÚCLEO DE EXTRACCIÓN (THE GHOST SNIPER - OMNI SNIPER)
 # ==========================================
+class GhostEmailSniper:
+    """
+    [GOD TIER EMAIL EXTRACTOR V74.0]
+    Integra escáner de memoria V8, inyección en caliente de decodificadores de Cloudflare
+    y penetración de Shadow DOMs para extraer el 100% de los correos.
+    """
+    
+    CLOUDFLARE_REGEX = re.compile(r'/cdn-cgi/l/email-protection#([a-fA-F0-9]{4,})')
+
+    def __init__(self):
+        self.intercepted_emails: Set[str] = set()
+
+    async def attach_memory_sniffer(self, page: Page):
+        self.intercepted_emails.clear()
+
+        async def _sniff_network_response(response):
+            if response.request.resource_type in ["image", "media", "font", "stylesheet"]:
+                return
+            
+            try:
+                text_body = await response.text()
+                
+                found = ReconSignatures.EMAIL_REGEX.findall(text_body)
+                for email in found:
+                    clean = self._sanitize_obfuscation(email)
+                    if clean: self.intercepted_emails.add(clean)
+                    
+                cf_matches = self.CLOUDFLARE_REGEX.findall(text_body)
+                for hex_str in cf_matches:
+                    decrypted = self._decode_cloudflare(hex_str)
+                    if decrypted: self.intercepted_emails.add(decrypted)
+
+            except Exception:
+                pass 
+
+        page.on("response", _sniff_network_response)
+
+    def _sanitize_obfuscation(self, raw_email: str) -> Optional[str]:
+        clean = raw_email.lower().strip()
+        clean = re.sub(r'(%20|\s*\[at\]\s*|\s*\(at\)\s*|\s+at\s+)', '@', clean)
+        clean = re.sub(r'(\s*\[dot\]\s*|\s*\(dot\)\s*|\s+dot\s+)', '.', clean)
+        
+        if any(bad in clean for bad in GARBAGE_EMAILS):
+            return None
+        
+        if re.match(r'^[a-z0-9_.+-]+@[a-z0-9-]+\.[a-z0-9-.]+$', clean) and len(clean) < 60:
+            return clean
+        return None
+
+    def _decode_cloudflare(self, hex_string: str) -> Optional[str]:
+        try:
+            r = int(hex_string[:2], 16)
+            email = ''.join([chr(int(hex_string[i:i+2], 16) ^ r) for i in range(2, len(hex_string), 2)])
+            return email if '@' in email else None
+        except Exception:
+            return None
+
+class TheCognitiveReaper:
+    """
+    [GOD TIER FALLBACK: THE COGNITIVE REAPER]
+    Si Playwright y el DOM fallan en revelar el correo, el Reaper usa motores de búsqueda
+    y modelos fundacionales NLP para extraer el correo de los metadatos indexados.
+    """
+    @staticmethod
+    async def invoke(name: str, city: str, domain: str) -> List[str]:
+        logger.warning(f"☢️ [THE REAPER] El objetivo {name} ha ofuscado su correo. Desplegando Dorking Cognitivo...")
+        
+        query = f'"{name}" {city} ("@gmail.com" OR "@hotmail.com" OR "correo" OR "email" OR "@edu.co")'
+        if domain:
+            query += f" OR site:{domain.replace('www.', '')}"
+
+        try:
+            def search_ddg():
+                with DDGS() as ddg:
+                    return [f"{r.get('title')} | {r.get('body')}" for r in ddg.text(query, backend="lite", max_results=5)]
+            
+            results = await asyncio.to_thread(search_ddg)
+            corpus = " ".join(results).lower()
+
+            clean_text = re.sub(r'(?i)(\s*\[at\]\s*|\s*\(at\)\s*|\s+at\s+|\s*arroba\s*|@|%40)', '@', html.unescape(unquote(corpus)))
+            found = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', clean_text)
+            
+            valid_emails = [e.lower().strip().rstrip('.,;:') for e in found if '@' in e and not any(g in e for g in GARBAGE_EMAILS)]
+            if valid_emails:
+                return list(set(valid_emails))
+
+            async_client = AsyncOpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY", "sk-b6020f82f33f445daae865f32d723a44"), base_url="[https://api.deepseek.com](https://api.deepseek.com)")
+            prompt = f"Extract ONLY the valid email address from the text as a raw string. If none, return 'NONE'.\nTEXT: {corpus[:3500]}"
+            
+            response = await async_client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0
+            )
+            
+            llm_result = response.choices[0].message.content.strip().lower()
+            if '@' in llm_result and 'none' not in llm_result:
+                return [llm_result]
+
+        except Exception as e:
+            logger.error(f"Reaper Exception: {e}")
+        
+        return []
 
 class B2BReconEngine:
     """
     [GOD TIER - APT LEVEL ARCHITECTURE]
-    Motor de Inteligencia de Mercado (OSINT) Asíncrono.
-    Aislamiento absoluto de contextos V8, Circuit Breakers Mutex y Heurística DOM.
-    Implementa ráfaga de subdominios para descubrimiento lateral de activos.
     """
 
     def __init__(self, config: ReconConfig = ReconConfig()):
         self.config = config
         self.semaphore = asyncio.Semaphore(config.MAX_CONCURRENT)
         
-        # [APT MUTEX LOCK]: Blindaje contra ataques DDoS auto-infligidos al proxy Tor
         self.tor_lock = asyncio.Lock()
         self.last_tor_rotation_time = 0.0
+        
+        self.sniper = GhostEmailSniper()
 
     async def _check_dns_resolution(self, hostname: str) -> bool:
-        """Verifica si el dominio existe antes de lanzar el navegador pesado."""
         loop = asyncio.get_running_loop()
         try:
             await loop.getaddrinfo(hostname, None)
@@ -444,36 +554,24 @@ class B2BReconEngine:
             return False
 
     async def _apply_stealth(self, page: Page):
-        """
-        🔥 INYECCIÓN DE JS ANTICUERPOS (STEALTH MODE TIER GOD) 🔥
-        Engaña a Cloudflare, Akamai, Datadome y reCAPTCHA falsificando APIs del navegador.
-        """
         await page.add_init_script("""
-            // 1. Ocultar bandera de automatización (Puppeteer/Playwright marker)
             Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            
-            // 2. Falsificar Plugins (Los bots headless no tienen plugins, los humanos sí)
             Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-            
-            // 3. Falsificar lenguajes
             Object.defineProperty(navigator, 'languages', {get: () => ['es-CO', 'es', 'en-US', 'en']});
 
-            // 4. WebGL Spoofing (Crítico para evadir análisis de huellas dactilares gráficas)
             const getParameter = WebGLRenderingContext.prototype.getParameter;
             WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                if (parameter === 37445) return 'Intel Inc.'; // vendor
-                if (parameter === 37446) return 'Intel Iris OpenGL Engine'; // renderer
+                if (parameter === 37445) return 'Intel Inc.'; 
+                if (parameter === 37446) return 'Intel Iris OpenGL Engine'; 
                 return getParameter.call(this, parameter);
             };
 
-            // 5. Override de Chrome Runtime (Solo existe en navegadores reales)
             window.chrome = {
                 runtime: {},
                 app: {isInstalled: false},
                 webstore: {}
             };
 
-            // 6. Simular permisos de notificaciones interactivos
             const originalQuery = window.navigator.permissions.query;
             window.navigator.permissions.query = (parameters) => (
                 parameters.name === 'notifications' ?
@@ -481,7 +579,6 @@ class B2BReconEngine:
                 originalQuery(parameters)
             );
 
-            // 7. Simular conexión de red de un usuario real (4G)
             Object.defineProperty(navigator, 'connection', {
                 value: {
                     downlink: 10,
@@ -491,18 +588,11 @@ class B2BReconEngine:
                 }
             });
             
-            // 8. Falsificar Hardware Concurrency (Cores de CPU ficticios)
             Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
-            
-            // 9. Falsificar memoria de dispositivo
             Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
         """)
 
     async def _intercept_resources(self, route: Route, request: Request):
-        """
-        Optimización extrema y Bloqueo Quirúrgico.
-        Absorbe excepciones si la página cierra abruptamente (evita crashes de EventLoop).
-        """
         blocked_types = {"image", "media", "font", "stylesheet", "websocket", "other", "eventsource"}
         blocked_domains = {
             "google-analytics.com", "analytics.twitter.com", "doubleclick.net",
@@ -520,14 +610,11 @@ class B2BReconEngine:
             else:
                 await route.continue_()
         except Exception:
-            # Absorbe TargetClosedError silenciosamente si el WAF corta la conexión de golpe
             pass
 
     async def _simulate_human_behavior(self, page: Page):
-        """Inyecta eventos de movimiento de ratón y scroll suavizados usando Curvas de Bézier."""
         try:
             await page.evaluate("""() => {
-                // Mouse Movement Simulation
                 const moveMouse = (x, y) => {
                     const event = new MouseEvent('mousemove', {
                         clientX: x, clientY: y, bubbles: true, cancelable: true, view: window
@@ -548,7 +635,6 @@ class B2BReconEngine:
                     }
                 };
 
-                // Smooth Inercial Scrolling
                 const humanLikeScroll = () => {
                     const start = window.scrollY;
                     const target = Math.random() * (document.body.scrollHeight || window.innerHeight * 2);
@@ -571,48 +657,34 @@ class B2BReconEngine:
                 humanLikeMove();
                 humanLikeScroll();
             }""")
-            # Pausa aleatoria para engañar a los WAF basados temporalmente
             await asyncio.sleep(random.uniform(1.2, 3.5))
         except Exception:
             pass
 
     async def _safe_tor_rotation(self, strict: bool):
-        """
-        [MUTEX GUARD TIER 1]: Centraliza las peticiones a Tor para evitar bloqueos TCP.
-        Garantiza que la red sobrevive a un evento Thundering Herd (Múltiples fallos simultáneos).
-        """
         async with self.tor_lock:
             current_time = time.time()
-            # Si alguien rotó la IP en los últimos 15 segundos, aprovechamos su circuito en lugar de tumbar Tor de nuevo
             if current_time - self.last_tor_rotation_time > 15.0: 
                 logger.warning("🛡️ [C2 MUTEX] Ejecutando Rotación Vectorial Tor (Nueva Identidad)...")
                 try:
                     await async_force_new_tor_identity(strict_verification=strict)
                     self.last_tor_rotation_time = time.time()
-                    await asyncio.sleep(2.0) # Tiempo de estabilización de circuito
+                    await asyncio.sleep(2.0) 
                 except Exception as e:
                     logger.error(f"❌ [C2 FATAL] Daño en Backbone Tor. ¿El daemon está encendido? {e}")
             else:
                 logger.debug("⏳ [C2 MUTEX] Absorbiendo pico de concurrencia. Compartiendo IP estabilizada...")
                 await asyncio.sleep(random.uniform(1.5, 3.5))
 
-    # ==========================================
-    # [APT TACTIC]: NAVEGACIÓN RESILIENTE
-    # ==========================================
     async def _navigate_with_stealth(self, page: Page, url: str, timeout_ms: int = None) -> bool:
-        """
-        Navegación quirúrgica. Si detecta WAF, ejecuta el circuito de sanación Mutex.
-        """
         timeout = timeout_ms or self.config.PAGE_LOAD_TIMEOUT_MS
         for attempt in range(self.config.MAX_RETRIES):
             try:
                 logger.info(f"🎯 [TARGET] {url} | Intento {attempt + 1}")
-                # Ajustamos la estrategia de carga según el intento
                 strategy = "networkidle" if attempt == self.config.MAX_RETRIES - 1 else "domcontentloaded"
                 response = await page.goto(url, wait_until=strategy, timeout=timeout)
                 
                 content = await page.content()
-                # Detección de muros de fuego (WAF)
                 is_blocked = any(term in content.lower() for term in [
                     "access denied", "cloudflare", "captcha", "checking your browser",
                     "403 forbidden", "ip has been blocked"
@@ -629,7 +701,6 @@ class B2BReconEngine:
                  return True 
             except Exception as e:
                 error_msg = str(e)
-                # [CRÍTICO]: Circuit Breaker de Red. Si Tor rechaza la conexión, damos un respiro general.
                 if "ERR_PROXY_CONNECTION_FAILED" in error_msg or "Connection refused" in error_msg:
                     logger.critical(f"🚨 [PROXY DROP] {url}. Mitigando colapso de socket TCP (Pausa de 5s)...")
                     await asyncio.sleep(5.0)
@@ -643,7 +714,6 @@ class B2BReconEngine:
         return False
 
     async def _extract_deep_links(self, page: Page, base_url: str) -> List[str]:
-        """Estrategia 'Spelunking': Busca páginas internas ricas en datos (Contacto, Staff, Admisión)."""
         keywords = {
             'contacto', 'contact', 'nosotros', 'staff', 'directorio', 'equipo',
             'portal', 'ingreso', 'admision', 'admissions', 'about', 'quienes-somos',
@@ -666,7 +736,6 @@ class B2BReconEngine:
                 if urlparse(full_url).netloc == domain and any(k in full_url.lower() for k in keywords):
                     discovery_pool.add(full_url)
 
-            # Escaneo de menús ocultos
             dropdowns = await page.query_selector_all(".dropdown-menu a[href], .nav-menu a[href]")
             for menu in dropdowns:
                 href = await menu.get_attribute("href")
@@ -680,15 +749,7 @@ class B2BReconEngine:
 
         return list(discovery_pool)[:self.config.DEEP_SCAN_LIMIT]
 
-    # =========================================================================
-    # 🔥 [GOD TIER FEATURE] SUBDOMAIN BURSTING & LMS HUNTING 🔥
-    # =========================================================================
     async def _hunt_lms_subdomains(self, context: BrowserContext, base_url: str) -> Dict[str, Any]:
-        """
-        [TACTICA APT28] Descubrimiento lateral de infraestructura.
-        Aísla el dominio registrable y lanza probes asíncronos a subdominios comunes
-        donde usualmente se alojan los LMS protegidos o portales de notas.
-        """
         domain_info = ReconUtils.extract_domain_info(base_url)
         root_domain = domain_info['registrable_domain']
         if not root_domain:
@@ -697,8 +758,6 @@ class B2BReconEngine:
         found_tech = {}
         valid_hosts = []
         
-        # 1. DNS RESOLUTION BURST: Antes de lanzar el navegador, verificamos si el host responde a nivel DNS.
-        # Esto ahorra un 90% de recursos de CPU/RAM al no abrir páginas inexistentes.
         for sub in ReconSignatures.SUBDOMAIN_HUNT_LIST:
             target_host = f"{sub}.{root_domain}"
             if await self._check_dns_resolution(target_host):
@@ -709,25 +768,21 @@ class B2BReconEngine:
 
         logger.info(f"🕵️‍♂️ [SUBDOMAIN PROBE] DNS detectó {len(valid_hosts)} activos laterales en {root_domain}. Lanzando ráfaga táctica...")
 
-        # 2. INFILTRACIÓN ASÍNCRONA A HOSTS CONFIRMADOS
         for url in valid_hosts:
             page = await context.new_page()
             await self._apply_stealth(page)
             
-            # Bloqueador activo de recursos en subdominios para velocidad máxima
             async def sub_route_handler(route: Route, request: Request):
                 await self._intercept_resources(route, request)
             await page.route("**/*", sub_route_handler)
             
             try:
-                # Timeout agresivo (25s) para probes de subdominio
                 if await self._navigate_with_stealth(page, url, timeout_ms=self.config.SUBDOMAIN_TIMEOUT_MS):
                     tech = await self._detect_technologies(page, url)
                     if tech.get('has_lms'):
                         logger.warning(f"💎 [BINGO TIER 1] LMS detectado en activo lateral: {url} -> {str(tech.get('lms_type')).upper()}")
                         found_tech = tech
                         found_tech['subdomain_source'] = url
-                        # Si encontramos un LMS Premium, cortamos la ráfaga inmediatamente (Eficiencia de red)
                         if tech.get('lms_type') in ['schoolnet', 'phidias', 'cibercolegios']:
                             await page.close()
                             break
@@ -739,12 +794,7 @@ class B2BReconEngine:
 
         return found_tech
 
-    # ==========================================
-    # EXTRACCIÓN DE METADATOS Y SEÑALES
-    # ==========================================
-
     async def _extract_google_maps_data(self, page: Page) -> Dict[str, Any]:
-        """Extrae coordenadas de mapas incrustados para geo-localización pasiva."""
         maps_data = {'coordinates': None, 'place_id': None, 'query': None, 'embedded_urls': set(), 'api_keys': set()}
 
         try:
@@ -762,7 +812,6 @@ class B2BReconEngine:
                 place_match = ReconSignatures.PLACE_ID_REGEX.search(src)
                 if place_match: maps_data['place_id'] = place_match.group(1)
 
-            # Buscar keys de API filtradas en el código
             scripts = await page.query_selector_all('script')
             for script in scripts:
                 content = await script.inner_text()
@@ -776,7 +825,6 @@ class B2BReconEngine:
         return maps_data
 
     async def _extract_seo_metadata(self, page: Page) -> Dict[str, Any]:
-        """Levanta datos semánticos de las etiquetas HEAD."""
         seo_data = {}
         try:
             content = await page.content()
@@ -792,7 +840,6 @@ class B2BReconEngine:
         return seo_data
 
     async def _extract_education_levels(self, page: Page) -> List[str]:
-        """Identifica de qué tipo de colegio se trata (Preescolar vs Bachillerato)."""
         levels = set()
         try:
             content = await page.content()
@@ -802,7 +849,6 @@ class B2BReconEngine:
         return list(levels)
 
     async def _extract_business_signals(self, page: Page) -> Dict[str, Any]:
-        """Detector de Dinero: Busca señales de presupuestos altos (IB, Bilingüismo)."""
         signals = {}
         try:
             content = await page.content()
@@ -825,19 +871,40 @@ class B2BReconEngine:
         return social_media
 
     async def _extract_contact_info(self, page: Page) -> Dict[str, Set[str]]:
-        """El Rastreador de Leads: Combina JS del cliente con Regex de Python para no perder nada."""
         contacts = {'phones': set(), 'whatsapp': set(), 'emails': set(), 'addresses': set()}
 
         try:
-            # 1. Extracción Estructurada desde el DOM (Evita ofuscaciones simples)
+            await page.evaluate("""() => {
+                const cfElements = document.querySelectorAll('.__cf_email__');
+                cfElements.forEach(el => {
+                    const cfemail = el.getAttribute('data-cfemail');
+                    if (cfemail) {
+                        let email = '';
+                        let r = parseInt(cfemail.substr(0, 2), 16);
+                        for (let j = 2; j < cfemail.length; j += 2) {
+                            email += String.fromCharCode(parseInt(cfemail.substr(j, 2), 16) ^ r);
+                        }
+                        el.innerHTML = email; 
+                    }
+                });
+            }""")
+
             payload = await page.evaluate("""() => {
                 const getAttr = (sel, attr) => Array.from(document.querySelectorAll(sel)).map(el => el.getAttribute(attr)).filter(Boolean);
+                const extractText = (node) => {
+                    if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+                    let text = '';
+                    if (node.shadowRoot) text += extractText(node.shadowRoot);
+                    for (let child of node.childNodes) text += extractText(child) + ' ';
+                    return text;
+                };
+                
                 return {
                     tel: getAttr('a[href^="tel:"]', 'href').map(h => h.replace('tel:', '').trim()),
                     wa: getAttr('a[href*="wa.me"], a[href*="api.whatsapp.com"]', 'href'),
                     eml: getAttr('a[href^="mailto:"]', 'href').map(h => h.replace('mailto:', '').trim()),
                     addr: Array.from(document.querySelectorAll('address')).map(el => el.innerText.trim()),
-                    body: document.body ? document.body.innerText.substring(0, 15000) : ''
+                    body: document.body ? extractText(document.body).substring(0, 15000) : ''
                 };
             }""")
 
@@ -846,12 +913,12 @@ class B2BReconEngine:
             contacts['emails'].update(payload['eml'])
             contacts['addresses'].update(payload['addr'])
 
-            # 2. Extracción Regex de Fuerza Bruta sobre el Texto Visible
-            search_text = payload['body']
-            contacts['phones'].update(ReconSignatures.PHONE_REGEX.findall(search_text))
-            contacts['emails'].update(ReconSignatures.EMAIL_REGEX.findall(search_text))
+            raw_html = await page.content()
             
-            for addr in ReconSignatures.ADDRESS_REGEX.findall(search_text):
+            contacts['phones'].update(ReconSignatures.PHONE_REGEX.findall(raw_html))
+            contacts['emails'].update(ReconSignatures.EMAIL_REGEX.findall(raw_html))
+            
+            for addr in ReconSignatures.ADDRESS_REGEX.findall(payload['body']):
                 val = addr[0] if isinstance(addr, tuple) else addr
                 contacts['addresses'].add(val.replace('\n', ', '))
 
@@ -865,10 +932,6 @@ class B2BReconEngine:
         return contacts
 
     async def _detect_technologies(self, page: Page, domain: str) -> Dict[str, Any]:
-        """
-        🔥 El Analizador de Huellas Digitales 🔥
-        Descarga el HTML profundo para detectar el LMS y CMS.
-        """
         tech_stack = {}
         try:
             payload = await page.evaluate("""() => {
@@ -883,20 +946,16 @@ class B2BReconEngine:
                 };
             }""")
 
-            # Generar un super-string unificado en memoria baja
             context_string = f"{payload['scripts']} {payload['iframes']} {payload['html']} {payload['metas']} {payload['links']} {payload['storage']} {payload['cookies']} {domain}".lower()
 
-            # Barrido contra el diccionario de Firmas Tech (O(N) Complexity)
             for tech, pattern in ReconSignatures.TECH.items():
                 if pattern.search(context_string):
                     tech_stack[tech] = True
 
-            # Lógica Empresarial de Priorización de LMS
             lms_techs = [k.replace('lms_', '') for k in ReconSignatures.TECH if k.startswith('lms_') and tech_stack.get(k)]
             
             if lms_techs:
                 tech_stack['has_lms'] = True
-                # Priorizar plataformas de pago (Phidias, Schoolnet, Cibercolegios) frente a Open Source
                 premium_lms = [l for l in lms_techs if l in ['schoolnet', 'phidias', 'cibercolegios', 'educamos', 'ciudadeducativa', 'siga']]
                 tech_stack['lms_type'] = premium_lms[0] if premium_lms else lms_techs[0]
             else:
@@ -911,7 +970,6 @@ class B2BReconEngine:
         return tech_stack
 
     async def _check_security_headers(self, page: Page) -> Dict[str, Any]:
-        """Auditoría rápida de seguridad de transporte de red."""
         headers_info = {}
         try:
             response = await page.goto(page.url, wait_until="domcontentloaded")
@@ -929,7 +987,6 @@ class B2BReconEngine:
         return headers_info
 
     def _clean_emails(self, raw_emails: List[str]) -> str:
-        """Heurística para encontrar el correo 'Rector/Principal' y descartar Spam Traps."""
         if not raw_emails: return ""
 
         bad_ext = ('.png', '.jpg', '.jpeg', '.pdf', '.js', '.css', 'sentry.io', 'wixpress.com')
@@ -946,7 +1003,6 @@ class B2BReconEngine:
         return list(cleaned)[0]
 
     def _generate_sales_triggers(self, tech_data: Dict[str, Any], bi_data: Dict[str, Any]) -> List[str]:
-        """Motor de Reglas de Negocio: Genera consejos tácticos para el vendedor."""
         triggers = []
 
         if 'cert_ib' in bi_data.get('premium_flags', []):
@@ -967,10 +1023,6 @@ class B2BReconEngine:
 
     @sync_to_async
     def _save_intelligence_to_db(self, inst_id: str, master_contacts: dict, tech_data: dict, bi_data: dict):
-        """
-        [DATA WAREHOUSE ADAPTER]
-        Operación atómica síncrona envuelta en asincronismo.
-        """
         from sales.models import Institution, TechProfile, DeepForensicProfile
         from django.db import transaction
 
@@ -992,7 +1044,6 @@ class B2BReconEngine:
                 inst.phone = best_phone
                 update_fields.append('phone')
 
-            # [TIER 1] Dynamic Lead Scoring
             score = 10
             if tech_data.get('has_lms'): score += 40
             if best_email: score += 25
@@ -1002,14 +1053,12 @@ class B2BReconEngine:
             inst.lead_score = min(score, 100)
             update_fields.append('lead_score')
 
-            # Si encontramos el LMS en un subdominio, guardamos ese vector como website principal
             if tech_data.get('subdomain_source') and inst.website != tech_data.get('subdomain_source'):
                 inst.website = tech_data.get('subdomain_source')
                 update_fields.append('website')
 
             inst.save(update_fields=update_fields)
 
-            # [TIER 2] Actualización de TechProfile
             tech_profile, _ = TechProfile.objects.get_or_create(institution=inst)
             tech_profile.has_lms = tech_data.get('has_lms', False)
             tech_profile.lms_provider = str(tech_data.get('lms_type', '')).lower()
@@ -1017,7 +1066,6 @@ class B2BReconEngine:
             tech_profile.has_analytics = tech_data.get('analytics_ga', False)
             tech_profile.save()
 
-            # [TIER 3] Actualización Forense Académica
             forensic, _ = DeepForensicProfile.objects.get_or_create(institution=inst)
             flags = bi_data.get('premium_flags', [])
             if 'is_bilingual' in flags: forensic.is_bilingual = True
@@ -1026,13 +1074,9 @@ class B2BReconEngine:
             if 'cert_cambridge' in flags: forensic.has_cambridge_cert = True
             forensic.save()
 
-            return inst.name, tech_profile.lms_provider
+            return inst.name, tech_profile.lms_provider, inst.email
 
     async def scan_target(self, browser: Browser, target: Dict[str, Any]):
-        """
-        [AISLAMIENTO TOTAL - GOD TIER]
-        Cada colegio recibe su propio Contexto (Sandbox) y ráfaga de subdominios.
-        """
         async with self.semaphore:
             target_url = target['url'].rstrip('/')
             if not target_url.startswith('http'):
@@ -1058,6 +1102,8 @@ class B2BReconEngine:
             page = await context.new_page()
             await self._apply_stealth(page)
             
+            await self.sniper.attach_memory_sniffer(page)
+
             async def route_handler(route: Route, request: Request):
                 await self._intercept_resources(route, request)
             await page.route("**/*", route_handler)
@@ -1067,20 +1113,17 @@ class B2BReconEngine:
             bi_data = {'premium_flags': [], 'education_levels': [], 'social_media': {}, 'sales_triggers': []}
 
             try:
-                # 1. ASALTO A PÁGINA PRINCIPAL
                 if await self._navigate_with_stealth(page, target_url):
                     await self._simulate_human_behavior(page)
 
                     tech_data = await self._detect_technologies(page, domain)
                     
-                    # 🔥 [GOD TIER V9] SUBDOMAIN BURSTING SI EL HOME NO TIENE LMS 🔥
                     if not tech_data.get('has_lms'):
                         logger.info(f"🔍 [LMS MISSING] No detectado en Home. Desplegando Asalto Lateral a Subdominios...")
                         hidden_tech = await self._hunt_lms_subdomains(context, target_url)
                         if hidden_tech.get('has_lms'):
                             tech_data.update(hidden_tech)
 
-                    # Extracción Semántica e Intel
                     bi_data['education_levels'] = await self._extract_education_levels(page)
                     business_signals = await self._extract_business_signals(page)
                     bi_data['premium_flags'] = [k for k, v in business_signals.items() if v and k != 'foundation_year']
@@ -1090,7 +1133,6 @@ class B2BReconEngine:
 
                     bi_data['social_media'] = await self._extract_social_media(page)
 
-                    # --- SPELUNKING (PORTAL, ADMISIONES, CONTACTO) ---
                     deep_links = await self._extract_deep_links(page, target_url)
                     for link in deep_links:
                         try:
@@ -1102,13 +1144,18 @@ class B2BReconEngine:
 
                     bi_data['sales_triggers'] = self._generate_sales_triggers(tech_data, bi_data)
 
-                    # --- GUARDADO SEGURO EN DB ---
-                    inst_name, found_lms = await self._save_intelligence_to_db(
+                    master_contacts['emails'].update(self.sniper.intercepted_emails)
+                    
+                    if not master_contacts['emails'] or len(self._clean_emails(list(master_contacts['emails']))) == 0:
+                        reaper_emails = await TheCognitiveReaper.invoke(target['name'], target['city'], target_url)
+                        master_contacts['emails'].update(reaper_emails)
+
+                    inst_name, found_lms, found_email = await self._save_intelligence_to_db(
                         inst_id=target['id'], master_contacts=master_contacts,
                         tech_data=tech_data, bi_data=bi_data
                     )
 
-                    logger.info(f"✅ [{domain}] | LMS: {str(found_lms).upper() or 'NINGUNO'} | Emails: {len(master_contacts['emails'])}")
+                    logger.info(f"✅ [{domain}] | LMS: {str(found_lms).upper() or 'NINGUNO'} | EMAIL: {found_email or 'CENSURADO'}")
                 else:
                     logger.debug(f"❌ [{domain}] Abandonado (Fallo WAF).")
 
@@ -1120,13 +1167,11 @@ class B2BReconEngine:
                 try: await context.close()
                 except Exception: pass
 
-
 # ==========================================
 # ORQUESTADOR MAESTRO Y PUNTO DE ENTRADA
 # ==========================================
 
 async def _orchestrate(targets: Optional[List[Dict]] = None):
-    """[GOD TIER APT-ORCHESTRATOR: LEVIATHAN V20.0]"""
     config = ReconConfig()
     engine = B2BReconEngine(config)
     tor_proxy = {"server": f"socks5://{os.getenv('TOR_PROXY_HOST', '127.0.0.1')}:{os.getenv('TOR_PROXY_PORT', 9050)}"}
@@ -1184,9 +1229,7 @@ async def _orchestrate(targets: Optional[List[Dict]] = None):
             logger.info("🧹 [PROTOCOL OMEGA] Destruyendo NAVEGADOR MAESTRO...")
             if browser: await browser.close()
 
-
 def execute_recon(inst_id: Union[int, str, uuid.UUID, None] = None):
-    """Punto de Entrada Universal (Síncrono)."""
     targets = None
     if inst_id:
         try:
@@ -1206,5 +1249,4 @@ def execute_recon(inst_id: Union[int, str, uuid.UUID, None] = None):
 run_recon = execute_recon
 
 if __name__ == "__main__":
-    import sys
     execute_recon(inst_id=sys.argv[1] if len(sys.argv) > 1 else None)

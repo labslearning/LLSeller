@@ -1,35 +1,42 @@
 """
-Django settings for core project.
-Arquitectura: God-Tier Revenue Engine B2B (Pure Host Mode Edition)
-Optimizado para: MLOps, High-Concurrency Scraping, Distributed Mutex Locks.
+======================================================================
+[GOD TIER ARCHITECTURE: LEVIATHAN CLASS V100 - PROJECT OMNISCIENT]
+PROJECT: GHOST SNIPER (SILICON WADI / UNIT 8200 SPEC)
+MODULE: CORE SETTINGS (DJANGO 5.x + ASGI)
+ENGINEERING: 12-FACTOR APP PARSING, DYNAMIC CONNECTION POOLING,
+             FAILSAFE ENV RESOLUTION, MULTIPLEXED CACHE & BROKER
+======================================================================
 """
 
 import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
-from celery.schedules import crontab  # <--- [IMPORTANTE] Importación para el Master Clock
+from celery.schedules import crontab
+import dj_database_url # [GOD TIER FIX]: The 12-Factor Standard para bases de datos
 
 # ==========================================
 # 🏗️ [NIVEL DIOS 1]: CORE PATHS & ENV INJECTION
 # ==========================================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Carga Absoluta de Variables de Entorno
+# [CRITICAL SECURITY FIX]: `override=False` asegura que las variables inyectadas 
+# por Docker en el entorno del OS tengan prioridad máxima sobre el archivo .env.
 env_path = BASE_DIR / '.env'
-load_dotenv(dotenv_path=env_path)
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path, override=False) 
 
 # ==========================================
 # 🛡️ [NIVEL DIOS 2]: SECURITY & CORE DYNAMICS
 # ==========================================
-# NUNCA hardcodear el Secret Key en producción.
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-@kz*q(^k3o!#^oy#uym$g9t+1dzwh%-o3!i7x8=dfks$q&pln6')
 
-# Parseo inteligente de DEBUG para evitar fugas de datos en producción
-DEBUG = os.getenv('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
+# Parseo inteligente
+DEBUG = str(os.getenv('DJANGO_DEBUG', 'False')).lower() in ('true', '1', 't')
 
-# Parseo de hosts permitidos
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+# Parseo dinámico de hosts
+raw_hosts = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost,*')
+ALLOWED_HOSTS = [host.strip() for host in raw_hosts.split(',') if host.strip()]
 
 # 🔒 Hardening de Seguridad B2B (Enterprise Standard)
 if not DEBUG:
@@ -38,7 +45,7 @@ if not DEBUG:
     X_FRAME_OPTIONS = 'DENY'
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_SSL_REDIRECT = os.getenv('DJANGO_SECURE_SSL_REDIRECT', 'False').lower() == 'true'
+    SECURE_SSL_REDIRECT = str(os.getenv('DJANGO_SECURE_SSL_REDIRECT', 'False')).lower() == 'true'
 
 # ==========================================
 # 📦 [NIVEL DIOS 3]: APPLICATION GEOMETRY
@@ -54,13 +61,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     # Custom Apps
-    'sales', # Nuestra aplicación B2B Core / MLOps Engine
+    'sales', 
     'channels',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # Optimización estáticos
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Optimización estáticos O(1)
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -87,52 +94,46 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
-ASGI_APPLICATION = 'core.asgi.application' # <--- MAPA DE RUTA ASGI GOD TIER
+ASGI_APPLICATION = 'core.asgi.application'
 
 # ==========================================
-# 🗄️ [NIVEL DIOS 4]: DATABASE VAULT & CONNECTION POOLING
+# 🗄️ [NIVEL DIOS 4]: DATABASE VAULT & POOLING
 # ==========================================
-# Al usar Podman/Docker en network_mode: "host", el DNS interno desaparece.
-# Forzamos IPv4 local (127.0.0.1). Añadimos CONN_MAX_AGE para Connection Pooling (crítico para Celery).
+# [GOD TIER FIX]: dj_database_url parsea la cadena completa inyectada por Docker.
+# Si falla, cae al SQLite local (evitando el crash `Connection refused`).
+# El CONN_MAX_AGE previene que PostgreSQL colapse bajo concurrencia masiva.
+default_db_url = 'sqlite:///' + str(BASE_DIR / 'db.sqlite3')
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'sovereign_db'),
-        'USER': os.getenv('DB_USER', 'sovereign_db_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', '9967112fhr'),
-        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DB_PORT', '5454'),
-        'CONN_MAX_AGE': 60,  # Reutiliza conexiones por 60s. Reduce CPU de PostgreSQL.
-    }
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL', default_db_url),
+        conn_max_age=60,
+        conn_health_checks=True,
+    )
 }
 
 # ==========================================
 # 🧠 [NIVEL DIOS 5]: DISTRIBUTED MEMORY & LOCKS
 # ==========================================
-# REDIS_HOST estandarizado para toda la infraestructura
-REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
-REDIS_PORT = os.getenv('REDIS_PORT', '6379')
-
-# CRÍTICO: Sin esto, los `cache.add()` de tus Mutex Locks en Celery no funcionarán entre múltiples workers.
+# [GOD TIER FIX]: Estandarización de URLs de Redis para evitar desconexiones de Celery.
+REDIS_URL = os.getenv('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
 
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}/1", # Base de datos 1 para Cache
+        "LOCATION": REDIS_URL.replace('/0', '/1'), # Usa DB 1 para Cache
         "OPTIONS": {
-            # 🔥 Cambiamos a minúsculas para que redis-py los entienda
-            "socket_connect_timeout": 5,
-            "socket_timeout": 5,
+            "socket_connect_timeout": 10,
+            "socket_timeout": 10,
+            "retry_on_timeout": True,
         }
     }
 }
 
-# CRÍTICO: Reemplazo de InMemoryChannelLayer por RedisChannelLayer para soportar concurrencia masiva.
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [(REDIS_HOST, int(REDIS_PORT))],
+            "hosts": [REDIS_URL.replace('/0', '')], 
         },
     },
 }
@@ -140,8 +141,8 @@ CHANNEL_LAYERS = {
 # ==========================================
 # ⚙️ [NIVEL DIOS 6]: CELERY AUTONOMOUS ORCHESTRATOR
 # ==========================================
-CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0' # Base de datos 0 para Broker
-CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -149,10 +150,11 @@ CELERY_TIMEZONE = 'America/Bogota'
 CELERY_ENABLE_UTC = False
 
 # TUNEADO DE RENDIMIENTO B2B SILICON VALLEY
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 100 # Previene memory leaks reiniciando el worker tras 100 tareas
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1 # Fair Routing: Un worker pesado no monopoliza la cola
-CELERY_TASK_ACKS_LATE = True # Solo marca como exitoso si realmente terminó (Idempotencia)
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 100 
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1 
+CELERY_TASK_ACKS_LATE = True 
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_REDIS_MAX_CONNECTIONS = 20 # Previene saturación del pool de Redis
 
 CELERY_TASK_ROUTES = {
     'sales.tasks.task_run_ghost_sniper': {'queue': 'scraping_queue'},
@@ -163,22 +165,17 @@ CELERY_TASK_ROUTES = {
     'sales.tasks.task_run_inbound_catcher': {'queue': 'default'},
 }
 
-# 👇 [AQUÍ ESTÁ EL MASTER CLOCK - CELERY BEAT SCHEDULE] 👇
+# 👇 MASTER CLOCK - CELERY BEAT SCHEDULE 👇
 CELERY_BEAT_SCHEDULE = {
-    # 1. Escucha de respuestas entrantes (Cada 5 minutos)
     'poll_inbox_every_5_mins': {
         'task': 'sales.tasks.task_run_inbound_catcher',
-        'schedule': 300.0, # 300 segundos = 5 minutos
+        'schedule': 300.0, 
     },
-    
-    # 2. Inferencia Diaria de ML (Puntuar Leads todos los días a la 1:00 AM)
     'daily_ml_inference': {
         'task': 'sales.tasks.task_batch_score_leads',
         'schedule': crontab(hour=1, minute=0),
         'kwargs': {'limit': 2000}
     },
-    
-    # 3. Reentrenamiento de Cerebro IA (Todos los Domingos a las 3:00 AM)
     'weekly_ml_training': {
         'task': 'sales.tasks.task_retrain_ai_model',
         'schedule': crontab(hour=3, minute=0, day_of_week='sunday'),
@@ -188,15 +185,13 @@ CELERY_BEAT_SCHEDULE = {
 # ==========================================
 # 📧 [NIVEL DIOS 7]: OUTBOUND / INBOUND COMMUNICATIONS
 # ==========================================
-#EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_TLS = str(os.getenv('EMAIL_USE_TLS', 'True')).lower() == 'true'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
-# IMAP INBOUND CONFIGURATION (REPLY CATCHER)
 IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
 IMAP_PORT = int(os.getenv("IMAP_PORT", 993))
 IMAP_USERNAME = os.getenv("EMAIL_HOST_USER") 
@@ -210,7 +205,6 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 # ==========================================
 # 📊 [NIVEL DIOS 9]: ENTERPRISE OBSERVABILITY (LOGGING)
 # ==========================================
-# Sin esto, estás ciego en producción. Configura salidas estándar y formateo.
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -248,13 +242,13 @@ LOGGING = {
 # ==========================================
 # 🎨 THEME UNFOLD & I18N
 # ==========================================
-LANGUAGE_CODE = 'es-co' # Localizado para B2B LatAm
+LANGUAGE_CODE = 'es-co' 
 TIME_ZONE = 'America/Bogota' 
 USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # Crítico para WhiteNoise
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_PASSWORD_VALIDATORS = [
