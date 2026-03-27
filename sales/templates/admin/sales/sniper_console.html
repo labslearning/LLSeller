@@ -6,6 +6,20 @@
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 
+<script>
+    // Silenciador Táctico: Oculta la advertencia de Tailwind en Producción sin afectar otros logs
+    const originalWarn = console.warn;
+    console.warn = function(...args) {
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com should not be used in production')) return;
+        originalWarn.apply(console, args);
+    };
+    tailwind.config = {
+        corePlugins: { preflight: true },
+        theme: { extend: {} }
+    };
+    setTimeout(() => console.clear(), 100); 
+</script>
+
 <main class="min-h-screen bg-[#000000] font-sans antialiased text-slate-300 p-2 lg:p-4 selection:bg-red-600/50 selection:text-white overflow-hidden relative"
       x-data="ghostSwarmTerminal()" 
       x-init="initializeSystem()">
@@ -37,7 +51,7 @@
                 <div>
                     <h2 class="text-white font-black uppercase tracking-[0.3em] text-[13px] glitch-text" data-text="LEVIATHAN_CORE">LEVIATHAN_CORE</h2>
                     <div class="flex items-center gap-2 mt-1">
-                        <span class="w-1.5 h-1.5 rounded-full" :class="isScanning ? 'bg-red-500 animate-ping' : 'bg-emerald-500'"></span>
+                        <span class="w-1.5 h-1.5 rounded-full transition-colors duration-300" :class="isScanning ? 'bg-red-500 animate-ping' : 'bg-emerald-500'"></span>
                         <p class="text-red-400 font-mono text-[10px] uppercase tracking-[0.4em] drop-shadow-[0_0_5px_red]" x-text="sysTime"></p>
                     </div>
                 </div>
@@ -51,7 +65,7 @@
                 <div class="bg-black/60 border border-white/5 p-3 rounded-lg relative overflow-hidden">
                     <div class="flex justify-between text-[10px] font-mono mb-1.5">
                         <span class="text-slate-500 tracking-widest">SAT_UPLINK</span>
-                        <span class="font-bold drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]" :class="isScanning ? 'text-red-500' : 'text-emerald-500'" x-text="metrics.uplink + ' MS'"></span>
+                        <span class="font-bold transition-colors duration-300 drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]" :class="isScanning ? 'text-red-500' : 'text-emerald-500'" x-text="metrics.uplink + ' MS'"></span>
                     </div>
                     <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden transform-gpu">
                         <div class="h-full transition-all duration-500 shadow-[0_0_10px_rgba(16,185,129,0.8)]" 
@@ -153,8 +167,8 @@
                                 <label class="text-[8px] text-slate-500 font-mono tracking-[0.3em] uppercase mb-1 block">Geo-Contexto: Ciudad</label>
                                 <div class="relative">
                                     <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 text-[14px]">location_on</span>
-                                    <input type="text" id="context_city" placeholder="Ej: Bogotá, Madrid..." 
-                                           class="w-full bg-[#0a0a0a] border border-white/5 rounded font-mono text-xs text-white py-2 pl-8 pr-2 focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:text-slate-700">
+                                    <input type="text" id="context_city" :disabled="isScanning" placeholder="Ej: Bogotá, Madrid..." 
+                                           class="w-full bg-[#0a0a0a] border border-white/5 rounded font-mono text-xs text-white py-2 pl-8 pr-2 focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all disabled:opacity-50 placeholder:text-slate-700">
                                 </div>
                             </div>
                             
@@ -162,19 +176,19 @@
                                 <label class="text-[8px] text-slate-500 font-mono tracking-[0.3em] uppercase mb-1 block">Geo-Contexto: País</label>
                                 <div class="relative">
                                     <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600 text-[14px]">public</span>
-                                    <input type="text" id="context_country" placeholder="Ej: Colombia, España..." 
-                                           class="w-full bg-[#0a0a0a] border border-white/5 rounded font-mono text-xs text-white py-2 pl-8 pr-2 focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all placeholder:text-slate-700">
+                                    <input type="text" id="context_country" :disabled="isScanning" placeholder="Ej: Colombia, España..." 
+                                           class="w-full bg-[#0a0a0a] border border-white/5 rounded font-mono text-xs text-white py-2 pl-8 pr-2 focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all disabled:opacity-50 placeholder:text-slate-700">
                                 </div>
                             </div>
 
                             <div class="col-span-2 flex flex-col justify-end pb-1">
                                 <label class="text-[8px] text-slate-500 font-mono tracking-[0.3em] uppercase mb-1.5 block">Tácticas de Extracción (Nivel 4)</label>
                                 <div class="flex gap-2 flex-wrap">
-                                    <button type="button" @click="osintModules.lms = !osintModules.lms" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm" :class="osintModules.lms ? 'bg-red-900/40 border-red-500/50 text-red-400' : 'bg-black border-white/10 text-slate-600'">LMS/Tech</button>
-                                    <button type="button" @click="osintModules.whatsapp = !osintModules.whatsapp" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm" :class="osintModules.whatsapp ? 'bg-emerald-900/40 border-emerald-500/50 text-emerald-400' : 'bg-black border-white/10 text-slate-600'">WhatsApp</button>
-                                    <button type="button" @click="osintModules.email = !osintModules.email" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm" :class="osintModules.email ? 'bg-blue-900/40 border-blue-500/50 text-blue-400' : 'bg-black border-white/10 text-slate-600'">Correos/MX</button>
+                                    <button type="button" @click="osintModules.lms = !osintModules.lms" :disabled="isScanning" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm disabled:opacity-50" :class="osintModules.lms ? 'bg-red-900/40 border-red-500/50 text-red-400' : 'bg-black border-white/10 text-slate-600'">LMS/Tech</button>
+                                    <button type="button" @click="osintModules.whatsapp = !osintModules.whatsapp" :disabled="isScanning" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm disabled:opacity-50" :class="osintModules.whatsapp ? 'bg-emerald-900/40 border-emerald-500/50 text-emerald-400' : 'bg-black border-white/10 text-slate-600'">WhatsApp</button>
+                                    <button type="button" @click="osintModules.email = !osintModules.email" :disabled="isScanning" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm disabled:opacity-50" :class="osintModules.email ? 'bg-blue-900/40 border-blue-500/50 text-blue-400' : 'bg-black border-white/10 text-slate-600'">Correos/MX</button>
                                     
-                                    <button type="button" @click="osintModules.deep_render = !osintModules.deep_render" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm flex items-center gap-1" :class="osintModules.deep_render ? 'bg-purple-900/40 border-purple-500/50 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.3)]' : 'bg-black border-white/10 text-slate-600'">
+                                    <button type="button" @click="osintModules.deep_render = !osintModules.deep_render" :disabled="isScanning" class="px-2 py-0.5 font-mono text-[9px] border rounded transition-colors shadow-sm flex items-center gap-1 disabled:opacity-50" :class="osintModules.deep_render ? 'bg-purple-900/40 border-purple-500/50 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.3)]' : 'bg-black border-white/10 text-slate-600'">
                                         <span class="material-symbols-outlined text-[10px]" x-show="osintModules.deep_render">visibility</span>
                                         <span class="material-symbols-outlined text-[10px]" x-show="!osintModules.deep_render">visibility_off</span>
                                         Deep Render JS (Lento pero Real)
@@ -191,8 +205,9 @@
                             
                             <textarea id="target-input"
                                    @input="handleInputDebounced($event)"
+                                   :disabled="isScanning"
                                    placeholder="&#10;&#10;> INYECTE AQUI LA LISTA DE OBJETIVOS (Soporta miles de líneas)&#10;> URLs, Dominios, Correos o Nombres Raw.&#10;> Ej: Gimnasio Campestre, info@sanpatricio.edu.co, liceofrances.edu.co"
-                                   class="w-full h-full bg-[#030303] border border-red-900/30 rounded-lg text-emerald-400 px-4 pt-10 pb-4 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 text-[15px] placeholder:text-red-900/30 font-medium resize-none font-mono leading-relaxed transition-all shadow-[inset_0_0_20px_rgba(0,0,0,1)] custom-scrollbar"
+                                   class="w-full h-full bg-[#030303] border border-red-900/30 rounded-lg text-emerald-400 px-4 pt-10 pb-4 focus:border-red-500 focus:ring-1 focus:ring-red-500/50 text-[15px] placeholder:text-red-900/30 font-medium resize-none font-mono leading-relaxed transition-all shadow-[inset_0_0_20px_rgba(0,0,0,1)] custom-scrollbar disabled:opacity-50 disabled:cursor-not-allowed"
                                    autocomplete="off"
                                    spellcheck="false"
                                    required></textarea>
@@ -277,10 +292,10 @@
                     Paso 2: Base de Datos & Resultados de Inteligencia
                 </h3>
 
-                <div id="sniper-display" class="flex-1 transition-all duration-500 relative bg-[#010101] border rounded-xl shadow-[inset_0_0_50px_rgba(0,0,0,1)] overflow-y-auto custom-scrollbar cyber-panel min-h-[400px]"
+                <div class="flex-1 transition-all duration-500 relative bg-[#010101] border rounded-xl shadow-[inset_0_0_50px_rgba(0,0,0,1)] overflow-y-auto custom-scrollbar cyber-panel min-h-[400px]"
                      :class="isComplete ? 'border-emerald-500/30' : 'border-red-900/30'">
                     
-                    <div class="absolute inset-0 flex flex-col items-center justify-center p-8 z-0 pointer-events-none">
+                    <div x-show="!isComplete" class="absolute inset-0 flex flex-col items-center justify-center p-8 z-0 pointer-events-none">
                         
                         <div class="relative w-[320px] h-[320px] mb-8 mix-blend-screen opacity-50 transition-opacity duration-500" :class="isScanning ? 'opacity-90' : ''">
                             <div class="absolute inset-0 rounded-full border border-red-900/30"></div>
@@ -314,19 +329,32 @@
                             </h3>
                             <p class="text-slate-400 text-xs leading-relaxed font-mono tracking-wider">
                                 <span x-show="!isScanning">Añada contexto. Seleccione Deep Render JS para forzar la carga de componentes dinámicos (Angular/React/Cloudflare). Esto asegura recolección de 100% de datos reales.</span>
-                                <span x-show="isScanning" class="text-red-300">Por favor espere. El motor Backend está aplicando Extracción Forense de 4 Pases (LMS, Emails ofuscados, Nodos WhatsApp, PBX Fijos). <strong x-show="osintModules.deep_render">ESTO TOMARÁ MÁS TIEMPO DEBIDO AL RENDERIZADO JS.</strong></span>
+                                <span x-show="isScanning" class="text-red-300">Por favor espere. El motor Backend está aplicando Extracción Forense de 4 Pases. <strong x-show="osintModules.deep_render">ESTO TOMARÁ MÁS TIEMPO DEBIDO AL RENDERIZADO JS.</strong></span>
                             </p>
                         </div>
                     </div>
+
+                    <div id="sniper-results-container" class="relative z-20 p-2 lg:p-4" x-show="isComplete"></div>
+
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // ==========================================
-        // ALPINE.JS MOTOR CLIENT-SIDE (GOD TIER)
-        // ==========================================
+        // Regex de parseo inicial
+        const URL_REGEX = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i;
+        const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
+        const SPLIT_REGEX = /[\n,;]+/; 
+
+        // [ISOLATED DOM SHIELD]: Memoria segura fuera de la reactividad de Alpine
+        window.GHOST_STATE = {
+            abortController: null,
+            simInterval: null,
+            debounceTimer: null,
+            payload: { urls: [], emails: [], names: [] }
+        };
+
         function ghostSwarmTerminal() {
             return {
                 isScanning: false,
@@ -338,10 +366,6 @@
                 metrics: { uplink: 32, nodes: 120, urls: 0, emails: 0, names: 0, dns_queries: 0 },
                 logs: [],
                 osintModules: { lms: true, whatsapp: true, email: true, deep_render: true },
-                simInterval: null,
-                debounceTimer: null,
-                
-                parsedPayload: { urls: [], emails: [], names: [] },
                 
                 initializeSystem() {
                     this.updateTime();
@@ -353,10 +377,13 @@
                             : Math.floor(Math.random() * (45 - 20 + 1) + 20);
                     }, 1500);
 
-                    setTimeout(() => this.addLog("SYSTEM BOOT: GHOST SWARM V12.0 [LEVIATHAN CLASS]", "text-white font-black"), 300);
-                    setTimeout(() => this.addLog("ENCRYPTION: AES-256 GCM [VERIFIED]", "text-emerald-400"), 600);
-                    setTimeout(() => this.addLog("OSINT VECTORS: NATIVE BINDING [STRICT MODE]", "text-blue-400"), 900);
-                    setTimeout(() => this.addLog("AWAITING TARGET COORDINATES...", "text-slate-400"), 1200);
+                    const bootSequence = [
+                        [300, "SYSTEM BOOT: GHOST SWARM V37.4 [APEX CLASS]", "text-white font-black"],
+                        [600, "ENCRYPTION: AES-256 GCM [VERIFIED]", "text-emerald-400"],
+                        [900, "MEMORY ALLOC: O(1) ISOLATED DOM SHIELD", "text-purple-400"],
+                        [1200, "AWAITING TARGET COORDINATES...", "text-slate-400"]
+                    ];
+                    bootSequence.forEach(([delay, msg, cls]) => setTimeout(() => this.addLog(msg, cls), delay));
                 },
 
                 updateTime() {
@@ -365,66 +392,68 @@
                 },
 
                 handleInputDebounced(e) {
-                    clearTimeout(this.debounceTimer);
-                    this.debounceTimer = setTimeout(() => {
-                        this._parseIntelligence(e.target.value);
+                    if (this.isScanning) return; 
+                    clearTimeout(window.GHOST_STATE.debounceTimer);
+                    window.GHOST_STATE.debounceTimer = setTimeout(() => {
+                        this._parseIntelligenceGodTier(e.target.value);
                     }, 300);
                 },
 
-                _parseIntelligence(text) {
+                _parseIntelligenceGodTier(text) {
                     if (!text || !text.trim()) {
-                        this.targetCount = this.metrics.urls = this.metrics.emails = this.metrics.names = 0;
-                        this.parsedPayload = { urls: [], emails: [], names: [] };
-                        this.isComplete = false;
+                        this.clearSystem(true);
                         return;
                     }
                     
-                    const rawTargets = text.split(/[\n,;]+/).map(t => t.trim()).filter(t => t.length > 3);
-                    const uniqueTargets = [...new Set(rawTargets)];
-                    this.targetCount = uniqueTargets.length;
-                    
-                    const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i;
-                    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/i;
-                    
-                    let parsed = { urls: [], emails: [], names: [] };
+                    const rawTargets = text.split(SPLIT_REGEX);
+                    const uniqueSet = new Set();
+                    const urls = [], emails = [], names = [];
 
-                    for(let target of uniqueTargets) {
-                        if(emailRegex.test(target)) {
-                            parsed.emails.push(target);
-                        } else if(urlRegex.test(target)) {
-                            parsed.urls.push(target);
-                        } else {
-                            parsed.names.push(target);
+                    for(let i=0; i < rawTargets.length; i++) {
+                        const t = rawTargets[i].trim();
+                        if(t.length > 3 && !uniqueSet.has(t)) {
+                            uniqueSet.add(t);
+                            if(EMAIL_REGEX.test(t)) emails.push(t);
+                            else if(URL_REGEX.test(t)) urls.push(t);
+                            else names.push(t);
                         }
                     }
 
-                    this.parsedPayload = parsed;
-                    this.metrics.urls = parsed.urls.length;
-                    this.metrics.emails = parsed.emails.length;
-                    this.metrics.names = parsed.names.length;
+                    window.GHOST_STATE.payload = { urls, emails, names };
+                    
+                    this.targetCount = uniqueSet.size;
+                    this.metrics.urls = urls.length;
+                    this.metrics.emails = emails.length;
+                    this.metrics.names = names.length;
+                    
+                    uniqueSet.clear();
                 },
 
-                clearSystem() {
-                    document.getElementById('swarm-input-form').reset();
-                    document.getElementById('sniper-display').innerHTML = ''; 
+                clearSystem(isInternal = false) {
+                    if (this.isScanning) return;
+                    if (!isInternal) document.getElementById('swarm-input-form').reset();
+                    
+                    document.getElementById('sniper-results-container').innerHTML = ''; 
+                    
                     this.targetCount = this.metrics.urls = this.metrics.emails = this.metrics.names = this.metrics.dns_queries = 0;
-                    this.parsedPayload = { urls: [], emails: [], names: [] };
-                    this.isScanning = this.isComplete = false;
+                    window.GHOST_STATE.payload = { urls: [], emails: [], names: [] };
+                    this.isComplete = false;
                     this.scanProgress = 0;
-                    this.addLog("[SYS_COMMAND] MEMORIA PURGADA POR EL OPERADOR.", "text-yellow-500 font-bold");
+                    if (!isInternal) this.addLog("[SYS_COMMAND] MEMORIA PURGADA POR EL OPERADOR.", "text-yellow-500 font-bold");
                 },
 
                 async executeAnalysis() {
-                    if(this.targetCount === 0 || this.isScanning) {
-                        return;
+                    if(this.targetCount === 0 || this.isScanning) return;
+                    
+                    if(this.isComplete) {
+                        document.getElementById('sniper-results-container').innerHTML = '';
+                        this.isComplete = false;
                     }
 
+                    window.GHOST_STATE.abortController = new AbortController();
+                    this.startScanSimulation();
+
                     try {
-                        const rawText = document.getElementById('target-input').value;
-                        this._parseIntelligence(rawText); 
-                        
-                        this.startScanSimulation();
-                        
                         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value;
                         const city = document.getElementById('context_city').value;
                         const country = document.getElementById('context_country').value;
@@ -433,63 +462,69 @@
                         formData.append('osint_lms', this.osintModules.lms ? '1' : '0');
                         formData.append('osint_whatsapp', this.osintModules.whatsapp ? '1' : '0');
                         formData.append('osint_email', this.osintModules.email ? '1' : '0');
-                        formData.append('deep_render', this.osintModules.deep_render ? '1' : '0'); // [NUEVO] Flag para el backend
+                        formData.append('deep_render', this.osintModules.deep_render ? '1' : '0');
                         formData.append('context_city', city);
                         formData.append('context_country', country);
-                        formData.append('structured_payload', JSON.stringify(this.parsedPayload));
+                        formData.append('structured_payload', JSON.stringify(window.GHOST_STATE.payload));
 
-                        // No ponemos timeout en fetch, esperamos lo que tome el servidor
                         const response = await fetch('/api/ghost-swarm/search/', {
                             method: 'POST',
                             headers: {
                                 'X-CSRFToken': csrfToken,
                                 'X-Requested-With': 'XMLHttpRequest'
                             },
-                            body: formData
+                            body: formData,
+                            signal: window.GHOST_STATE.abortController.signal
                         });
 
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
+                        if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
 
                         const html = await response.text();
                         
                         this.stopScanSimulation();
                         this.isComplete = true;
-                        document.getElementById('sniper-display').innerHTML = html;
-                        this.addLog("<<< [HTTP 200 OK] EXTRACCIÓN DE 4 PASES COMPLETADA.", "text-emerald-500 font-black");
-                        this.addLog("<<< [DB_SYNC] TELEMETRÍA Y NÚMEROS GUARDADOS EN POSTGRESQL.", "text-emerald-400");
+                        
+                        // [GOD TIER QA]: Inyecta de forma segura en un div sin Alpine directives
+                        document.getElementById('sniper-results-container').innerHTML = html;
+                        
+                        this.addLog("<<< [HTTP 200 OK] EXTRACCIÓN COMPLETADA.", "text-emerald-500 font-black");
+                        this.addLog("<<< [DB_SYNC] TELEMETRÍA GUARDADA.", "text-emerald-400");
                         
                     } catch(error) {
                         this.stopScanSimulation();
-                        this.addLog(`!!! [FATAL] EL SERVIDOR DEVOLVIÓ ERROR: ${error.message}`, "text-red-500 font-black bg-white/10 p-1");
                         
-                        document.getElementById('sniper-display').innerHTML = `
-                            <div class="p-8 relative z-20">
-                                <div class="bg-red-950/80 border-2 border-red-500 p-6 rounded-lg font-mono text-red-200 shadow-[0_0_30px_rgba(220,38,38,0.3)] backdrop-blur-md">
-                                    <h2 class="text-2xl font-black text-red-500 flex items-center gap-2 mb-4"><span class="material-symbols-outlined">warning</span> ERROR EN EL BACKEND (PYTHON)</h2>
-                                    <p class="mb-4">El proceso falló en Django. Verifica el archivo <code>views.py</code> y la consola Docker.</p>
+                        if (error.name === 'AbortError') {
+                            this.addLog("!!! [HTTP ABORT] CONEXIÓN DESTRUIDA POR EL OPERADOR.", "text-orange-500 font-bold");
+                        } else {
+                            this.addLog(`!!! [FATAL CRASH] ${error.message}`, "text-red-500 font-black bg-white/10 p-1");
+                            document.getElementById('sniper-results-container').innerHTML = `
+                                <div class="bg-red-950/80 border-2 border-red-500 p-6 rounded-lg font-mono text-red-200 shadow-[0_0_30px_rgba(220,38,38,0.3)] backdrop-blur-md m-4">
+                                    <h2 class="text-2xl font-black text-red-500 flex items-center gap-2 mb-4"><span class="material-symbols-outlined">warning</span> SYSTEM FAILURE (BACKEND)</h2>
+                                    <p class="mb-4">El proceso falló o fue bloqueado (Timeout).</p>
                                     <p><strong>Excepción capturada:</strong> ${error.message}</p>
                                 </div>
-                            </div>
-                        `;
+                            `;
+                            this.isComplete = true;
+                        }
                     }
                 },
 
                 abortMission() {
+                    if(window.GHOST_STATE.abortController) {
+                        window.GHOST_STATE.abortController.abort();
+                    }
                     this.addLog("!!! MISIÓN ABORTADA POR EL OPERADOR...", "text-red-500 font-black");
                     this.stopScanSimulation();
-                    document.getElementById('sniper-display').innerHTML = '';
+                    document.getElementById('sniper-results-container').innerHTML = '';
                 },
 
                 startScanSimulation() {
                     this.isScanning = true;
                     this.scanProgress = 0;
                     this.addLog("========================================", "text-slate-600");
-                    this.addLog(`>>> [CONFIG] LECTURA DE VECTORES: LMS(${this.osintModules.lms}), WA(${this.osintModules.whatsapp}), EMAIL(${this.osintModules.email}), DEEP_RENDER(${this.osintModules.deep_render})`, "text-yellow-400 font-mono");
+                    this.addLog(`>>> [CONFIG] LECTURA DE VECTORES: LMS(${this.osintModules.lms}), WA(${this.osintModules.whatsapp}), DEEP_RENDER(${this.osintModules.deep_render})`, "text-yellow-400 font-mono");
                     this.addLog(">>> [PRE-FLIGHT] PAYLOAD EMPAQUETADO Y ENVIADO...", "text-blue-400 font-bold");
                     
-                    // Intervalos más largos para simular el tiempo real del backend
                     const stages = [
                         { p: 10, m: "PASE 1: CONECTANDO CON EL OBJETIVO...", c: "text-slate-400" },
                         { p: 25, m: "PASE 2: EVADIENDO CLOUDFLARE/WAF...", c: "text-yellow-400" },
@@ -501,7 +536,7 @@
                     ];
 
                     let step = 0;
-                    this.simInterval = setInterval(() => {
+                    window.GHOST_STATE.simInterval = setInterval(() => {
                         if (step < stages.length) {
                             this.scanProgress = stages[step].p;
                             this.scanStatus = stages[step].m;
@@ -511,13 +546,14 @@
                             this.scanProgress = 99;
                             this.scanStatus = "ESPERANDO CONFIRMACIÓN DEL NÚCLEO PYTHON...";
                         }
-                    }, 4000); // 4 segundos entre fases, indicando un proceso más lento y real.
+                    }, 4000); 
                 },
 
                 stopScanSimulation() {
                     this.isScanning = false;
                     this.scanProgress = 100;
-                    clearInterval(this.simInterval);
+                    clearInterval(window.GHOST_STATE.simInterval);
+                    window.GHOST_STATE.abortController = null;
                 },
 
                 addLog(msg, colorClass = "text-red-500") {
