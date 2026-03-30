@@ -1,12 +1,12 @@
 """
-======================================================================
+================================================================================
 [GOD TIER ARCHITECTURE: LEVIATHAN CLASS V75.0 - PROJECT OMNISCIENT]
 PROJECT: GHOST SNIPER (SILICON WADI / UNIT 8200 SPEC)
 MODULE: RECONNAISSANCE ENGINE + PLAYWRIGHT + DEEPSEEK NLP FUSION
 ENGINEERING: SHADOW DOM SCAVENGING, CLOUDFLARE BYPASS, 
              COGNITIVE REAPER FALLBACK, ANTI-BOT FINGERPRINTING,
              DYNAMIC EMAIL RECOVERY PIPELINE (O(1) COMPLEXITY)
-======================================================================
+================================================================================
 """
 
 import os
@@ -25,29 +25,55 @@ import time
 import dns.asyncresolver
 from typing import List, Optional, Dict, Any, Set, Tuple, Pattern, Union
 from dataclasses import dataclass, field
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, unquote
 from datetime import datetime
 
 from django.utils import timezone
-from playwright.async_api import (
-    async_playwright,
-    Browser,
-    BrowserContext,
-    Page,
-    Error as PlaywrightError,
-    TimeoutError as PlaywrightTimeoutError,
-    Route,
-    Request
-)
 from asgiref.sync import sync_to_async
-import whois
-import tldextract
 
-# Importamos modelos y dependencias
+# Importaciones seguras con try/except
+try:
+    from playwright.async_api import (
+        async_playwright,
+        Browser,
+        BrowserContext,
+        Page,
+        Error as PlaywrightError,
+        TimeoutError as PlaywrightTimeoutError,
+        Route,
+        Request
+    )
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+
+try:
+    import whois
+except ImportError:
+    whois = None
+
+try:
+    import tldextract
+except ImportError:
+    tldextract = None
+
 from sales.models import Institution, TechProfile, DeepForensicProfile
-from sales.engine.tor_controller import async_force_new_tor_identity 
-from ddgs import DDGS
-from openai import AsyncOpenAI
+
+try:
+    from sales.engine.tor_controller import async_force_new_tor_identity 
+except ImportError:
+    async_force_new_tor_identity = None
+
+try:
+    from ddgs import DDGS
+except ImportError:
+    DDGS = None
+
+try:
+    from openai import AsyncOpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 
 # ======================================================================
 # [1] GOD TIER TELEMETRY & FORENSIC LOGGING SUBSYSTEM
@@ -265,33 +291,37 @@ GARBAGE_EMAILS = frozenset({
 class ReconUtils:
     @staticmethod
     def extract_domain_info(url: str) -> Dict[str, Any]:
-        extracted = tldextract.extract(url)
-        root_domain = f"{extracted.domain}.{extracted.suffix}" if extracted.suffix else extracted.domain
-        return {
-            'domain': extracted.domain,
-            'subdomain': extracted.subdomain,
-            'suffix': extracted.suffix,
-            'full_domain': root_domain,
-            'registrable_domain': root_domain
-        }
+        if tldextract:
+            extracted = tldextract.extract(url)
+            root_domain = f"{extracted.domain}.{extracted.suffix}" if extracted.suffix else extracted.domain
+            return {
+                'domain': extracted.domain,
+                'subdomain': extracted.subdomain,
+                'suffix': extracted.suffix,
+                'full_domain': root_domain,
+                'registrable_domain': root_domain
+            }
+        return {'domain': '', 'subdomain': '', 'suffix': '', 'full_domain': '', 'registrable_domain': ''}
 
     @staticmethod
     async def get_whois_info(domain: str) -> Dict[str, Any]:
-        try:
-            domain_info = await asyncio.to_thread(whois.whois, domain)
-            return {
-                'registrar': getattr(domain_info, 'registrar', 'N/A'),
-                'creation_date': str(getattr(domain_info, 'creation_date', 'N/A')),
-                'expiration_date': str(getattr(domain_info, 'expiration_date', 'N/A')),
-                'name_servers': getattr(domain_info, 'name_servers', []),
-                'emails': list(set([
-                    str(contact.email) for contact in getattr(domain_info, 'contacts', [])
-                    if hasattr(contact, 'email') and contact.email
-                ])),
-                'org': getattr(domain_info, 'org', 'N/A')
-            }
-        except Exception as e:
-            return {'error': str(e)}
+        if whois:
+            try:
+                domain_info = await asyncio.to_thread(whois.whois, domain)
+                return {
+                    'registrar': getattr(domain_info, 'registrar', 'N/A'),
+                    'creation_date': str(getattr(domain_info, 'creation_date', 'N/A')),
+                    'expiration_date': str(getattr(domain_info, 'expiration_date', 'N/A')),
+                    'name_servers': getattr(domain_info, 'name_servers', []),
+                    'emails': list(set([
+                        str(contact.email) for contact in getattr(domain_info, 'contacts', [])
+                        if hasattr(contact, 'email') and contact.email
+                    ])),
+                    'org': getattr(domain_info, 'org', 'N/A')
+                }
+            except Exception as e:
+                return {'error': str(e)}
+        return {'error': 'whois not available'}
 
     @staticmethod
     async def get_dns_records(domain: str) -> Dict[str, Any]:
@@ -355,19 +385,17 @@ class ReconUtils:
 class AIInsightsGenerator:
     """
     Generador de insights y correos de venta usando Modelos de Lenguaje Avanzados (LLMs).
-    Obliga al motor de IA a responder en JSON estructurado.
     """
-
     def __init__(self, api_key: str = None, model: str = "gpt-4o"):
         self.api_key = api_key
         self.model = model
         self.client = None
-        if api_key:
+        if api_key and OPENAI_AVAILABLE:
             try:
                 from openai import OpenAI
                 self.client = OpenAI(api_key=api_key)
             except ImportError:
-                logger.warning("❌ OpenAI SDK no está instalado. Usa `pip install openai` para activar la IA.")
+                logger.warning("❌ OpenAI SDK no está instalado.")
 
     def generate_prompt(self, institution_data: Dict[str, Any]) -> str:
         tech_stack = institution_data.get('tech_stack', {}).get('technologies', {})
@@ -397,7 +425,7 @@ class AIInsightsGenerator:
 
     def generate_insights(self, institution_data: Dict[str, Any]) -> Dict[str, Any]:
         if not self.client:
-            return {"error": "Cliente de IA no configurado. Proporciona una API key válida."}
+            return {"error": "Cliente de IA no configurado."}
 
         prompt = self.generate_prompt(institution_data)
 
@@ -405,7 +433,7 @@ class AIInsightsGenerator:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "Eres una máquina experta en B2B que responde EXCLUSIVAMENTE en formato JSON nativo sin Markdown adicional (sin bloques de código ```json)."},
+                    {"role": "system", "content": "Eres una máquina experta en B2B que responde EXCLUSIVAMENTE en formato JSON nativo sin Markdown adicional."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
@@ -423,14 +451,13 @@ class AIInsightsGenerator:
         except Exception as e:
             return {"error": f"Error crítico al generar insights de IA: {str(e)}"}
 
-
 # ==========================================
 # NÚCLEO DE EXTRACCIÓN (THE GHOST SNIPER - OMNI SNIPER)
 # ==========================================
 class GhostEmailSniper:
     """
-    [GOD TIER EMAIL EXTRACTOR V74.0]
-    Integra escáner de memoria V8, inyección en caliente de decodificadores de Cloudflare
+    [GOD TIER EMAIL EXTRACTOR]
+    Integra escáner de memoria, inyección en caliente de decodificadores de Cloudflare
     y penetración de Shadow DOMs para extraer el 100% de los correos.
     """
     
@@ -462,7 +489,8 @@ class GhostEmailSniper:
             except Exception:
                 pass 
 
-        page.on("response", _sniff_network_response)
+        if PLAYWRIGHT_AVAILABLE:
+            page.on("response", _sniff_network_response)
 
     def _sanitize_obfuscation(self, raw_email: str) -> Optional[str]:
         clean = raw_email.lower().strip()
@@ -499,32 +527,34 @@ class TheCognitiveReaper:
             query += f" OR site:{domain.replace('www.', '')}"
 
         try:
-            def search_ddg():
-                with DDGS() as ddg:
-                    return [f"{r.get('title')} | {r.get('body')}" for r in ddg.text(query, backend="lite", max_results=5)]
-            
-            results = await asyncio.to_thread(search_ddg)
-            corpus = " ".join(results).lower()
+            if DDGS:
+                def search_ddg():
+                    with DDGS() as ddg:
+                        return [f"{r.get('title')} | {r.get('body')}" for r in ddg.text(query, backend="lite", max_results=5)]
+                
+                results = await asyncio.to_thread(search_ddg)
+                corpus = " ".join(results).lower()
 
-            clean_text = re.sub(r'(?i)(\s*\[at\]\s*|\s*\(at\)\s*|\s+at\s+|\s*arroba\s*|@|%40)', '@', html.unescape(unquote(corpus)))
-            found = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', clean_text)
-            
-            valid_emails = [e.lower().strip().rstrip('.,;:') for e in found if '@' in e and not any(g in e for g in GARBAGE_EMAILS)]
-            if valid_emails:
-                return list(set(valid_emails))
+                clean_text = re.sub(r'(?i)(\s*\[at\]\s*|\s*\(at\)\s*|\s+at\s+|\s*arroba\s*|@|%40)', '@', html.unescape(unquote(corpus)))
+                found = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', clean_text)
+                
+                valid_emails = [e.lower().strip().rstrip('.,;:') for e in found if '@' in e and not any(g in e for g in GARBAGE_EMAILS)]
+                if valid_emails:
+                    return list(set(valid_emails))
 
-            async_client = AsyncOpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY", "sk-b6020f82f33f445daae865f32d723a44"), base_url="[https://api.deepseek.com](https://api.deepseek.com)")
-            prompt = f"Extract ONLY the valid email address from the text as a raw string. If none, return 'NONE'.\nTEXT: {corpus[:3500]}"
-            
-            response = await async_client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0
-            )
-            
-            llm_result = response.choices[0].message.content.strip().lower()
-            if '@' in llm_result and 'none' not in llm_result:
-                return [llm_result]
+            if OPENAI_AVAILABLE:
+                async_client = AsyncOpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY", ""), base_url="https://api.deepseek.com")
+                prompt = f"Extract ONLY the valid email address from the text as a raw string. If none, return 'NONE'.\nTEXT: {corpus[:3500]}"
+                
+                response = await async_client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0
+                )
+                
+                llm_result = response.choices[0].message.content.strip().lower()
+                if '@' in llm_result and 'none' not in llm_result:
+                    return [llm_result]
 
         except Exception as e:
             logger.error(f"Reaper Exception: {e}")
@@ -539,10 +569,8 @@ class B2BReconEngine:
     def __init__(self, config: ReconConfig = ReconConfig()):
         self.config = config
         self.semaphore = asyncio.Semaphore(config.MAX_CONCURRENT)
-        
         self.tor_lock = asyncio.Lock()
         self.last_tor_rotation_time = 0.0
-        
         self.sniper = GhostEmailSniper()
 
     async def _check_dns_resolution(self, hostname: str) -> bool:
@@ -554,43 +582,44 @@ class B2BReconEngine:
             return False
 
     async def _apply_stealth(self, page: Page):
-        await page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-            Object.defineProperty(navigator, 'languages', {get: () => ['es-CO', 'es', 'en-US', 'en']});
+        if PLAYWRIGHT_AVAILABLE:
+            await page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                Object.defineProperty(navigator, 'languages', {get: () => ['es-CO', 'es', 'en-US', 'en']});
 
-            const getParameter = WebGLRenderingContext.prototype.getParameter;
-            WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                if (parameter === 37445) return 'Intel Inc.'; 
-                if (parameter === 37446) return 'Intel Iris OpenGL Engine'; 
-                return getParameter.call(this, parameter);
-            };
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) return 'Intel Inc.'; 
+                    if (parameter === 37446) return 'Intel Iris OpenGL Engine'; 
+                    return getParameter.call(this, parameter);
+                };
 
-            window.chrome = {
-                runtime: {},
-                app: {isInstalled: false},
-                webstore: {}
-            };
+                window.chrome = {
+                    runtime: {},
+                    app: {isInstalled: false},
+                    webstore: {}
+                };
 
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
-                parameters.name === 'notifications' ?
-                Promise.resolve({state: Notification.permission}) :
-                originalQuery(parameters)
-            );
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                    Promise.resolve({state: Notification.permission}) :
+                    originalQuery(parameters)
+                );
 
-            Object.defineProperty(navigator, 'connection', {
-                value: {
-                    downlink: 10,
-                    effectiveType: '4g',
-                    rtt: 50,
-                    saveData: false
-                }
-            });
-            
-            Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
-            Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
-        """)
+                Object.defineProperty(navigator, 'connection', {
+                    value: {
+                        downlink: 10,
+                        effectiveType: '4g',
+                        rtt: 50,
+                        saveData: false
+                    }
+                });
+                
+                Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+                Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
+            """)
 
     async def _intercept_resources(self, route: Route, request: Request):
         blocked_types = {"image", "media", "font", "stylesheet", "websocket", "other", "eventsource"}
@@ -662,19 +691,20 @@ class B2BReconEngine:
             pass
 
     async def _safe_tor_rotation(self, strict: bool):
-        async with self.tor_lock:
-            current_time = time.time()
-            if current_time - self.last_tor_rotation_time > 15.0: 
-                logger.warning("🛡️ [C2 MUTEX] Ejecutando Rotación Vectorial Tor (Nueva Identidad)...")
-                try:
-                    await async_force_new_tor_identity(strict_verification=strict)
-                    self.last_tor_rotation_time = time.time()
-                    await asyncio.sleep(2.0) 
-                except Exception as e:
-                    logger.error(f"❌ [C2 FATAL] Daño en Backbone Tor. ¿El daemon está encendido? {e}")
-            else:
-                logger.debug("⏳ [C2 MUTEX] Absorbiendo pico de concurrencia. Compartiendo IP estabilizada...")
-                await asyncio.sleep(random.uniform(1.5, 3.5))
+        if async_force_new_tor_identity:
+            async with self.tor_lock:
+                current_time = time.time()
+                if current_time - self.last_tor_rotation_time > 15.0: 
+                    logger.warning("🛡️ [C2 MUTEX] Ejecutando Rotación Vectorial Tor...")
+                    try:
+                        await async_force_new_tor_identity(strict_verification=strict)
+                        self.last_tor_rotation_time = time.time()
+                        await asyncio.sleep(2.0) 
+                    except Exception as e:
+                        logger.error(f"❌ [C2 FATAL] Daño en Backbone Tor: {e}")
+                else:
+                    logger.debug("⏳ [C2 MUTEX] Compartiendo IP estabilizada...")
+                    await asyncio.sleep(random.uniform(1.5, 3.5))
 
     async def _navigate_with_stealth(self, page: Page, url: str, timeout_ms: int = None) -> bool:
         timeout = timeout_ms or self.config.PAGE_LOAD_TIMEOUT_MS
@@ -702,7 +732,7 @@ class B2BReconEngine:
             except Exception as e:
                 error_msg = str(e)
                 if "ERR_PROXY_CONNECTION_FAILED" in error_msg or "Connection refused" in error_msg:
-                    logger.critical(f"🚨 [PROXY DROP] {url}. Mitigando colapso de socket TCP (Pausa de 5s)...")
+                    logger.critical(f"🚨 [PROXY DROP] {url}. Mitigando colapso de socket TCP...")
                     await asyncio.sleep(5.0)
                     await self._safe_tor_rotation(strict=False)
                     continue
@@ -766,7 +796,7 @@ class B2BReconEngine:
         if not valid_hosts:
             return {}
 
-        logger.info(f"🕵️‍♂️ [SUBDOMAIN PROBE] DNS detectó {len(valid_hosts)} activos laterales en {root_domain}. Lanzando ráfaga táctica...")
+        logger.info(f"🕵️‍♂️ [SUBDOMAIN PROBE] DNS detectó {len(valid_hosts)} activos laterales en {root_domain}.")
 
         for url in valid_hosts:
             page = await context.new_page()
@@ -780,7 +810,7 @@ class B2BReconEngine:
                 if await self._navigate_with_stealth(page, url, timeout_ms=self.config.SUBDOMAIN_TIMEOUT_MS):
                     tech = await self._detect_technologies(page, url)
                     if tech.get('has_lms'):
-                        logger.warning(f"💎 [BINGO TIER 1] LMS detectado en activo lateral: {url} -> {str(tech.get('lms_type')).upper()}")
+                        logger.warning(f"💎 [BINGO] LMS detectado en activo lateral: {url} -> {str(tech.get('lms_type')).upper()}")
                         found_tech = tech
                         found_tech['subdomain_source'] = url
                         if tech.get('lms_type') in ['schoolnet', 'phidias', 'cibercolegios']:
@@ -793,82 +823,6 @@ class B2BReconEngine:
                     await page.close()
 
         return found_tech
-
-    async def _extract_google_maps_data(self, page: Page) -> Dict[str, Any]:
-        maps_data = {'coordinates': None, 'place_id': None, 'query': None, 'embedded_urls': set(), 'api_keys': set()}
-
-        try:
-            iframes = await page.query_selector_all('iframe[src*="[google.com/maps](https://google.com/maps)"]')
-            for iframe in iframes:
-                src = await iframe.get_attribute("src")
-                if not src: continue
-                
-                maps_data['embedded_urls'].add(src)
-                
-                coord_match = ReconSignatures.COORDINATES_REGEX.search(src)
-                if coord_match:
-                    maps_data['coordinates'] = {'lat': coord_match.group(1), 'lng': coord_match.group(2)}
-
-                place_match = ReconSignatures.PLACE_ID_REGEX.search(src)
-                if place_match: maps_data['place_id'] = place_match.group(1)
-
-            scripts = await page.query_selector_all('script')
-            for script in scripts:
-                content = await script.inner_text()
-                keys = ReconSignatures.GOOGLE_API_KEY_REGEX.findall(content)
-                for key in keys: maps_data['api_keys'].add(key)
-
-        except Exception: pass
-
-        maps_data['embedded_urls'] = list(maps_data['embedded_urls'])
-        maps_data['api_keys'] = list(maps_data['api_keys'])
-        return maps_data
-
-    async def _extract_seo_metadata(self, page: Page) -> Dict[str, Any]:
-        seo_data = {}
-        try:
-            content = await page.content()
-            for key, pattern in ReconSignatures.SEO_TAGS.items():
-                match = pattern.search(content)
-                if match: seo_data[key] = match.group(1).strip()
-
-            schemas = ReconSignatures.SCHEMA_ORG_REGEX.findall(content)
-            if schemas:
-                valid_schemas = [json.loads(m) for m in schemas if ReconUtils.validate_json(m)]
-                if valid_schemas: seo_data['schema_org'] = valid_schemas
-        except Exception: pass
-        return seo_data
-
-    async def _extract_education_levels(self, page: Page) -> List[str]:
-        levels = set()
-        try:
-            content = await page.content()
-            for level, pattern in ReconSignatures.EDU_LEVELS.items():
-                if pattern.search(content): levels.add(level)
-        except Exception: pass
-        return list(levels)
-
-    async def _extract_business_signals(self, page: Page) -> Dict[str, Any]:
-        signals = {}
-        try:
-            content = await page.content()
-            for signal, pattern in ReconSignatures.BUSINESS.items():
-                if pattern.search(content): signals[signal] = True
-
-            year_match = re.search(r'(?:fundado en|desde|año)\s+(\d{4})', content, re.I)
-            if year_match: signals['foundation_year'] = int(year_match.group(1))
-        except Exception: pass
-        return signals
-
-    async def _extract_social_media(self, page: Page) -> Dict[str, str]:
-        social_media = {}
-        try:
-            content = await page.content()
-            for network, pattern in ReconSignatures.SOCIAL.items():
-                match = pattern.search(content)
-                if match: social_media[network] = match.group(0)
-        except Exception: pass
-        return social_media
 
     async def _extract_contact_info(self, page: Page) -> Dict[str, Set[str]]:
         contacts = {'phones': set(), 'whatsapp': set(), 'emails': set(), 'addresses': set()}
@@ -969,23 +923,6 @@ class B2BReconEngine:
 
         return tech_stack
 
-    async def _check_security_headers(self, page: Page) -> Dict[str, Any]:
-        headers_info = {}
-        try:
-            response = await page.goto(page.url, wait_until="domcontentloaded")
-            headers = response.headers
-
-            security_headers = {
-                'X-Frame-Options': headers.get('x-frame-options', 'Missing'),
-                'Content-Security-Policy': headers.get('content-security-policy', 'Missing'),
-                'Strict-Transport-Security': headers.get('strict-transport-security', 'Missing')
-            }
-
-            headers_info['security_headers'] = security_headers
-            headers_info['uses_https'] = page.url.startswith('https://')
-        except Exception: pass
-        return headers_info
-
     def _clean_emails(self, raw_emails: List[str]) -> str:
         if not raw_emails: return ""
 
@@ -1002,28 +939,8 @@ class B2BReconEngine:
         if priority: return priority[0]
         return list(cleaned)[0]
 
-    def _generate_sales_triggers(self, tech_data: Dict[str, Any], bi_data: Dict[str, Any]) -> List[str]:
-        triggers = []
-
-        if 'cert_ib' in bi_data.get('premium_flags', []):
-            triggers.append("🔥 IB World School: Presupuesto extremadamente alto. Vender calidad suprema y soporte VIP.")
-        if 'cert_cambridge' in bi_data.get('premium_flags', []):
-            triggers.append("📚 Certificación Cambridge: Integración internacional es su prioridad.")
-
-        if tech_data.get('has_lms'):
-            lms_actual = str(tech_data.get('lms_type', 'desconocido')).upper()
-            triggers.append(f"⚙️ Usa {lms_actual}: Atacar con una campaña de migración sencilla, mejor UI/UX y soporte local.")
-        else:
-            triggers.append("🟢 Blue Ocean: No se detectó LMS comercial. Gran oportunidad para digitalización total.")
-
-        if 'linkedin' in bi_data.get('social_media', {}):
-            triggers.append("💼 LinkedIn Activo: Busca al Rector o Director de TI directamente por InMail.")
-
-        return triggers
-
     @sync_to_async
     def _save_intelligence_to_db(self, inst_id: str, master_contacts: dict, tech_data: dict, bi_data: dict):
-        from sales.models import Institution, TechProfile, DeepForensicProfile
         from django.db import transaction
 
         with transaction.atomic():
@@ -1119,19 +1036,13 @@ class B2BReconEngine:
                     tech_data = await self._detect_technologies(page, domain)
                     
                     if not tech_data.get('has_lms'):
-                        logger.info(f"🔍 [LMS MISSING] No detectado en Home. Desplegando Asalto Lateral a Subdominios...")
+                        logger.info(f"🔍 [LMS MISSING] No detectado en Home. Desplegando Asalto Lateral...")
                         hidden_tech = await self._hunt_lms_subdomains(context, target_url)
                         if hidden_tech.get('has_lms'):
                             tech_data.update(hidden_tech)
 
-                    bi_data['education_levels'] = await self._extract_education_levels(page)
-                    business_signals = await self._extract_business_signals(page)
-                    bi_data['premium_flags'] = [k for k, v in business_signals.items() if v and k != 'foundation_year']
-
                     contacts = await self._extract_contact_info(page)
                     for k in master_contacts: master_contacts[k].update(contacts.get(k, set()))
-
-                    bi_data['social_media'] = await self._extract_social_media(page)
 
                     deep_links = await self._extract_deep_links(page, target_url)
                     for link in deep_links:
@@ -1141,8 +1052,6 @@ class B2BReconEngine:
                                 sub_contacts = await self._extract_contact_info(page)
                                 for k in master_contacts: master_contacts[k].update(sub_contacts.get(k, set()))
                         except Exception: pass
-
-                    bi_data['sales_triggers'] = self._generate_sales_triggers(tech_data, bi_data)
 
                     master_contacts['emails'].update(self.sniper.intercepted_emails)
                     
@@ -1174,6 +1083,11 @@ class B2BReconEngine:
 async def _orchestrate(targets: Optional[List[Dict]] = None):
     config = ReconConfig()
     engine = B2BReconEngine(config)
+    
+    if not PLAYWRIGHT_AVAILABLE:
+        logger.error("❌ Playwright no está instalado. No se puede ejecutar el escaneo.")
+        return
+
     tor_proxy = {"server": f"socks5://{os.getenv('TOR_PROXY_HOST', '127.0.0.1')}:{os.getenv('TOR_PROXY_PORT', 9050)}"}
 
     async with async_playwright() as p:
@@ -1192,12 +1106,13 @@ async def _orchestrate(targets: Optional[List[Dict]] = None):
         try:
             targets_to_process = targets or []
             if not targets_to_process:
-                logger.info("📡 [OMNI-SCAN] Extrayendo cola desde BD (Límite: 500)...")
+                logger.info("📡 [OMNI-SCAN] Extrayendo cola desde BD...")
                 count = 0
                 async for inst in Institution.objects.filter(is_active=True).order_by('-id'):
                     if count >= 500: break
-                    targets_to_process.append({'id': inst.id, 'name': inst.name, 'url': inst.website, 'city': inst.city})
-                    count += 1
+                    if inst.website:
+                        targets_to_process.append({'id': inst.id, 'name': inst.name, 'url': inst.website, 'city': inst.city})
+                        count += 1
             else:
                 logger.info(f"📡 [TACTICAL-SCAN] Desplegando enjambre sobre {len(targets_to_process)} objetivos...")
 
@@ -1234,17 +1149,23 @@ def execute_recon(inst_id: Union[int, str, uuid.UUID, None] = None):
     if inst_id:
         try:
             inst = Institution.objects.get(id=inst_id)
-            if not inst.website: return
+            if not inst.website:
+                logger.warning(f"⚠️ {inst.name} no tiene URL")
+                return False
             targets = [{'id': inst.id, 'name': inst.name, 'url': inst.website, 'city': inst.city}]
             logger.info(f"🎯 Modo Quirúrgico: Analizando {inst.name}")
-        except Exception: return
+        except Exception as e:
+            logger.error(f"❌ Error obteniendo institución: {e}")
+            return False
 
     try:
-        logger.info("🚀 Encendiendo el The Ghost Sniper Engine V9...")
+        logger.info("🚀 Encendiendo el Ghost Sniper Engine...")
         asyncio.run(_orchestrate(targets))
         logger.info("🏁 Operación concluida exitosamente.")
+        return True
     except Exception as e:
         logger.error(f"❌ Crash global: {e}")
+        return False
 
 run_recon = execute_recon
 

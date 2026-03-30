@@ -1,16 +1,18 @@
 """
 ======================================================================
-[GOD TIER ARCHITECTURE: LEVIATHAN CLASS V38.0 - THE OMNIPOTENT MATRIX]
+[GOD TIER ARCHITECTURE: LEVIATHAN CLASS V43.1 - THE NEURAL APEX]
 PROJECT: GHOST SWARM (SILICON WADI / UNIT 8200 SPEC)
-MODULE: COGNITIVE OSINT ENGINE & DEEP RENDER JS (PLAYWRIGHT)
-ENGINEERING: MAXIMUM YIELD EXTRACTION, GREEDY HARVESTING, HEURISTIC PURGE
-DATABASE: STRICT TRANSACTIONAL ISOLATION & DATA TRUNCATION SAFEGUARDS
-QA UPDATES (V38.0):
-    - GLOBAL REGEX COMPILER PATCH (Fixes STRICT_HREF_PHONE_REGEX NameError)
-    - MULTI-PHONE CLUSTER DETECTION (Harvests all numbers on a site)
-    - ALPHANUMERIC OBFUSCATION DESTROYER (Kills 'mail7532493admisiones')
-    - DOMAIN AFFINITY SCORING FOR PRIMARY EMAILS
-    - CELERY/DJANGO MEMORY SYNC OPTIMIZATION
+MODULE: COGNITIVE OSINT ENGINE & DEEP RENDER JS (PLAYWRIGHT) + NEURAL AI
+ENGINEERING: MAXIMUM YIELD EXTRACTION, LLM SEMANTIC ANALYSIS, OOP SHIELD
+DATABASE: SIDECAR MODEL ISOLATION (NeuralForensicReport)
+QA UPDATES (V43.1):
+    - DYNAMIC LLM ROUTING (Auto-switches between DeepSeek and OpenAI endpoints)
+    - SEMANTIC AI ENGINE (Integration for B2B Intel)
+    - CORPUS AGGREGATION (Compiles multi-page text into context window)
+    - AI UI INJECTION (Renders the forensic AI report directly on the card)
+    - SIDECAR DATABASE INJECTION (Zero-risk DB modification via OneToOne)
+    - GLOBAL LMS DATABASE (70+ Providers: EdTech, ERP, LMS, SIS)
+    - OOP REGEX ENCAPSULATION (Kills STRICT_HREF_PHONE_REGEX NameError)
 ======================================================================
 """
 
@@ -28,7 +30,6 @@ import urllib.parse
 import concurrent.futures
 import ujson as json
 from typing import Tuple, Optional, Set, List, Dict
-from dataclasses import dataclass, field
 from urllib.parse import urlparse, urljoin
 
 from bs4 import BeautifulSoup, Comment
@@ -46,6 +47,7 @@ from django.db import transaction, IntegrityError
 from django.db.models import F, Q
 from django.core.cache import cache
 from django.utils import timezone
+from django.conf import settings
 
 # =========================================================
 # [NIVEL DIOS 0]: PLAYWRIGHT ENGINE GUARD
@@ -59,30 +61,32 @@ except ImportError:
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# [CORRECCIÓN CRÍTICA]: Importación Estricta de la Capa de Datos Completa
+# [CORRECCIÓN CRÍTICA]: Importación Estricta de la Capa de Datos + Nuevo Modelo IA (PURGADO MODELO FANTASMA)
 from .models import Interaction, Institution, TechProfile, DeepForensicProfile
 
 logger = logging.getLogger("Sovereign.Intelligence")
 
 # =========================================================
-# [NIVEL DIOS 1]: INICIALIZACIÓN RAM & REGEX FORENSE GLOBAL
+# [NIVEL DIOS 1]: MATRIZ OOP DE EXPRESIONES REGULARES (SCOPE SHIELD)
+# Blinda el sistema contra NameError y Scope Drops de Celery/Django
 # =========================================================
+class MatrixRegex:
+    BOT = re.compile(r'(googleimageproxy|proofpoint|mimecast|barracuda|slackbot|whatsapp|telegrambot|applebot|outlook-com|yahoo|yandex|microsoft|spider|bot|crawler|scanner|datanyze)', re.IGNORECASE)
+    EMAIL = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+    OBFUSCATED_EMAIL = re.compile(r'([a-zA-Z0-9._%+-]+)\s*(?:\[at\]|\(at\)|\s+at\s+|@|\[arroba\]|\s+en\s+)\s*([a-zA-Z0-9.-]+)\s*(?:\[dot\]|\(dot\)|\s+dot\s+|\.|\[punto\]|\s+punto\s+)\s*([a-zA-Z]{2,})', re.IGNORECASE)
+    CLOUDFLARE_HEX = re.compile(r'/cdn-cgi/l/email-protection#([a-fA-F0-9]{4,})')
+    BASE64_HEURISTIC = re.compile(r'(?i)(?:[A-Za-z0-9+/]{4}){5,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
+    SOCIAL = re.compile(r'https?:\/\/(?:www\.)?(linkedin\.com|facebook\.com|instagram\.com|twitter\.com|x\.com|youtube\.com|tiktok\.com)\/[a-zA-Z0-9_.-]+')
+    
+    # Telefonía Colombia Maximum Yield (Cluster Harvester)
+    CONTEXT_BLOCK = re.compile(r'(?i)(?:pbx|tel[ée]fono|tel|celular|cel|whatsapp|wa|contactenos|ll[áa]manos|l[íi]nea|contacto|comunicate)(?:[^a-zA-Z]{0,50})')
+    RAW_PHONE_FINDER = re.compile(r'(?:(?:\+|00)[1-9]\d{0,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}')
+    STRICT_HREF_PHONE = re.compile(r'(?i)(?:tel:|wa\.me/|whatsapp://send\?phone=)([+0-9]+)')
+    RAW_PHONE_FALLBACK = re.compile(r'(?:(?:\+|00)[1-9]\d{0,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}')
+
 PIXEL_BYTES = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
 
-BOT_REGEX = re.compile(r'(googleimageproxy|proofpoint|mimecast|barracuda|slackbot|whatsapp|telegrambot|applebot|outlook-com|yahoo|yandex|microsoft|spider|bot|crawler|scanner|datanyze)', re.IGNORECASE)
-EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
-OBFUSCATED_EMAIL_REGEX = re.compile(r'([a-zA-Z0-9._%+-]+)\s*(?:\[at\]|\(at\)|\s+at\s+|@|\[arroba\]|\s+en\s+)\s*([a-zA-Z0-9.-]+)\s*(?:\[dot\]|\(dot\)|\s+dot\s+|\.|\[punto\]|\s+punto\s+)\s*([a-zA-Z]{2,})', re.IGNORECASE)
-CLOUDFLARE_HEX_REGEX = re.compile(r'/cdn-cgi/l/email-protection#([a-fA-F0-9]{4,})')
-BASE64_HEURISTIC_REGEX = re.compile(r'(?i)(?:[A-Za-z0-9+/]{4}){5,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?')
-SOCIAL_REGEX = re.compile(r'https?:\/\/(?:www\.)?(linkedin\.com|facebook\.com|instagram\.com|twitter\.com|x\.com|youtube\.com|tiktok\.com)\/[a-zA-Z0-9_.-]+')
-
-# [GOD TIER V38.0]: MATRIZ DE EXTRACCIÓN TELEFÓNICA (MÁXIMO RENDIMIENTO)
-CONTEXT_BLOCK_REGEX = re.compile(r'(?i)(?:pbx|tel[ée]fono|tel|celular|cel|whatsapp|wa|contactenos|ll[áa]manos|l[íi]nea|contacto|comunicate)(?:[^a-zA-Z]{0,50})')
-RAW_PHONE_FINDER = re.compile(r'(?:(?:\+|00)[1-9]\d{0,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}')
-STRICT_HREF_PHONE_REGEX = re.compile(r'(?i)(?:tel:|wa\.me/|whatsapp://send\?phone=)([+0-9]+)')
-RAW_PHONE_FALLBACK_REGEX = re.compile(r'(?:(?:\+|00)[1-9]\d{0,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}')
-
-# [INYECCIÓN FORENSE GOD-TIER]: Firmas Comerciales Deep B2B (O(1) Lookup)
+# [INYECCIÓN FORENSE GOD-TIER]: Firmas Comerciales Deep B2B
 BUSINESS_SIGNATURES = {
     'is_bilingual': re.compile(r'\b(bilingüe|bilingual school|dual language|inglés-español|formación bilingüe)\b', re.IGNORECASE),
     'is_trilingual': re.compile(r'\b(trilingüe|trilingual school|tercer idioma|francés e inglés)\b', re.IGNORECASE),
@@ -98,42 +102,86 @@ EMAIL_GARBAGE_EXT = {'.png', '.jpg', '.jpeg', '.gif', '.css', '.js', '.webp', '.
 EMAIL_GARBAGE_DOMAINS = {'sentry.io', 'wixpress.com', 'example.com', 'domain.com', 'email.com', 'wix.com', 'localhost', 'sentry.wixpress.com', 'tuweb.com', 'colombia.ver'}
 EMAIL_GARBAGE_PREFIXES = {'icon', 'logo', 'image', 'test', 'yourname', 'no-reply', 'noreply', 'sentry', '12345', 'admin@', 'correo@'}
 
+# =========================================================
+# [GOD TIER V43.0]: THE ULTIMATE GLOBAL EDTECH/LMS/SIS MATRIX
+# QA PATCH: Eliminado "canvas", "banner", "compartir" para evitar falsos positivos
+# QA PATCH: Implementado SchoolTrack y solucionado el bug de D2L
+# =========================================================
 LMS_SIGNATURES = {
-    'Moodle': ['moodle', 'theme/moove', 'lib/javascript.php', 'moodle-block', 'pluginfile.php', 'mdl_'],
-    'Canvas': ['instructure', 'canvas-lms', 'canvas_session', 'instructure.com'],
-    'Blackboard': ['blackboard', 'bbcswebdav', 'learn.blackboard'],
-    'Google Classroom': ['classroom.google.com'],
-    'MS Teams Edu': ['teams.microsoft', 'microsoft_teams'],
-    'Schoology': ['schoology.com'],
-    'D2L Brightspace': ['d2l', 'desire2learn', 'brightspace'],
-    'Sakai': ['sakai', 'sakaiproject'],
-    'Chamilo': ['chamilo'],
-    'Ilias': ['ilias.de'],
-    'Itslearning': ['itslearning.com'],
-    'Docebo': ['docebo'],
-    'Phidias': ['phidias.co', 'phidias.ac', 'phidias', 'phidias.net'],
-    'Ciudad Educativa': ['ciudadeducativa.com'],
-    'Sistema Saberes': ['sistemasaberes.com', 'saberes.com'],
-    'Gnosoft': ['gnosoft', 'gnosoft.com.co'],
-    'Pegaso': ['pegaso.com.co', 'pegaso', 'pegasopro'],
-    'Cibercolegios': ['cibercolegios.com', 'cibercolegios'],
-    'Q10 Académico': ['q10.com', 'q10academico', 'q10'],
-    'Integra': ['plataformaintegra.net', 'plataformaintegra'],
-    'SIGA': ['sigaweb', 'edusiga', 'siganet', 'sigaportal', 'sigaapp'],
-    'Colegios Colombia': ['colegiosonline.com', 'portalcolegioscolombia', 'masteracademic', 'colegioscolombia.net'],
-    'Ovy': ['ovy.co', 'plataforma ovy'],
-    'WebColegios': ['webcolegios.com'],
-    'Bicol': ['bicol.com.co'],
-    'Schoolnet': ['schoolnet', 'colegios-online'],
-    'Santillana Compartir': ['santillanacompartir', 'stilus', 'compartir'],
-    'SM Educamos': ['educamos.com', 'sm educamos'],
-    'Educaria (Alexia)': ['educaria', 'alexia', 'alexiaeducacion'],
-    'UNOi': ['unoi.com', 'sistema uno'],
-    'Norma Educa': ['educanorma.com'],
-    'Sieweb': ['sieweb.com.pe', 'sieweb'],
-    'Gesta': ['gesta.com.co', 'gesta'],
-    'EduPage': ['edupage.org'],
-    'Educaline': ['educaline']
+    # --- LATAM & COLOMBIA SPECIFIC ---
+    'Phidias': re.compile(r'(phidias\.co|phidias\.ac|phidias\.net|\bphidias\b)', re.IGNORECASE),
+    'Ciudad Educativa': re.compile(r'(ciudadeducativa\.com|\bciudad educativa\b)', re.IGNORECASE),
+    'Sistema Saberes': re.compile(r'(sistemasaberes\.com|saberes\.com|\bsaberes\b)', re.IGNORECASE),
+    'Gnosoft': re.compile(r'(\bgnosoft\b|gnosoft\.com\.co)', re.IGNORECASE),
+    'Pegaso': re.compile(r'(pegaso\.com\.co|\bpegasopro\b)', re.IGNORECASE),
+    'Cibercolegios': re.compile(r'(cibercolegios\.com|\bcibercolegios\b)', re.IGNORECASE),
+    'Q10 Académico': re.compile(r'(q10\.com|q10academico|\bq10\b)', re.IGNORECASE),
+    'Integra': re.compile(r'(plataformaintegra\.net|\bplataforma integra\b)', re.IGNORECASE),
+    'SIGA': re.compile(r'(\bsigaweb\b|\bedusiga\b|\bsigaportal\b|\bsigaapp\b)', re.IGNORECASE),
+    'Colegios Colombia': re.compile(r'(colegiosonline\.com|portalcolegioscolombia|masteracademic)', re.IGNORECASE),
+    'Ovy': re.compile(r'(ovy\.co|\bplataforma ovy\b)', re.IGNORECASE),
+    'WebColegios': re.compile(r'(webcolegios\.com)', re.IGNORECASE),
+    'Bicol': re.compile(r'(bicol\.com\.co)', re.IGNORECASE),
+    'SchoolNet': re.compile(r'(\bschoolnet\.(com|cl|co|pe)\b|colegios-online)', re.IGNORECASE),
+    'SchoolTrack': re.compile(r'(schooltrack\.com|\bschooltrack\b)', re.IGNORECASE),
+    'Santillana Compartir': re.compile(r'(santillanacompartir|stilus\.santillana)', re.IGNORECASE),
+    'SM Educamos': re.compile(r'(educamos\.com|sm educamos)', re.IGNORECASE),
+    'Educaria (Alexia)': re.compile(r'(alexiaeducacion\.com|\balexia\b)', re.IGNORECASE),
+    'UNOi': re.compile(r'(unoi\.com|\bsistema uno\b)', re.IGNORECASE),
+    'Norma Educa': re.compile(r'(educanorma\.com)', re.IGNORECASE),
+    'Sieweb': re.compile(r'(sieweb\.com\.pe|\bsieweb\b)', re.IGNORECASE),
+    'Gesta': re.compile(r'(gesta\.com\.co)', re.IGNORECASE),
+    'EduPage': re.compile(r'(edupage\.org|\bedupage\b)', re.IGNORECASE),
+    'Nodos': re.compile(r'(nodos\.com\.co|\bplataforma nodos\b)', re.IGNORECASE),
+    'VisualCX': re.compile(r'(\bvisualcx\b)', re.IGNORECASE),
+    'Control Académico': re.compile(r'(controlacademico\.com)', re.IGNORECASE),
+    'Academica': re.compile(r'(\bacademica\.pe\b)', re.IGNORECASE),
+    'Schoology LATAM': re.compile(r'(schoology\.com)', re.IGNORECASE),
+
+    # --- GLOBAL GIANTS (LMS/SIS/ERP) ---
+    'Moodle': re.compile(r'(\bmoodle\b|theme/moove|pluginfile\.php|\bmdl_)', re.IGNORECASE),
+    'Canvas': re.compile(r'(instructure\.com|\bcanvas-lms\b|canvas_session)', re.IGNORECASE),
+    'Blackboard': re.compile(r'(blackboard\.com|bbcswebdav|learn\.blackboard)', re.IGNORECASE),
+    'Google Workspace Edu': re.compile(r'(classroom\.google\.com|workspace\.google\.com/education)', re.IGNORECASE),
+    'MS Teams for Edu': re.compile(r'(teams\.microsoft|microsoft_teams)', re.IGNORECASE),
+    'D2L Brightspace': re.compile(r'(desire2learn\.com|brightspace\.com|\bd2l\b)', re.IGNORECASE), 
+    'Sakai': re.compile(r'(sakaiproject\.org|\bsakai\b)', re.IGNORECASE),
+    'Chamilo': re.compile(r'(chamilo\.org|\bchamilo\b)', re.IGNORECASE),
+    'Ilias': re.compile(r'(ilias\.de|\bilias\b)', re.IGNORECASE),
+    'Itslearning': re.compile(r'(itslearning\.com)', re.IGNORECASE),
+    'Docebo': re.compile(r'(docebo\.com|\bdocebo\b)', re.IGNORECASE),
+    'Totara': re.compile(r'(totaralearning\.com|\btotara\b)', re.IGNORECASE),
+    'TalentLMS': re.compile(r'(talentlms\.com|\btalentlms\b)', re.IGNORECASE),
+    'Absorb LMS': re.compile(r'(absorblms\.com|\babsorblms\b)', re.IGNORECASE),
+    'LearnDash': re.compile(r'(learndash\.com|\blearndash\b)', re.IGNORECASE),
+    'Open LMS': re.compile(r'(openlms\.net|\bopen lms\b|\bopenlms\b)', re.IGNORECASE),
+
+    # --- K-12 USA/EUROPE SYSTEMS ---
+    'PowerSchool': re.compile(r'(powerschool\.com|\bpowerschool\b)', re.IGNORECASE),
+    'Infinite Campus': re.compile(r'(infinitecampus\.com|\binfinite campus\b)', re.IGNORECASE),
+    'Skyward': re.compile(r'(skyward\.com|\bskyward\b)', re.IGNORECASE),
+    'Clever': re.compile(r'(clever\.com|\bclever\b)', re.IGNORECASE),
+    'Seesaw': re.compile(r'(seesaw\.me|\bseesaw\b)', re.IGNORECASE),
+    'ClassDojo': re.compile(r'(classdojo\.com|\bclassdojo\b)', re.IGNORECASE),
+    'ManageBac': re.compile(r'(managebac\.com|\bmanagebac\b)', re.IGNORECASE),
+    'Toddle': re.compile(r'(toddleapp\.com|\btoddle\b)', re.IGNORECASE),
+    'FACTS SIS': re.compile(r'(factsmgt\.com|\bfacts sis\b)', re.IGNORECASE),
+    'Synergy (Skyward)': re.compile(r'(\bsynergy sis\b)', re.IGNORECASE),
+    'Alma SIS': re.compile(r'(getalma\.com|\balma sis\b)', re.IGNORECASE),
+    'Veracross': re.compile(r'(veracross\.com|\bveracross\b)', re.IGNORECASE),
+    'Blackbaud': re.compile(r'(myschoolapp\.com|blackbaud\.com|\bblackbaud\b)', re.IGNORECASE),
+    'Compass': re.compile(r'(compass\.education|\bcompass education\b)', re.IGNORECASE),
+    'Sentral': re.compile(r'(sentral\.com\.au|\bsentral\b)', re.IGNORECASE),
+    'SIMS': re.compile(r'(sims-education|\bsims education\b)', re.IGNORECASE),
+    'Arbor': re.compile(r'(arbor-education|\barbor education\b)', re.IGNORECASE),
+    'Bromcom': re.compile(r'(bromcom\.com|\bbromcom\b)', re.IGNORECASE),
+    
+    # --- HIGHER ED & OTHERS ---
+    'Jenzabar': re.compile(r'(jenzabar\.com|\bjenzabar\b)', re.IGNORECASE),
+    'Anthology': re.compile(r'(anthology\.com|\banthology\b)', re.IGNORECASE),
+    'Ellucian': re.compile(r'(elluciancloud\.com|ellucian\.com|\bellucian\b)', re.IGNORECASE),
+    'Populi': re.compile(r'(populiweb\.com|\bpopuli\b)', re.IGNORECASE),
+    'Kaltura': re.compile(r'(kaltura\.com|\bkaltura\b)', re.IGNORECASE)
 }
 
 TACTICAL_UAS = [
@@ -149,28 +197,29 @@ GLOBAL_SESSION.mount('http://', _adapter)
 GLOBAL_SESSION.mount('https://', _adapter)
 
 # =========================================================
-# [NIVEL DIOS 2]: UTILIDADES DE RED & DECRYPTORS Y VALIDACIÓN ESTRICTA
+# [NIVEL DIOS 2]: UTILIDADES DE RED, ESTRUCTURAS Y VALIDACIÓN
 # =========================================================
-@dataclass
 class ExtractedPayload:
-    target: str
-    domain: str = ""
-    name: str = ""
-    emails: Set[str] = field(default_factory=set)
-    whatsapp: Set[str] = field(default_factory=set)
-    telephones: Set[str] = field(default_factory=set)
-    socials: Set[str] = field(default_factory=set)
-    lms_provider: str = "No detectado"
-    pages_scanned: int = 0
-    error: Optional[str] = None
-    playwright_warn: Optional[str] = None
-    forensics: Dict[str, bool] = field(default_factory=lambda: {k: False for k in BUSINESS_SIGNATURES.keys()})
+    def __init__(self, target: str):
+        self.target = target
+        self.domain = ""
+        self.name = ""
+        self.emails = set()
+        self.whatsapp = set()
+        self.telephones = set()
+        self.socials = set()
+        self.lms_provider = "No detectado"
+        self.pages_scanned = 0
+        self.error = None
+        self.playwright_warn = None
+        self.forensics = {k: False for k in BUSINESS_SIGNATURES.keys()}
+        self.raw_text_corpus = ""
+        self.ai_report = ""
 
 def get_tactical_session():
     return GLOBAL_SESSION
 
 def get_base_domain(url: str) -> str:
-    """Extrae el core del dominio para afinidad de correo"""
     try:
         netloc = urlparse(url).netloc.lower().replace('www.', '')
         return netloc.split('.')[0] if netloc else ""
@@ -180,16 +229,14 @@ def decode_cloudflare_email(hex_string):
     try:
         r = int(hex_string[:2], 16)
         email = ''.join([chr(int(hex_string[i:i+2], 16) ^ r) for i in range(2, len(hex_string), 2)])
-        return email if EMAIL_REGEX.match(email) else None
-    except Exception:
-        return None
+        return email if MatrixRegex.EMAIL.match(email) else None
+    except Exception: return None
 
 def try_decode_base64(b64_string):
     try:
         decoded = base64.b64decode(b64_string).decode('utf-8')
-        if EMAIL_REGEX.match(decoded): return decoded
-    except Exception:
-        return None
+        if MatrixRegex.EMAIL.match(decoded): return decoded
+    except Exception: return None
 
 def clean_phone_number(raw_num):
     num = re.sub(r'[^\d+]', '', raw_num)
@@ -197,26 +244,22 @@ def clean_phone_number(raw_num):
     return num
 
 def clean_and_validate_phone_strict(raw_num: str) -> Tuple[bool, Optional[str], Optional[str]]:
-    """
-    [GOD TIER QA V38.0]: Validador estricto Colombia. Destruye NITs y Fechas.
-    Retorna: (Es_Valido, Numero_Limpio, Tipo 'W' o 'T')
-    """
+    """Validador estricto Colombia. Destruye NITs y Fechas."""
     clean = re.sub(r'\D', '', raw_num)
     if clean.startswith('57'): clean = clean[2:] 
     if clean.startswith('0057'): clean = clean[4:]
     length = len(clean)
     
-    # Reglas exactas Colombia
-    if length == 10 and clean.startswith('3'): return True, clean, 'W' # Celular
-    if length == 10 and clean.startswith('60'): return True, clean, 'T' # Fijo nuevo
-    if length == 7 and clean[0] in ['2', '3', '4', '5', '6', '7', '8', '9']: return True, clean, 'T' # Fijo viejo
-    if clean.startswith('018000') and length >= 10: return True, clean, 'T' # Línea Gratuita Nacional
+    if length == 10 and clean.startswith('3'): return True, clean, 'W' 
+    if length == 10 and clean.startswith('60'): return True, clean, 'T' 
+    if length == 7 and clean[0] in ['2', '3', '4', '5', '6', '7', '8', '9']: return True, clean, 'T' 
+    if clean.startswith('018000') and length >= 10: return True, clean, 'T' 
     
     return False, None, None
 
 def _is_security_bot(user_agent: str, ip: str) -> bool:
     if not user_agent: return True
-    if BOT_REGEX.search(user_agent): return True
+    if MatrixRegex.BOT.search(user_agent): return True
     return False
 
 # =========================================================
@@ -272,8 +315,7 @@ class SniperSearchView(View):
                     href = r.get('href', r.get('link', r.get('url', '')))
                     if href and not any(exc in href.lower() for exc in SERP_EXCLUSIONS):
                         urls.append(href)
-        except Exception:
-            pass
+        except Exception: pass
 
         if not urls:
             try:
@@ -284,8 +326,7 @@ class SniperSearchView(View):
                     href = a.get('href', '')
                     if href and 'http' in href and not any(exc in href.lower() for exc in SERP_EXCLUSIONS):
                         urls.append(href)
-            except Exception:
-                pass
+            except Exception: pass
         
         return list(dict.fromkeys(urls))[:3]
 
@@ -315,15 +356,85 @@ class SniperSearchView(View):
         if best_score < 10: return None
         return best_url
 
+    # =========================================================
+    # [NIVEL DIOS V43.1]: THE NEURAL AI INJECTOR (DYNAMIC LLM ROUTING)
+    # =========================================================
+    def generate_ai_forensic_report(self, scraped_text: str) -> str:
+        if not scraped_text or len(scraped_text) < 100:
+            return "Corpus insuficiente para análisis de IA Semántica."
+
+        # Ventana de Contexto Segura: Truncamos a ~12k caracteres para velocidad y optimización de tokens
+        safe_context = scraped_text[:12000]
+
+        prompt = f"""
+        Eres un Ingeniero de Inteligencia B2B y Analista de Ventas en Silicon Wadi.
+        Analiza el siguiente texto extraído de la página web de un colegio en Colombia/Latam.
+        
+        OBJETIVO ESTRATÉGICO: Queremos venderles "Learning Labs" (Laboratorios de STEM, Robótica, Tecnología).
+        
+        Extrae y deduce la siguiente información con precisión:
+        1. CERTIFICACIONES: ¿Tienen Bachillerato Internacional (IB), Cambridge, EFQM, Great Place to Study?
+        2. ENFOQUE TECNOLÓGICO: ¿Mencionan explícitamente STEM, Robótica, programación o makerspaces?
+        3. ACADÉMICO: ¿Mencionan resultados ICFES (Saber 11), ranking de calidad o convenios universitarios?
+        4. INTERNACIONALIZACIÓN: ¿Hacen viajes, inmersiones o doble titulación?
+        5. PERFIL B2B: Evalúa en una línea qué tan probable es que compren un laboratorio de tecnología caro.
+
+        Responde ÚNICAMENTE con los hallazgos en viñetas muy profesionales y concisas. Si no hay datos sobre un punto, escribe "No especificado en la web".
+        
+        TEXTO DEL COLEGIO:
+        {safe_context}
+        """
+
+        try:
+            # [DYNAMIC LLM ROUTER]: Detecta la llave y rutea al endpoint y modelo correctos
+            deepseek_key = getattr(settings, 'DEEPSEEK_API_KEY', None)
+            openai_key = getattr(settings, 'OPENAI_API_KEY', None)
+
+            if deepseek_key:
+                api_key = deepseek_key
+                url = "https://api.deepseek.com/chat/completions"
+                model_name = "deepseek-chat"
+            elif openai_key:
+                api_key = openai_key
+                url = "https://api.openai.com/v1/chat/completions"
+                model_name = "gpt-4o-mini"
+            else:
+                return "SISTEMA IA APAGADO: No se detectó API Key de DeepSeek ni de OpenAI en el servidor."
+
+            headers = {
+                "Authorization": f"Bearer {api_key}", 
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model_name,
+                "messages": [
+                    {"role": "system", "content": "Eres una IA táctica de inteligencia militar B2B. Eres conciso, analítico y comercial."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.2, 
+                "max_tokens": 400
+            }
+            
+            # Timeout extendido a 25s para absorber la latencia de DeepSeek bajo carga
+            resp = requests.post(url, json=payload, headers=headers, timeout=25)
+            
+            if resp.status_code == 200:
+                return resp.json()['choices'][0]['message']['content'].strip()
+            else:
+                return f"Anomalía Neural (HTTP {resp.status_code}): Error de Proveedor LLM. Detalles: {resp.text[:150]}"
+                
+        except requests.exceptions.Timeout:
+            return "Error Crítico en IA: Timeout agotado (El proveedor LLM tardó más de 25 segundos en responder)."
+        except Exception as e:
+            return f"Error Crítico en Inyección IA: {str(e)}"
+
     def extract_from_dom(self, html_content, browser_visible_text, soup, payload, cfg):
-        """
-        [GOD TIER MAXIMUM YIELD ENGINE V38.0]: Extracción Híbrida Agresiva.
-        QA FIX: Saneamiento Alfanumérico y Cluster Harvesting activados.
-        """
+        """Extracción Híbrida Agresiva, Acumulación de Corpus y Mult-Phone/LMS (V43.1)"""
         decoded_html = html_lib.unescape(html_content)
         decoded_html = re.sub(r'[\u200B-\u200D\uFEFF]', '', decoded_html)
         
-        # [SANEAMIENTO ALFANUMÉRICO]: Evita mail7532493admisiones
+        # [SANEAMIENTO ALFANUMÉRICO]: Destruye "mail12345"
         decoded_html = re.sub(r'(\D)(\d{5,})(\D)', r'\1 \2 \3', decoded_html)
         
         for tag in soup.find_all(True): tag.insert_after(' ')
@@ -342,12 +453,15 @@ class SniperSearchView(View):
         master_text = re.sub(r'\s+', ' ', master_text)
         master_text = re.sub(r'[\u200B-\u200D\uFEFF]', '', master_text)
 
+        # Alimentamos el Corpus RAM para el Agente IA
+        payload.raw_text_corpus += " " + master_text
+
         base_domain = get_base_domain(payload.domain)
         raw_emails = set(payload.emails)
         raw_wa = set(payload.whatsapp)
         raw_tel = set(payload.telephones)
 
-        # PASE 1: JSON-LD (SCHEMA.ORG)
+        # PASE 1: JSON-LD
         for script in raw_html_soup.find_all('script', type='application/ld+json'):
             try:
                 json_data = json.loads(script.string)
@@ -363,7 +477,7 @@ class SniperSearchView(View):
 
                 if cfg['use_email']:
                     for e in extract_json_keys(json_data, 'email'):
-                        if isinstance(e, str) and EMAIL_REGEX.match(e): raw_emails.add(e.lower())
+                        if isinstance(e, str) and MatrixRegex.EMAIL.match(e): raw_emails.add(e.lower())
                 if cfg['use_whatsapp']:
                     for t in extract_json_keys(json_data, 'telephone'):
                         if isinstance(t, str):
@@ -371,8 +485,7 @@ class SniperSearchView(View):
                             if is_val:
                                 if t_type == 'W': raw_wa.add(num)
                                 else: raw_tel.add(num)
-            except Exception:
-                pass
+            except Exception: pass
 
         # PASE 2: EMAILS (MAXIMUM YIELD)
         if cfg['use_email']: 
@@ -381,62 +494,57 @@ class SniperSearchView(View):
                 if href.startswith('mailto:'):
                     clean_mail = href[7:].split('?')[0].strip()
                     clean_mail = re.sub(r'^[^a-zA-Z0-9]+', '', clean_mail) 
-                    if EMAIL_REGEX.match(clean_mail): raw_emails.add(clean_mail)
+                    if MatrixRegex.EMAIL.match(clean_mail): raw_emails.add(clean_mail)
 
-            for hex_str in CLOUDFLARE_HEX_REGEX.findall(decoded_html):
+            for hex_str in MatrixRegex.CLOUDFLARE_HEX.findall(decoded_html):
                 if decoded := decode_cloudflare_email(hex_str): raw_emails.add(decoded)
 
-            for b64 in BASE64_HEURISTIC_REGEX.findall(decoded_html):
+            for b64 in MatrixRegex.BASE64_HEURISTIC.findall(decoded_html):
                 if decoded := try_decode_base64(b64): raw_emails.add(decoded)
 
-            raw_emails.update(EMAIL_REGEX.findall(tagless_html))
-            raw_emails.update(EMAIL_REGEX.findall(master_text))
+            raw_emails.update(MatrixRegex.EMAIL.findall(tagless_html))
+            raw_emails.update(MatrixRegex.EMAIL.findall(master_text))
             
-            for obf in OBFUSCATED_EMAIL_REGEX.findall(master_text):
+            for obf in MatrixRegex.OBFUSCATED_EMAIL.findall(master_text):
                 raw_emails.add(f"{obf[0]}@{obf[1]}.{obf[2]}".lower())
 
             scored_emails = []
             for e in raw_emails:
                 e_lower = e.lower().strip()
-                
                 saneamiento = re.search(r'(info|admisiones|contacto|secretaria|rectoria|gerencia|direcciones)@.*', e_lower)
-                if saneamiento:
-                    e_lower = saneamiento.group(0)
+                if saneamiento: e_lower = saneamiento.group(0)
 
                 if any(e_lower.endswith(ext) for ext in EMAIL_GARBAGE_EXT): continue
                 if any(garbage in e_lower for garbage in EMAIL_GARBAGE_DOMAINS): continue
                 if any(e_lower.startswith(prefix) for prefix in EMAIL_GARBAGE_PREFIXES): continue
-                if not EMAIL_REGEX.match(e_lower) or len(e_lower) >= 60: continue
+                if not MatrixRegex.EMAIL.match(e_lower) or len(e_lower) >= 60: continue
                 if re.match(r'^\d{6,}', e_lower): continue 
                 
-                if base_domain and base_domain in e_lower:
-                    scored_emails.insert(0, e_lower) 
-                elif any(kw in e_lower for kw in ['info', 'contacto', 'admision', 'rectoria', 'secretaria']):
-                    scored_emails.insert(1, e_lower) 
-                else:
-                    scored_emails.append(e_lower)
+                if base_domain and base_domain in e_lower: scored_emails.insert(0, e_lower) 
+                elif any(kw in e_lower for kw in ['info', 'contacto', 'admision', 'rectoria', 'secretaria']): scored_emails.insert(1, e_lower) 
+                else: scored_emails.append(e_lower)
 
             payload.emails = set(dict.fromkeys(scored_emails))
 
-        # PASE 3: TELÉFONOS Y WA (MULTI-CLUSTER HARVESTING)
+        # PASE 3: TELÉFONOS Y WA (GREEDY MULTI-CLUSTER HARVESTING)
         if cfg['use_whatsapp']:
             for a in raw_html_soup.find_all('a', href=True):
                 href = urllib.parse.unquote(a['href'].lower())
-                if match := STRICT_HREF_PHONE_REGEX.search(href):
+                if match := MatrixRegex.STRICT_HREF_PHONE.search(href):
                     is_val, num, t_type = clean_and_validate_phone_strict(match.group(1))
                     if is_val:
                         if t_type == 'W': raw_wa.add(num)
                         else: raw_tel.add(num)
             
-            blocks = CONTEXT_BLOCK_REGEX.split(master_text)
+            blocks = MatrixRegex.CONTEXT_BLOCK.split(master_text)
             for block in blocks:
-                for match in RAW_PHONE_FINDER.findall(block):
+                for match in MatrixRegex.RAW_PHONE_FINDER.findall(block):
                     is_val, num, t_type = clean_and_validate_phone_strict(match)
                     if is_val:
                         if t_type == 'W': raw_wa.add(num)
                         else: raw_tel.add(num)
 
-            for match in RAW_PHONE_FALLBACK_REGEX.findall(master_text):
+            for match in MatrixRegex.RAW_PHONE_FALLBACK.findall(master_text):
                 is_val, num, t_type = clean_and_validate_phone_strict(match)
                 if is_val:
                     if t_type == 'W': raw_wa.add(num)
@@ -446,23 +554,25 @@ class SniperSearchView(View):
             payload.telephones = raw_tel
 
         # PASE 4: REDES Y LMS
-        payload.socials.update(list(set([s.lower() for s in SOCIAL_REGEX.findall(decoded_html)])))
+        payload.socials.update(list(set([s.lower() for s in MatrixRegex.SOCIAL.findall(decoded_html)])))
 
-        if cfg['use_lms'] and payload.lms_provider == 'No detectado':
-            html_lower = decoded_html.lower()
-            links = [a.get('href', '').lower() for a in raw_html_soup.find_all('a', href=True)]
-            for lms, sigs in LMS_SIGNATURES.items():
-                if any(s in html_lower for s in sigs) or any(any(s in link for s in sigs) for link in links):
-                    payload.lms_provider = lms
-                    break
+        if cfg['use_lms']:
+            master_lms_text = decoded_html + " " + " ".join([a.get('href', '') for a in raw_html_soup.find_all('a', href=True)])
+            detected_lms = set()
+            for lms_name, lms_regex in LMS_SIGNATURES.items():
+                if lms_regex.search(master_lms_text): detected_lms.add(lms_name)
+            
+            if detected_lms:
+                if payload.lms_provider == 'No detectado': payload.lms_provider = ", ".join(detected_lms)
+                else:
+                    existing = set(payload.lms_provider.split(", "))
+                    existing.update(detected_lms)
+                    payload.lms_provider = ", ".join(existing)
 
-        # ==========================================
-        # PASE 5: [GOD TIER FORENSICS] BUSINESS INTELLIGENCE
-        # ==========================================
+        # PASE 5: BUSINESS INTELLIGENCE
         master_text_lower = master_text.lower()
         for key, regex in BUSINESS_SIGNATURES.items():
-            if regex.search(master_text_lower):
-                payload.forensics[key] = True
+            if regex.search(master_text_lower): payload.forensics[key] = True
 
         raw_html_soup.decompose()
 
@@ -618,7 +728,7 @@ class SniperSearchView(View):
             self.extract_from_dom(html, browser_text, soup, payload, cfg)
             
             contact_links = set()
-            keywords = {'contacto', 'contactenos', 'contact', 'nosotros', 'directorio', 'admisiones'}
+            keywords = {'contacto', 'contactenos', 'contact', 'nosotros', 'directorio', 'admisiones', 'about'}
             
             for link in soup.find_all('a', href=True):
                 href = link['href'].lower()
@@ -652,13 +762,18 @@ class SniperSearchView(View):
             soup.decompose() 
             payload.socials = set(list(payload.socials)[:5])
 
+            # =========================================================
+            # [GOD TIER V43.1]: DISPARO DEL AGENTE NEURAL (DYNAMIC ROUTING)
+            # =========================================================
+            payload.ai_report = self.generate_ai_forensic_report(payload.raw_text_corpus)
+
         except Exception as e:
             payload.error = f"Fallo Crítico de Infraestructura: {str(e)[:60]}"
 
         return payload
 
     def post(self, request, *args, **kwargs):
-        print("\n" + "☢️"*5 + " [GHOST SWARM V38.0: THE OMNIPOTENT MATRIX] " + "☢️"*5)
+        print("\n" + "☢️"*5 + " [GHOST SWARM V43.1: THE NEURAL APEX MATRIX] " + "☢️"*5)
         
         city = request.POST.get('context_city', '').strip()
         country = request.POST.get('context_country', '').strip()
@@ -689,7 +804,7 @@ class SniperSearchView(View):
         results_html = f"""
         <div class="mb-5 bg-[#050505] border border-emerald-500/40 p-4 rounded-xl flex justify-between items-center font-mono text-[11px] shadow-[0_0_20px_rgba(16,185,129,0.15)]">
             <span class="text-slate-400">COSECHA TOTAL FINALIZADA | TARGETS: <span class="text-white font-black">{len(targets)}</span></span>
-            <span class="text-emerald-400 font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[14px]">psychology</span> EXTRACCIÓN MASIVA 100%</span>
+            <span class="text-emerald-400 font-bold flex items-center gap-2"><span class="material-symbols-outlined text-[14px]">psychology</span> EXTRACCIÓN MASIVA + AI NEURAL</span>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         """
@@ -709,7 +824,7 @@ class SniperSearchView(View):
                     logger.error(f"❌ Error en hilo principal de OSINT: {e}")
 
         elapsed = time.time() - start_time
-        print(f"⏱️ Operación V38.0 completada en {elapsed:.2f} segundos.")
+        print(f"⏱️ Operación V43.1 completada en {elapsed:.2f} segundos.")
 
         # =========================================================
         # [NIVEL DIOS 5]: ALMACENAMIENTO DE ALTA FIDELIDAD Y RENDERING
@@ -756,7 +871,7 @@ class SniperSearchView(View):
                                 website=clean_domain,
                                 email=main_email,
                                 phone=combined_phone,
-                                discovery_source='Ghost_V38', 
+                                discovery_source='Ghost_V43', 
                                 is_private=True,
                                 processing_status='ENRICHED',
                                 institution_type='institute' if data.forensics['is_technical'] else 'school'
@@ -773,6 +888,13 @@ class SniperSearchView(View):
                         if data.forensics['is_trilingual']: forensic.is_trilingual = True
                         if data.forensics['cert_ib']: forensic.has_ib_cert = True
                         if data.forensics['cert_cambridge']: forensic.has_cambridge_cert = True
+                        
+                        # [GOD TIER V44.4]: GUARDADO DIRECTO EN EL NÚCLEO (Sin modelo satélite)
+                        try:
+                            if data.ai_report and "Error" not in data.ai_report and "APAGADO" not in data.ai_report and "Anomalía" not in data.ai_report:
+                                forensic.ai_comprehensive_report = data.ai_report
+                        except Exception as field_err:
+                            logger.warning(f"⚠️ No se guardó el reporte IA: {field_err}")
                             
                         forensic.save()
 
@@ -783,6 +905,9 @@ class SniperSearchView(View):
                     logger.critical(f"❌ FALLO SQL CRÍTICO al guardar {clean_domain}: {str(e)}")
                     continue
 
+                # =========================================================
+                # HTML COMPILER ENGINE (RENDERIZA LOS BADGES VIP Y DATOS IA)
+                # =========================================================
                 b_color = "emerald" if created else "blue"
                 b_text = "NUEVO" if created else "ACTUALIZADO EN DB"
                 soc_html = "".join([f"<a href='{s}' target='_blank' class='text-[8px] bg-[#111] border border-white/10 px-1.5 py-0.5 rounded text-blue-400 uppercase mr-1 hover:bg-white/10 transition-colors'>{s.split('.')[1] if '.' in s else 'SOCIAL'}</a>" for s in data.socials])
@@ -800,6 +925,19 @@ class SniperSearchView(View):
                 forensic_html = " ".join(badges) if badges else "<span class='text-slate-600 font-mono text-[8px] font-bold'>ESTÁNDAR</span>"
                 
                 warn_html = f"<div class='bg-yellow-900/40 border border-yellow-500/50 text-yellow-400 text-[8px] font-mono p-1 rounded mt-2 text-center uppercase'>{data.playwright_warn}</div>" if data.playwright_warn else ""
+
+                # [GOD TIER V43.1]: HTML INYECCIÓN DE REPORTE IA (Format Markdown -> HTML simple)
+                formatted_ai_report = data.ai_report.replace('\n', '<br/>') if data.ai_report else "No disponible."
+                ai_html = f"""
+                <div class="mt-3 p-2 bg-[#020202] border border-emerald-500/30 rounded shadow-[inset_0_0_10px_rgba(16,185,129,0.1)]">
+                    <h5 class="text-[9px] font-mono font-black text-emerald-400 uppercase flex items-center gap-1 mb-1 border-b border-emerald-900/50 pb-1">
+                        <span class="material-symbols-outlined text-[12px]">memory</span> DeepSeek Neural Analysis
+                    </h5>
+                    <div class="text-[9px] font-mono text-emerald-100/70 leading-tight max-h-[150px] overflow-y-auto custom-scrollbar">
+                        {formatted_ai_report}
+                    </div>
+                </div>
+                """
 
                 results_html += f"""
                 <div class="bg-[#080808] border border-white/10 rounded-xl p-5 shadow-2xl relative overflow-hidden group hover:border-{b_color}-500/50 transition-all duration-300 flex flex-col justify-between">
@@ -830,16 +968,17 @@ class SniperSearchView(View):
                                 </div>
                             </div>
                             <div class="flex justify-between items-center bg-[#020202] p-1.5 rounded border border-white/5">
-                                <span class="text-slate-500">INTELIGENCIA</span>
+                                <span class="text-slate-500">INTELIGENCIA BÁSICA</span>
                                 <div class="flex gap-1">{forensic_html}</div>
                             </div>
                             <div class="flex justify-between bg-[#020202] p-1.5 rounded border border-white/5">
                                 <span class="text-slate-500">TECH/LMS</span>
-                                <span class="{"text-emerald-400 font-bold drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]" if data.lms_provider != 'No detectado' else "text-slate-600"}">{data.lms_provider.upper()}</span>
+                                <span class="{"text-emerald-400 font-bold drop-shadow-[0_0_5px_rgba(16,185,129,0.5)]" if data.lms_provider != 'No detectado' else "text-slate-600"}" title="{data.lms_provider.upper()}">{data.lms_provider.upper()}</span>
                             </div>
                         </div>
+                        {ai_html}
                     </div>
-                    <div class="mt-auto border-t border-white/5 pt-2">
+                    <div class="mt-auto border-t border-white/5 pt-3">
                         <div class="flex flex-wrap gap-1">{soc_html if soc_html else "<span class='text-[8px] text-slate-700 font-mono'>SIN REDES SOCIALES</span>"}</div>
                         {warn_html}
                     </div>

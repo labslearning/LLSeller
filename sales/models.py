@@ -206,8 +206,12 @@ class TechProfile(TimeStampedModel):
 
 class DeepForensicProfile(TimeStampedModel):
     """
-    [Tier 2: AI Deep Recon]
-    Despliegue de variables explícitas para filtrado B2B avanzado de Élite.
+    ======================================================================
+    [GOD TIER ARCHITECTURE: THE UNIFIED CORE]
+    [Tier 2: AI Deep Recon & Neural Semantics]
+    Despliegue de variables explícitas y reportes de IA para filtrado B2B 
+    avanzado de Élite. Combina extracción de DOM y análisis semántico LLM.
+    ======================================================================
     """
     institution = models.OneToOneField(
         Institution, on_delete=models.CASCADE, 
@@ -232,6 +236,7 @@ class DeepForensicProfile(TimeStampedModel):
         verbose_name="Data Profunda Cruda (DOM Completo JSON)"
     )
     
+    # --- LEGACY AI FIELDS (Se mantienen para compatibilidad estructural) ---
     ai_classification = models.CharField(max_length=100, blank=True, null=True, db_index=True)
     executive_summary = models.TextField(blank=True, null=True)
     sales_playbook = models.JSONField(default=list, blank=True)
@@ -239,6 +244,22 @@ class DeepForensicProfile(TimeStampedModel):
     
     estimated_budget = models.CharField(max_length=100, blank=True, null=True)
     ai_confidence_score = models.FloatField(default=0.0)
+
+    # =========================================================
+    # [GOD TIER V44.0]: NEURAL ENGINE UNIFIED FIELDS
+    # =========================================================
+    ai_comprehensive_report = models.TextField(
+        "Reporte Estratégico IA", 
+        blank=True, 
+        null=True,
+        help_text="Reporte Markdown generado por el LLM (DeepSeek/OpenAI) con análisis cualitativo B2B."
+    )
+    ai_structured_data = models.JSONField(
+        "Data Estructurada (JSON)", 
+        blank=True, 
+        null=True,
+        help_text="Diccionario JSON estricto forzado por Prompt Engineering para consultas avanzadas (O(1))."
+    )
 
     last_scanned = models.DateTimeField(auto_now=True)
 
@@ -250,6 +271,9 @@ class DeepForensicProfile(TimeStampedModel):
             models.Index(fields=['is_bilingual', 'is_trilingual']),
             models.Index(fields=['has_ib_cert', 'has_cambridge_cert']),
         ]
+
+    def __str__(self):
+        return f"Deep Forensic: {self.institution.name}"
 
 
 # ======================================================================
@@ -418,3 +442,180 @@ class SniperConsole(Institution):
 
 class GeoRadarWorkspace(Institution):
     class Meta: proxy = True; app_label = 'sales'; verbose_name = "3. 🛰️ Geospatial Radar"; verbose_name_plural = "3. 🛰️ Geospatial Radar"
+
+
+
+'''
+class NeuralForensicReport(models.Model):
+    """
+    ===========================================================================
+    [GOD TIER ARCHITECTURE: LEVIATHAN CLASS]
+    Modelo Satélite de Análisis Cognitivo y Extracción Semántica (LLM Data Lake).
+    
+    Diseñado para aislar la carga computacional de la tabla `Institution`.
+    Implementa telemetría FinOps (Tokens/Latencia), Manejo de Estado para 
+    operaciones asíncronas (Celery) y almacenamiento estructurado (JSON) para 
+    consultas complejas de Inteligencia de Negocios (B2B).
+    ===========================================================================
+    """
+
+    class AnalysisStatus(models.TextChoices):
+        PENDING = 'PENDING', _('En Espera / Encolado')
+        PROCESSING = 'PROCESSING', _('Procesando (Inferencia IA)')
+        COMPLETED = 'COMPLETED', _('Completado Exitosamente')
+        FAILED = 'FAILED', _('Fallo de Inferencia / Timeout')
+        PARTIAL = 'PARTIAL', _('Completado con Alucinaciones/Incompleto')
+
+    class AIProviderMode(models.TextChoices):
+        DEEPSEEK_CHAT = 'deepseek-chat', _('DeepSeek V3 / Coder')
+        OPENAI_GPT4O_MINI = 'gpt-4o-mini', _('OpenAI GPT-4 Omni Mini')
+        OPENAI_GPT4O = 'gpt-4o', _('OpenAI GPT-4 Omni')
+        CLAUDE_3_5 = 'claude-3-5-sonnet', _('Anthropic Claude 3.5 Sonnet')
+        LOCAL_LLAMA = 'llama-3-8b', _('Local LLaMA 3 (Fallback)')
+        UNKNOWN = 'unknown', _('Desconocido / Legacy')
+
+    # 1. IDENTIFICACIÓN Y RELACIÓN CRÍTICA
+    id = models.UUIDField(
+        primary_key=True, 
+        default=uuid.uuid4, 
+        editable=False,
+        help_text="UUIDv4 para blindar el acceso a los reportes de inteligencia (Anti-Scraping ID)."
+    )
+    institution = models.OneToOneField(
+        'Institution', # Cambia por la referencia exacta si difiere
+        on_delete=models.CASCADE, 
+        related_name='neural_report',
+        db_index=True
+    )
+
+    # 2. CONTROL DE ESTADO (STATE MACHINE PARA CELERY/WORKERS)
+    status = models.CharField(
+        "Estado del Análisis",
+        max_length=20,
+        choices=AnalysisStatus.choices,
+        default=AnalysisStatus.PENDING,
+        db_index=True
+    )
+
+    # 3. RESULTADOS DE LA INFERENCIA (HUMAN & MACHINE READABLE)
+    comprehensive_report = models.TextField(
+        "Reporte Estratégico B2B (Human Readable)", 
+        blank=True, 
+        null=True,
+        help_text="El output en crudo (Markdown/Texto) generado por el LLM diseñado para el equipo de ventas."
+    )
+    
+    structured_intel = models.JSONField(
+        "Inteligencia Estructurada (Machine Readable)",
+        blank=True,
+        null=True,
+        help_text="Diccionario JSON extraído por la IA (Ej: {'has_stem': true, 'is_ib': false, 'icfes_score': 'A+'}). Permite consultas complejas en BD."
+    )
+
+    # 4. TELEMETRÍA Y FINOPS (AUDITORÍA DE COSTOS Y RENDIMIENTO)
+    ai_model_version = models.CharField(
+        "Versión del Modelo LLM",
+        max_length=50,
+        choices=AIProviderMode.choices,
+        default=AIProviderMode.UNKNOWN,
+        help_text="Identifica el motor cognitivo que produjo este resultado para auditoría de calidad."
+    )
+    raw_corpus_size = models.IntegerField(
+        "Tamaño del Corpus Web (Caracteres)", 
+        default=0,
+        validators=[MinValueValidator(0)],
+        help_text="Cantidad de caracteres del HTML limpiado enviados al LLM en el prompt."
+    )
+    prompt_tokens = models.PositiveIntegerField(
+        "Tokens de Entrada (Prompt)",
+        default=0,
+        help_text="Para cálculo de costos de Ingesta (FinOps)."
+    )
+    completion_tokens = models.PositiveIntegerField(
+        "Tokens de Salida (Completion)",
+        default=0,
+        help_text="Para cálculo de costos de Generación (FinOps)."
+    )
+    processing_latency_ms = models.PositiveIntegerField(
+        "Latencia de Inferencia (ms)",
+        default=0,
+        help_text="Milisegundos que tardó el proveedor de IA en responder la petición HTTP."
+    )
+    
+    # 5. DIAGNÓSTICO DE ERRORES (DEBUGGING)
+    error_traceback = models.TextField(
+        "Traza de Error (Debug)",
+        blank=True,
+        null=True,
+        help_text="Almacena el stacktrace si la llamada a la IA o el parseo JSON falla."
+    )
+
+    # 6. TIMESTAMPS (AUDITORÍA TEMPORAL)
+    created_at = models.DateTimeField("Creado el", auto_now_add=True)
+    updated_at = models.DateTimeField("Última actualización general", auto_now=True)
+    analyzed_at = models.DateTimeField(
+        "Momento exacto del Análisis IA", 
+        blank=True, 
+        null=True,
+        db_index=True
+    )
+
+    class Meta:
+        verbose_name = "Reporte Neural de IA"
+        verbose_name_plural = "Reportes Neurales de IA"
+        db_table = "sales_neural_forensic_report" # Evita nombres generados automáticamente por Django
+        ordering = ['-analyzed_at', '-created_at']
+        # Índices compuestos para máxima velocidad (O(1) / O(log N)) al generar dashboards o colas de re-procesamiento
+        indexes = [
+            models.Index(fields=['status', 'ai_model_version']),
+            models.Index(fields=['-analyzed_at', 'status']),
+        ]
+
+    def __str__(self):
+        return f"Neural Intel [{self.status}]: {self.institution.name}"
+
+    # =========================================================
+    # [MÉTODOS NATIVOS] LOGICA DE NEGOCIO ENCAPSULADA
+    # =========================================================
+    @property
+    def total_tokens_used(self) -> int:
+        """Calcula el consumo total de tokens para esta operación."""
+        return self.prompt_tokens + self.completion_tokens
+
+    @property
+    def is_stale(self) -> bool:
+        """
+        Determina si el reporte cognitivo es demasiado antiguo (Ej: más de 90 días) 
+        y requiere que la flota Ghost Swarm vuelva a escanear el sitio web.
+        """
+        if not self.analyzed_at:
+            return True
+        stale_threshold = timezone.now() - timezone.timedelta(days=90)
+        return self.analyzed_at < stale_threshold
+
+    def mark_as_processing(self, provider: str):
+        """Manejo de estado seguro pre-inferencia."""
+        self.status = self.AnalysisStatus.PROCESSING
+        self.ai_model_version = provider
+        self.save(update_fields=['status', 'ai_model_version', 'updated_at'])
+
+    def mark_as_failed(self, error_message: str):
+        """Manejo de estado seguro ante caídas de la API (Evita dejar tareas en limbo)."""
+        self.status = self.AnalysisStatus.FAILED
+        self.error_traceback = str(error_message)
+        self.save(update_fields=['status', 'error_traceback', 'updated_at'])
+
+    def register_success(self, text_report: str, latency: int, p_tokens: int = 0, c_tokens: int = 0, structured_json: dict = None):
+        """Commit transaccional del reporte exitoso."""
+        self.status = self.AnalysisStatus.COMPLETED
+        self.comprehensive_report = text_report
+        self.processing_latency_ms = latency
+        self.prompt_tokens = p_tokens
+        self.completion_tokens = c_tokens
+        self.analyzed_at = timezone.now()
+        
+        if structured_json:
+            self.structured_intel = structured_json
+            
+        self.error_traceback = None # Limpiamos cualquier error previo
+        self.save()'''
