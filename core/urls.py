@@ -51,6 +51,9 @@ urlpatterns = [
     # 3. INTERFAZ DE MANDO CENTRAL (CRM / GRID)
     # ==========================================
     path(ADMIN_URL, admin.site.urls),
+
+    # En core/urls.py, agrega:
+    path('sales/', include('sales.urls')),
 ]
 
 # =========================================================

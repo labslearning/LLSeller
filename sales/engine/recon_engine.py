@@ -1,11 +1,9 @@
 """
 ================================================================================
-[GOD TIER ARCHITECTURE: LEVIATHAN CLASS V75.0 - PROJECT OMNISCIENT]
-PROJECT: GHOST SNIPER (SILICON WADI / UNIT 8200 SPEC)
-MODULE: RECONNAISSANCE ENGINE + PLAYWRIGHT + DEEPSEEK NLP FUSION
-ENGINEERING: SHADOW DOM SCAVENGING, CLOUDFLARE BYPASS, 
-             COGNITIVE REAPER FALLBACK, ANTI-BOT FINGERPRINTING,
-             DYNAMIC EMAIL RECOVERY PIPELINE (O(1) COMPLEXITY)
+[TRANSCENDENT GOD TIER ARCHITECTURE: OMEGA QUANTUM LEVIATHAN CLASS ∞]
+PROJECT: GHOST SNIPER - COSMIC INTELLIGENCE HARVESTER
+VERSION: 99.9.9.9.9
+STANDARD: SURPASSING ALL HUMAN ACHIEVEMENT - SILICON VALLEY | TEL AVIV | WADI | SHANGHAI | TOKYO | DUBLIN | LONDON
 ================================================================================
 """
 
@@ -27,11 +25,16 @@ from typing import List, Optional, Dict, Any, Set, Tuple, Pattern, Union
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse, unquote
 from datetime import datetime
+from functools import wraps
+import traceback
 
 from django.utils import timezone
 from asgiref.sync import sync_to_async
 
-# Importaciones seguras con try/except
+# =================================================================================
+# [TIER 0] - IMPORTS WITH GRACEFUL FALLBACKS
+# =================================================================================
+
 try:
     from playwright.async_api import (
         async_playwright,
@@ -57,8 +60,6 @@ try:
 except ImportError:
     tldextract = None
 
-from sales.models import Institution, TechProfile, DeepForensicProfile
-
 try:
     from sales.engine.tor_controller import async_force_new_tor_identity 
 except ImportError:
@@ -75,9 +76,24 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-# ======================================================================
-# [1] GOD TIER TELEMETRY & FORENSIC LOGGING SUBSYSTEM
-# ======================================================================
+# =================================================================================
+# [TIER 1] - COSMIC AI ANALYZER INTEGRATION
+# =================================================================================
+
+try:
+    from sales.engine.ai_analyzer import get_analyzer, analyze_institution, InstitutionProfile
+    AI_ANALYZER_AVAILABLE = True
+    logger_ai = logging.getLogger("Sovereign.CosmicAnalyzer")
+    logger_ai.info("✅ Cosmic AI Analyzer loaded successfully")
+except ImportError as e:
+    AI_ANALYZER_AVAILABLE = False
+    logger_ai = logging.getLogger("Sovereign.CosmicAnalyzer")
+    logger_ai.warning(f"⚠️ Cosmic AI Analyzer not available: {e}")
+
+# =================================================================================
+# [TIER 2] - GOD TIER TELEMETRY & FORENSIC LOGGING SUBSYSTEM
+# =================================================================================
+
 def setup_god_tier_telemetry(logger_name: str = "Sovereign.OmniSniper.APT") -> logging.Logger:
     """Configura el sistema de logs con evasión de permisos y rotación."""
     
@@ -131,6 +147,8 @@ class ReconConfig:
     MAX_RETRIES: int = 3
     DEEP_SCAN_LIMIT: int = 12  
     REQUEST_DELAY_MS: Tuple[int, int] = (4000, 12000)  
+    ENABLE_AI_REPORT: bool = True
+    AI_REPORT_TIMEOUT: int = 30
 
     USER_AGENTS: List[str] = field(default_factory=lambda: [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -572,6 +590,176 @@ class B2BReconEngine:
         self.tor_lock = asyncio.Lock()
         self.last_tor_rotation_time = 0.0
         self.sniper = GhostEmailSniper()
+        self._ai_analyzer = None
+
+    async def _get_ai_analyzer(self):
+        """Lazy load AI analyzer"""
+        if AI_ANALYZER_AVAILABLE and self._ai_analyzer is None:
+            try:
+                self._ai_analyzer = await get_analyzer()
+                logger.info("✅ Cosmic AI Analyzer initialized for recon engine")
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize AI Analyzer: {e}")
+                self._ai_analyzer = None
+        return self._ai_analyzer
+
+    async def _generate_cosmic_report(self, inst_id: str, webpage_text: str, raw_html: str, extracted_data: dict) -> Optional[Dict]:
+        """
+        [GOD TIER] Genera el reporte cósmico completo de la institución usando AI Analyzer.
+        Este reporte incluye: IB, Cambridge, STEM, Robótica, Programación, ICFES, 
+        Certificaciones, Convenios, Doble Titulación, etc.
+        """
+        if not AI_ANALYZER_AVAILABLE:
+            logger.warning("⚠️ AI Analyzer not available, skipping cosmic report")
+            return None
+        
+        if not self.config.ENABLE_AI_REPORT:
+            logger.debug("AI report generation disabled in config")
+            return None
+        
+        analyzer = await self._get_ai_analyzer()
+        if not analyzer:
+            logger.warning("⚠️ AI Analyzer not initialized")
+            return None
+        
+        try:
+            start_time = time.perf_counter()
+            logger.info(f"🌌 Generating cosmic intelligence report for {inst_id}...")
+            
+            # Get institution
+            inst = await sync_to_async(Institution.objects.get)(id=inst_id)
+            
+            # Prepare extracted data for AI
+            extracted_for_ai = {
+                'lms_provider': extracted_data.get('lms_provider', ''),
+                'emails': list(extracted_data.get('emails', set()))[:10],
+                'phones': list(extracted_data.get('phones', set()))[:10],
+                'whatsapp': list(extracted_data.get('whatsapp', set()))[:10]
+            }
+            
+            # Generate comprehensive report
+            profile = await analyzer.analyze(
+                name=inst.name,
+                city=inst.city or "",
+                country=inst.country or "Colombia",
+                webpage_text=webpage_text,
+                raw_html=raw_html,
+                extracted_data=extracted_for_ai
+            )
+            
+            # Save to database
+            @sync_to_async
+            def save_report():
+                try:
+                    forensic, created = DeepForensicProfile.objects.get_or_create(institution=inst)
+                    
+                    # Store full markdown report
+                    forensic.ai_comprehensive_report = profile.to_markdown()
+                    
+                    # Store structured data for programmatic access
+                    forensic.ai_structured_data = {
+                        'academic_profile': {
+                            'calendar': profile.calendar,
+                            'levels_offered': profile.levels_offered,
+                            'pedagogical_emphasis': profile.pedagogical_emphasis,
+                            'institution_essence': profile.institution_essence,
+                            'accreditation_level': profile.accreditation_level
+                        },
+                        'certifications': {
+                            'ib': profile.ib,
+                            'cambridge': profile.cambridge,
+                            'oxford': profile.oxford,
+                            'quality': profile.quality,
+                            'international': profile.international
+                        },
+                        'international_programs': {
+                            'double_degree': profile.double_degree,
+                            'exchanges': profile.exchanges,
+                            'language_immersion': profile.language_immersion,
+                            'international_agreements': profile.international_agreements
+                        },
+                        'technology': {
+                            'stem': profile.stem,
+                            'robotics': profile.robotics,
+                            'programming': profile.programming,
+                            'laboratories': profile.laboratories,
+                            'classroom_tech': profile.classroom_tech,
+                            'digital_platforms': profile.digital_platforms,
+                            'ai_initiatives': profile.ai_initiatives,
+                            'edtech_stack': profile.edtech_stack
+                        },
+                        'performance': {
+                            'icfes': profile.icfes,
+                            'awards': profile.awards,
+                            'university_admission_rate': profile.university_admission_rate,
+                            'top_universities': profile.top_universities,
+                            'notable_alumni': profile.notable_alumni
+                        },
+                        'extracurricular': {
+                            'sports': profile.sports,
+                            'arts': profile.arts,
+                            'clubs': profile.clubs,
+                            'camps': profile.camps,
+                            'community_service': profile.community_service,
+                            'competitions_won': profile.competitions_won
+                        },
+                        'infrastructure': {
+                            'campus': profile.campus,
+                            'green_areas': profile.green_areas,
+                            'sports_facilities': profile.sports_facilities,
+                            'library': profile.library,
+                            'transport': profile.transport,
+                            'dining': profile.dining,
+                            'capacity': profile.capacity
+                        },
+                        'agreements': {
+                            'university_agreements': profile.university_agreements,
+                            'corporate_agreements': profile.corporate_agreements,
+                            'ngo_agreements': profile.ngo_agreements,
+                            'government_programs': profile.government_programs
+                        },
+                        'sales_intelligence': {
+                            'pain_points': profile.pain_points,
+                            'sales_triggers': profile.sales_triggers,
+                            'opportunities': profile.opportunities,
+                            'risks': profile.risks,
+                            'ideal_contact': profile.ideal_contact,
+                            'budget_indication': profile.budget_indication,
+                            'decision_timeline': profile.decision_timeline,
+                            'recommended_approach': profile.recommended_approach,
+                            'competitor_activity': profile.competitor_activity,
+                            'estimated_revenue_potential': profile.estimated_revenue_potential,
+                            'sales_priority': profile.sales_priority
+                        },
+                        'executive_summary': profile.executive_summary,
+                        'confidence_score': profile.confidence_score,
+                        'extraction_completeness': profile.extraction_completeness
+                    }
+                    
+                    forensic.save()
+                    logger.info(f"✅ Cosmic report saved for {inst.name} (confidence: {profile.confidence_score:.1%})")
+                    return True
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error saving cosmic report: {e}")
+                    traceback.print_exc()
+                    return False
+            
+            saved = await save_report()
+            
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.info(f"⏱️ Cosmic report generation completed in {elapsed:.0f}ms for {inst.name}")
+            
+            return {
+                'success': saved,
+                'profile': profile,
+                'elapsed_ms': elapsed
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error generating cosmic report: {e}")
+            traceback.print_exc()
+            return None
 
     async def _check_dns_resolution(self, hostname: str) -> bool:
         loop = asyncio.get_running_loop()
@@ -1028,15 +1216,25 @@ class B2BReconEngine:
             master_contacts = {'phones': set(), 'whatsapp': set(), 'emails': set(), 'addresses': set()}
             tech_data = {}
             bi_data = {'premium_flags': [], 'education_levels': [], 'social_media': {}, 'sales_triggers': []}
+            webpage_text = ""
+            raw_html = ""
 
             try:
                 if await self._navigate_with_stealth(page, target_url):
                     await self._simulate_human_behavior(page)
 
+                    # Capture page content for AI report
+                    try:
+                        webpage_text = await page.evaluate('() => document.body.innerText')
+                        raw_html = await page.content()
+                        logger.debug(f"Captured {len(webpage_text)} chars of text, {len(raw_html)} chars of HTML")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not capture page content for AI: {e}")
+
                     tech_data = await self._detect_technologies(page, domain)
                     
                     if not tech_data.get('has_lms'):
-                        logger.info(f"🔍 [LMS MISSING] No detectado en Home. Desplegando Asalto Lateral...")
+                        logger.info(f"�� [LMS MISSING] No detectado en Home. Desplegando Asalto Lateral...")
                         hidden_tech = await self._hunt_lms_subdomains(context, target_url)
                         if hidden_tech.get('has_lms'):
                             tech_data.update(hidden_tech)
@@ -1051,6 +1249,13 @@ class B2BReconEngine:
                                 await self._simulate_human_behavior(page)
                                 sub_contacts = await self._extract_contact_info(page)
                                 for k in master_contacts: master_contacts[k].update(sub_contacts.get(k, set()))
+                                # Also capture content from deep links for AI
+                                try:
+                                    sub_text = await page.evaluate('() => document.body.innerText')
+                                    if sub_text:
+                                        webpage_text += f"\n\n--- {link} ---\n{sub_text}"
+                                except:
+                                    pass
                         except Exception: pass
 
                     master_contacts['emails'].update(self.sniper.intercepted_emails)
@@ -1059,17 +1264,44 @@ class B2BReconEngine:
                         reaper_emails = await TheCognitiveReaper.invoke(target['name'], target['city'], target_url)
                         master_contacts['emails'].update(reaper_emails)
 
+                    # Save basic intelligence first
                     inst_name, found_lms, found_email = await self._save_intelligence_to_db(
                         inst_id=target['id'], master_contacts=master_contacts,
                         tech_data=tech_data, bi_data=bi_data
                     )
 
                     logger.info(f"✅ [{domain}] | LMS: {str(found_lms).upper() or 'NINGUNO'} | EMAIL: {found_email or 'CENSURADO'}")
+
+                    # =========================================================
+                    # [GOD TIER] GENERATE COSMIC AI REPORT
+                    # =========================================================
+                    if webpage_text and len(webpage_text) > 100:
+                        logger.info(f"🌌 Generating cosmic AI report for {inst_name}...")
+                        report_result = await self._generate_cosmic_report(
+                            target['id'],
+                            webpage_text,
+                            raw_html,
+                            {
+                                'lms_provider': tech_data.get('lms_type', ''),
+                                'emails': master_contacts.get('emails', set()),
+                                'phones': master_contacts.get('phones', set()),
+                                'whatsapp': master_contacts.get('whatsapp', set())
+                            }
+                        )
+                        
+                        if report_result and report_result.get('success'):
+                            logger.info(f"✅ Cosmic report generated for {inst_name}")
+                        else:
+                            logger.warning(f"⚠️ Cosmic report generation had issues for {inst_name}")
+                    else:
+                        logger.warning(f"⚠️ Insufficient text ({len(webpage_text)} chars) for AI report for {inst_name}")
+                    
                 else:
                     logger.debug(f"❌ [{domain}] Abandonado (Fallo WAF).")
 
             except Exception as e:
                 logger.error(f"❌ [{domain}] Colapso: {str(e)[:100]}")
+                traceback.print_exc()
             finally:
                 try: await page.close()
                 except Exception: pass
@@ -1140,6 +1372,7 @@ async def _orchestrate(targets: Optional[List[Dict]] = None):
 
         except Exception as e:
             logger.error(f"❌ [CRÍTICO] Colapso en el Orquestador Maestro: {e}")
+            traceback.print_exc()
         finally:
             logger.info("🧹 [PROTOCOL OMEGA] Destruyendo NAVEGADOR MAESTRO...")
             if browser: await browser.close()
@@ -1165,6 +1398,7 @@ def execute_recon(inst_id: Union[int, str, uuid.UUID, None] = None):
         return True
     except Exception as e:
         logger.error(f"❌ Crash global: {e}")
+        traceback.print_exc()
         return False
 
 run_recon = execute_recon
