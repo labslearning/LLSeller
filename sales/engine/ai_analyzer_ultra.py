@@ -1,9 +1,8 @@
 """
 ================================================================================
 [TRANSCENDENT GOD TIER ARCHITECTURE: OMEGA QUANTUM LEVIATHAN CLASS ∞]
-MODULE: COSMIC INTELLIGENCE ANALYZER - HYPER-AGGRESSIVE EXTRACTION ENGINE
-VERSION: 99.9.9.9.9.OMEGA.FINAL
-MODE: ZERO DATA LEFT BEHIND - ABSOLUTE EXTRACTION
+MODULE: COSMIC INTELLIGENCE ANALYZER ULTRA - VERSION 99.9.9.9.9.OMEGA
+MODE: HYPER-AGGRESSIVE EXTRACTION - ZERO DATA LEFT BEHIND
 STANDARD: SILICON VALLEY / TEL AVIV / WADI / SHANGHAI / TOKYO / DUBLIN / LONDON
 ================================================================================
 
@@ -45,85 +44,57 @@ except ImportError:
 # =========================================================
 # TELEMETRÍA
 # =========================================================
-logger = logging.getLogger("Sovereign.CosmicAnalyzer")
+logger = logging.getLogger("Sovereign.CosmicAnalyzerUltra")
 
 # =========================================================
-# CONFIGURACIÓN GOD TIER OMEGA
+# CONFIGURACIÓN GOD TIER
 # =========================================================
-MAX_TEXT_LENGTH = 150000      # 150KB - Capturar TODO el texto (aumentado)
-MAX_HTML_LENGTH = 75000       # 75KB de HTML (aumentado)
-TEMPERATURE = 0.01            # Casi cero - máxima precisión
-MAX_TOKENS = 15000            # Respuestas muy largas (aumentado)
-CACHE_TTL = 86400 * 7         # 7 días de cache
+MAX_TEXT_LENGTH = 100000  # 100KB - Capturar TODO el texto
+MAX_HTML_LENGTH = 50000   # 50KB de HTML
+TEMPERATURE = 0.01        # Casi cero - máxima precisión
+MAX_TOKENS = 12000        # Respuestas muy largas
+CACHE_TTL = 86400 * 7     # 7 días de cache
 RETRY_ATTEMPTS = 5
-TIMEOUT = 120                 # 120 segundos para páginas grandes (aumentado)
-
-# Pesos para cálculo de confianza
-FIELD_WEIGHTS = {
-    "emails": 3,
-    "phones": 2,
-    "mission": 5,
-    "vision": 5,
-    "values": 4,
-    "levels_offered": 4,
-    "lms_provider": 5,
-    "has_robotics": 3,
-    "icfes_score": 4,
-    "executive_summary": 5,
-    "social_media": 2,
-    "address": 2,
-    "foundation_year": 2,
-    "pedagogical_model": 3,
-    "languages_taught": 3,
-    "university_agreements": 3,
-    "sports": 2,
-    "arts": 2,
-}
+TIMEOUT = 90               # 90 segundos para páginas grandes
 
 # =========================================================
-# CACHE PERSISTENTE (GOD TIER OMEGA)
+# CACHE PERSISTENTE (GOD TIER)
 # =========================================================
-CACHE_DIR = Path("/tmp/cosmic_omega_cache")
+CACHE_DIR = Path("/tmp/cosmic_ultra_cache")
 CACHE_DIR.mkdir(exist_ok=True)
-DB_PATH = CACHE_DIR / "cosmic_omega_cache.db"
+DB_PATH = CACHE_DIR / "cosmic_ultra_cache.db"
 
-class QuantumOmegaCache:
+class QuantumUltraCache:
     """Cache persistente con SQLite y memoria RAM - GOD TIER OMEGA"""
     
     def __init__(self):
         self._memory_cache: Dict[str, Tuple[float, Any]] = {}
-        self._hit_count = 0
-        self._miss_count = 0
         self._init_db()
     
     def _init_db(self):
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("""
-                CREATE TABLE IF NOT EXISTS omega_cache (
+                CREATE TABLE IF NOT EXISTS ultra_cache (
                     key TEXT PRIMARY KEY,
                     value TEXT,
                     timestamp REAL,
                     ttl INTEGER,
-                    access_count INTEGER DEFAULT 0,
-                    last_access REAL DEFAULT 0
+                    access_count INTEGER DEFAULT 0
                 )
             """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_omega_timestamp ON omega_cache(timestamp)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_omega_access ON omega_cache(access_count)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_ultra_timestamp ON ultra_cache(timestamp)")
     
     def get(self, key: str) -> Optional[Any]:
-        """Obtiene del cache con seguimiento de hits/misses"""
         if key in self._memory_cache:
             timestamp, value = self._memory_cache[key]
             if time.time() - timestamp < CACHE_TTL:
-                self._hit_count += 1
                 return value
             del self._memory_cache[key]
         
         try:
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.execute(
-                    "SELECT value, timestamp FROM omega_cache WHERE key = ?",
+                    "SELECT value, timestamp FROM ultra_cache WHERE key = ?",
                     (key,)
                 )
                 row = cursor.fetchone()
@@ -132,16 +103,13 @@ class QuantumOmegaCache:
                     if time.time() - timestamp < CACHE_TTL:
                         self._memory_cache[key] = (timestamp, json.loads(value))
                         conn.execute(
-                            "UPDATE omega_cache SET access_count = access_count + 1, last_access = ? WHERE key = ?",
-                            (time.time(), key)
+                            "UPDATE ultra_cache SET access_count = access_count + 1 WHERE key = ?",
+                            (key,)
                         )
                         conn.commit()
-                        self._hit_count += 1
                         return json.loads(value)
         except Exception as e:
-            logger.debug(f"Omega cache read error: {e}")
-        
-        self._miss_count += 1
+            logger.debug(f"Ultra cache read error: {e}")
         return None
     
     def set(self, key: str, value: Any):
@@ -149,34 +117,25 @@ class QuantumOmegaCache:
             serialized = json.dumps(value, ensure_ascii=False)
             with sqlite3.connect(DB_PATH) as conn:
                 conn.execute(
-                    "INSERT OR REPLACE INTO omega_cache (key, value, timestamp, ttl) VALUES (?, ?, ?, ?)",
+                    "INSERT OR REPLACE INTO ultra_cache (key, value, timestamp, ttl) VALUES (?, ?, ?, ?)",
                     (key, serialized, time.time(), CACHE_TTL)
                 )
                 conn.commit()
             self._memory_cache[key] = (time.time(), value)
-            
-            # Mantener memoria L1 limitada a 500 items (LRU)
             if len(self._memory_cache) > 500:
                 oldest = min(self._memory_cache.keys(), key=lambda k: self._memory_cache[k][0])
                 del self._memory_cache[oldest]
         except Exception as e:
-            logger.debug(f"Omega cache write error: {e}")
-    
-    def get_stats(self) -> Dict[str, int]:
-        return {"hits": self._hit_count, "misses": self._miss_count}
+            logger.debug(f"Ultra cache write error: {e}")
 
-OMEGA_CACHE = QuantumOmegaCache()
-
+ULTRA_CACHE = QuantumUltraCache()
 
 # =========================================================
-# DATA STRUCTURE OMEGA COMPLETA - TODOS LOS CAMPOS
+# DATA STRUCTURE ULTRA COMPLETA - TODOS LOS CAMPOS
 # =========================================================
 @dataclass
-class InstitutionProfile:
-    """
-    Perfil ultra-completo de la institución - NO DEJA NADA ATRÁS
-    Esta es la clase principal que usa el sistema
-    """
+class InstitutionProfileUltra:
+    """Perfil ultra-completo de la institución - NO DEJA NADA ATRÁS"""
     
     # ========== IDENTIFICACIÓN ==========
     name: str = ""
@@ -198,7 +157,7 @@ class InstitutionProfile:
     vision: str = ""
     values: List[str] = field(default_factory=list)
     educational_philosophy: str = ""
-    institutional_horizon: str = ""
+    institutional_horizon: str = ""  # Horizonte institucional
     educational_principles: List[str] = field(default_factory=list)
     
     # ========== ACADÉMICO ==========
@@ -345,10 +304,10 @@ class InstitutionProfile:
         return asdict(self)
     
     def to_markdown(self) -> str:
-        """Genera reporte Markdown ultra-detallado - GOD TIER OMEGA"""
+        """Genera reporte Markdown ultra-detallado"""
         
         md = f"""
-# 🌌 COSMIC INTELLIGENCE REPORT - OMEGA EDITION
+# 🌌 COSMIC INTELLIGENCE REPORT - ULTRA EDITION
 ## {self.name}
 ### {self.city}, {self.country}
 
@@ -451,15 +410,15 @@ class InstitutionProfile:
 
 ### Robotics
 - **Status**: {'✅' if self.has_robotics else '❌'}
-- **Details**: {json.dumps(self.robotics_details, indent=2, ensure_ascii=False) if self.robotics_details else "Not specified"}
+- **Details**: {json.dumps(self.robotics_details, indent=2) if self.robotics_details else "Not specified"}
 
 ### Programming
 - **Status**: {'✅' if self.has_programming else '❌'}
-- **Details**: {json.dumps(self.programming_details, indent=2, ensure_ascii=False) if self.programming_details else "Not specified"}
+- **Details**: {json.dumps(self.programming_details, indent=2) if self.programming_details else "Not specified"}
 
 ### STEM
 - **Status**: {'✅' if self.has_stem else '❌'}
-- **Details**: {json.dumps(self.stem_details, indent=2, ensure_ascii=False) if self.stem_details else "Not specified"}
+- **Details**: {json.dumps(self.stem_details, indent=2) if self.stem_details else "Not specified"}
 
 ### Laboratories
 {self._format_list(self.laboratories)}
@@ -608,7 +567,7 @@ class InstitutionProfile:
 
 ---
 
-*Report generated by Cosmic Intelligence Engine OMEGA v99.9.9.9.9*
+*Report generated by Cosmic Intelligence Engine ULTRA v99.9.9.9.9.OMEGA*
 *Powered by DeepSeek AI - Hyper-Aggressive Extraction Mode*
 """
         return md
@@ -625,17 +584,15 @@ class InstitutionProfile:
 
 
 # =========================================================
-# EL ANALIZADOR OMEGA - CORAZÓN DEL SISTEMA
+# EL ANALIZADOR ULTRA - CORAZÓN DEL SISTEMA
 # =========================================================
-class CosmicInstitutionAnalyzer:
+class CosmicAnalyzerUltra:
     """
     Analizador ultra-agresivo que extrae ABSOLUTAMENTE TODO de la página web.
     Utiliza DeepSeek con un prompt masivo que busca cada detalle.
-    Esta es la clase principal que usa el sistema.
     """
     
     _instance = None
-    _lock = asyncio.Lock()
     
     def __new__(cls):
         if cls._instance is None:
@@ -650,13 +607,6 @@ class CosmicInstitutionAnalyzer:
         
         self.api_key = os.getenv("DEEPSEEK_API_KEY")
         self.client = None
-        self._stats = {
-            "total_analyses": 0,
-            "successful": 0,
-            "failed": 0,
-            "total_tokens": 0,
-            "avg_latency_ms": 0
-        }
         
         if self.api_key and OPENAI_AVAILABLE:
             self.client = AsyncOpenAI(
@@ -665,12 +615,12 @@ class CosmicInstitutionAnalyzer:
                 timeout=TIMEOUT,
                 max_retries=0
             )
-            logger.info("✅ Cosmic Analyzer Omega initialized with DeepSeek")
+            logger.info("✅ Cosmic Analyzer Ultra initialized with DeepSeek")
         else:
             logger.warning("⚠️ No API key found. AI analysis disabled.")
     
     def _generate_cache_key(self, name: str, city: str, country: str, text_hash: str) -> str:
-        raw = f"omega_{name.lower()}_{city.lower()}_{country.lower()}_{text_hash}"
+        raw = f"ultra_{name.lower()}_{city.lower()}_{country.lower()}_{text_hash}"
         return hashlib.sha256(raw.encode()).hexdigest()[:32]
     
     async def analyze(
@@ -681,14 +631,14 @@ class CosmicInstitutionAnalyzer:
         webpage_text: str,
         raw_html: Optional[str] = None,
         extracted_data: Optional[Dict] = None
-    ) -> InstitutionProfile:
+    ) -> InstitutionProfileUltra:
         """
         Análisis ultra-agresivo - Extrae TODO lo que encuentra
         """
         trace_id = uuid.uuid4().hex[:12]
         start_time = time.perf_counter()
         
-        profile = InstitutionProfile(
+        profile = InstitutionProfileUltra(
             name=name,
             city=city,
             country=country,
@@ -697,21 +647,17 @@ class CosmicInstitutionAnalyzer:
             raw_text_length=len(webpage_text or "")
         )
         
-        self._stats["total_analyses"] += 1
-        
-        logger.info(f"🌌 OMEGA [{trace_id}] Starting cosmic analysis: {name} | {city}, {country}")
+        logger.info(f"🌌 ULTRA [{trace_id}] Starting cosmic analysis: {name} | {city}, {country}")
         logger.info(f"📄 Text length: {len(webpage_text or 0):,} chars")
         
         if not self.client:
             profile.executive_summary = "⚠️ AI analysis unavailable (API not configured)"
             profile.confidence_score = 0.0
-            self._stats["failed"] += 1
             return profile
         
         if not webpage_text or len(webpage_text.strip()) < 200:
             profile.executive_summary = f"⚠️ Insufficient text for analysis ({len(webpage_text or 0)} chars)"
             profile.confidence_score = 0.1
-            self._stats["failed"] += 1
             return profile
         
         # Generar cache key
@@ -719,15 +665,14 @@ class CosmicInstitutionAnalyzer:
         cache_key = self._generate_cache_key(name, city, country, text_hash)
         
         # Verificar cache
-        cached = OMEGA_CACHE.get(cache_key)
+        cached = ULTRA_CACHE.get(cache_key)
         if cached:
-            logger.info(f"⚡ OMEGA [{trace_id}] Cache HIT for {name}")
+            logger.info(f"⚡ ULTRA [{trace_id}] Cache HIT for {name}")
             for key, value in cached.items():
                 if hasattr(profile, key):
                     setattr(profile, key, value)
             elapsed = (time.perf_counter() - start_time) * 1000
-            self._stats["avg_latency_ms"] = (self._stats["avg_latency_ms"] * (self._stats["total_analyses"] - 1) + elapsed) / self._stats["total_analyses"]
-            self._stats["successful"] += 1
+            logger.info(f"✅ ULTRA [{trace_id}] Analysis from cache in {elapsed:.0f}ms")
             return profile
         
         # Preparar texto
@@ -735,10 +680,10 @@ class CosmicInstitutionAnalyzer:
         safe_html = (raw_html or "")[:MAX_HTML_LENGTH]
         
         # Construir prompt ultra-detallado
-        prompt = self._build_omega_prompt(name, city, country, safe_text, safe_html, extracted_data)
+        prompt = self._build_ultra_prompt(name, city, country, safe_text, safe_html, extracted_data)
         
         try:
-            logger.info(f"🧠 OMEGA [{trace_id}] Sending request to DeepSeek API...")
+            logger.info(f"🧠 ULTRA [{trace_id}] Sending request to DeepSeek API...")
             
             async def api_call():
                 return await self.client.chat.completions.create(
@@ -752,98 +697,59 @@ class CosmicInstitutionAnalyzer:
                     response_format={"type": "json_object"}
                 )
             
-            # Retry con backoff exponencial
+            # Retry con backoff
             response = None
-            last_error = None
             for attempt in range(RETRY_ATTEMPTS):
                 try:
                     response = await api_call()
                     break
-                except RateLimitError as e:
-                    last_error = e
-                    wait_time = (2 ** attempt) + (attempt * 0.5)
-                    logger.warning(f"Rate limit (attempt {attempt + 1}/{RETRY_ATTEMPTS}), waiting {wait_time}s")
-                    await asyncio.sleep(wait_time)
-                except APITimeoutError as e:
-                    last_error = e
-                    wait_time = 1 ** attempt
-                    logger.warning(f"Timeout (attempt {attempt + 1}/{RETRY_ATTEMPTS}), waiting {wait_time}s")
-                    await asyncio.sleep(wait_time)
-                except APIError as e:
-                    last_error = e
-                    wait_time = 2 ** attempt
-                    logger.warning(f"API error (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}")
-                    await asyncio.sleep(wait_time)
                 except Exception as e:
-                    last_error = e
                     if attempt == RETRY_ATTEMPTS - 1:
                         raise
                     wait_time = 2 ** attempt
-                    logger.warning(f"Error (attempt {attempt + 1}/{RETRY_ATTEMPTS}): {e}")
+                    logger.warning(f"Retry {attempt + 1}/{RETRY_ATTEMPTS} after {wait_time}s: {e}")
                     await asyncio.sleep(wait_time)
-            
-            if response is None:
-                raise last_error or Exception("Max retries exceeded")
             
             raw_response = response.choices[0].message.content.strip()
             
-            # Limpiar posibles marcadores de markdown
+            # Limpiar posibles marcadores
             if raw_response.startswith('```json'):
                 raw_response = raw_response[7:]
-            if raw_response.startswith('```'):
-                raw_response = raw_response[3:]
             if raw_response.endswith('```'):
                 raw_response = raw_response[:-3]
             
             data = json.loads(raw_response)
             
-            # Registrar uso de tokens
-            if hasattr(response, 'usage'):
-                self._stats["total_tokens"] += response.usage.total_tokens
-                logger.info(f"📊 OMEGA [{trace_id}] Tokens: {response.usage.total_tokens}")
-            
             # Poblar el perfil
             self._populate_profile(profile, data)
             
             # Calcular métricas
-            profile.confidence_score = self._calculate_confidence_weighted(data, len(webpage_text))
-            profile.extraction_completeness = self._calculate_completeness_enhanced(data)
+            profile.confidence_score = self._calculate_confidence(data, len(webpage_text))
+            profile.extraction_completeness = self._calculate_completeness(data)
             
             # Guardar en cache
-            OMEGA_CACHE.set(cache_key, profile.to_dict())
+            ULTRA_CACHE.set(cache_key, profile.to_dict())
             
             elapsed = (time.perf_counter() - start_time) * 1000
-            self._stats["avg_latency_ms"] = (self._stats["avg_latency_ms"] * (self._stats["total_analyses"] - 1) + elapsed) / self._stats["total_analyses"]
-            self._stats["successful"] += 1
-            
-            logger.info(f"✅ OMEGA [{trace_id}] Analysis complete | Confidence: {profile.confidence_score:.1%} | Completeness: {profile.extraction_completeness:.1%} | {elapsed:.0f}ms")
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ OMEGA [{trace_id}] JSON decode error: {e}")
-            logger.error(f"Raw response (first 500 chars): {raw_response[:500]}")
-            profile.executive_summary = f"❌ JSON decode error: {str(e)[:100]}"
-            profile.confidence_score = 0.0
-            self._stats["failed"] += 1
+            logger.info(f"✅ ULTRA [{trace_id}] Analysis complete | Confidence: {profile.confidence_score:.1%} | Completeness: {profile.extraction_completeness:.1%} | {elapsed:.0f}ms")
             
         except Exception as e:
-            logger.error(f"❌ OMEGA [{trace_id}] Analysis failed: {e}")
+            logger.error(f"❌ ULTRA [{trace_id}] Analysis failed: {e}")
             traceback.print_exc()
             profile.executive_summary = f"❌ Analysis failed: {str(e)[:200]}"
             profile.confidence_score = 0.0
-            self._stats["failed"] += 1
         
         return profile
     
     def _get_system_prompt(self) -> str:
-        return """You are the world's most advanced educational intelligence analyst - OMEGA EDITION.
+        return """You are the world's most advanced educational intelligence analyst - ULTRA EDITION.
 Your mission: Extract EVERY piece of information from the institution's website.
 Be OBSESSIVELY DETAILED. Leave NO stone unturned.
 Output ONLY valid JSON. No markdown, no explanatory text.
 Use empty arrays [] for missing data, empty strings "" for missing text.
-Be AGGRESSIVE in extraction - if something is mentioned, capture it.
-The JSON must be valid and complete."""
+Be AGGRESSIVE in extraction - if something is mentioned, capture it."""
 
-    def _build_omega_prompt(self, name: str, city: str, country: str, text: str, html: str, extracted: Dict) -> str:
+    def _build_ultra_prompt(self, name: str, city: str, country: str, text: str, html: str, extracted: Dict) -> str:
         """Construye el prompt más detallado del mundo"""
         
         extracted_section = ""
@@ -863,153 +769,143 @@ LOCATION: {city}, {country}
 {extracted_section}
 
 ==================== RAW WEBPAGE TEXT ====================
-{text[:60000]}
+{text[:45000]}
 
 ==================== HTML CONTEXT (if available) ====================
-{html[:20000]}
+{html[:15000]}
 
 ==================== YOUR MISSION ====================
 Extract EVERY SINGLE piece of information from this institution's website.
 Be OBSESSIVELY DETAILED. If something is mentioned, capture it.
 
-=== WHAT TO EXTRACT (COMPLETE LIST - NO EXCEPTIONS) ===
+=== WHAT TO EXTRACT (COMPLETE LIST) ===
 
 1. CONTACT INFORMATION (ALL):
-   - ALL email addresses (every single email, even if repeated)
-   - ALL phone numbers (including extensions, PBX, etc.)
-   - ALL WhatsApp numbers (including links to wa.me)
-   - ALL social media links (Facebook, Instagram, LinkedIn, Twitter/X, YouTube, TikTok, WhatsApp, Telegram)
-   - Complete physical address (street, number, city, postal code)
+   - ALL email addresses (include every single email found)
+   - ALL phone numbers (include every number)
+   - ALL WhatsApp numbers
+   - ALL social media links (Facebook, Instagram, LinkedIn, Twitter/X, YouTube, TikTok)
+   - Complete physical address
    - Google Maps links or coordinates
 
 2. INSTITUTIONAL IDENTITY:
-   - Mission statement (complete text, word for word)
-   - Vision statement (complete text, word for word)
-   - Values (list all values mentioned, including descriptions)
-   - Educational philosophy (complete description)
-   - Foundation year (exact year)
-   - Institutional horizon (what they aspire to be)
+   - Mission statement (complete text)
+   - Vision statement (complete text)
+   - Values (list all values mentioned)
+   - Educational philosophy
+   - Foundation year
+   - Institutional horizon
 
 3. ACADEMIC PROFILE:
-   - Calendar type (A or B, traditional or international)
-   - ALL levels offered (Preescolar, Jardín, Transición, Primaria, Bachillerato, Media, etc.)
-   - Pedagogical model (Montessori, Constructivist, etc.)
-   - Academic emphasis (STEM, Arts, Humanities, Sports, etc.)
-   - Languages taught (Spanish, English, French, German, Portuguese, etc.)
+   - Calendar type (A or B)
+   - ALL levels offered (Preescolar, Primaria, Bachillerato, etc.)
+   - Pedagogical model
+   - Academic emphasis/approach
+   - Languages taught (which languages, what levels)
    - Bilingual status (yes/no, which languages)
    - Trilingual status (yes/no, which languages)
-   - Language levels (A1, A2, B1, B2, C1, C2)
-   - International programs (Exchange, Study abroad, etc.)
+   - International programs
 
 4. TECHNOLOGY & LMS (COMPLETE):
-   - LMS provider (Moodle, Canvas, Phidias, Schoolnet, Blackboard, Google Classroom, Microsoft Teams, etc.)
+   - LMS provider (Moodle, Canvas, Phidias, Schoolnet, etc.)
    - LMS version if visible
-   - Other digital platforms used (Zoom, Meet, etc.)
-   - Robotics program (details: type, platforms, competitions, achievements, grades)
-   - Programming program (languages taught: Python, Java, Scratch, etc., frameworks, grade levels)
-   - STEM program (details, projects, labs)
-   - Laboratories (list all types: robotics, science, computers, physics, chemistry, biology, etc.)
-   - Classroom technology (smartboards, tablets, laptops, projectors, etc.)
-   - WiFi availability (yes/no, coverage)
-   - Virtual learning platforms (Zoom, Meet, Teams, etc.)
+   - Other digital platforms used
+   - Robotics program (details: type, platforms, competitions, achievements)
+   - Programming program (languages taught, frameworks, grade levels)
+   - STEM program (details, projects)
+   - Laboratories (list all types: robotics, science, computers, etc.)
+   - Classroom technology (smartboards, tablets, etc.)
+   - WiFi availability
+   - Virtual learning platforms
 
 5. CERTIFICATIONS & ACCREDITATIONS (ALL):
-   - IB (International Baccalaureate): has_ib, programs (PYP/MYP/DP), since, coordinator, authorization date
-   - Cambridge: has_cambridge, exams (PET, FCE, CAE, CPE, KET, YLE), preparation_center, since, center_number
+   - IB (International Baccalaureate): has_ib, programs (PYP/MYP/DP), since, coordinator
+   - Cambridge: has_cambridge, exams (PET, FCE, CAE, CPE, KET), preparation_center, center_number
    - Oxford: has_oxford
-   - TOEFL: has_toefl, preparation_center
-   - IELTS: has_ielts, preparation_center
-   - ISO 9001 (Quality Management)
-   - ISO 14001 (Environmental Management)
-   - EFQM (Excellence Model)
+   - TOEFL: has_toefl
+   - IELTS: has_ielts
+   - ISO 9001
+   - ISO 14001
+   - EFQM
    - Great Place to Study
-   - MEN resolution number (Ministerio de Educación Nacional)
-   - ICFES registration number
-   - High Quality Accreditation (Acreditación de Alta Calidad)
-   - Any other certifications (International, National, Local)
+   - MEN resolution number
+   - ICFES registration
+   - High Quality Accreditation
+   - Any other certifications
 
 6. AGREEMENTS & PARTNERSHIPS:
-   - University agreements (list all universities mentioned with details)
-   - Corporate agreements (list all companies mentioned)
-   - International agreements (list all countries/organizations)
-   - NGO agreements (list all non-profits)
-   - Government programs (list all government partnerships)
+   - University agreements (list all universities mentioned)
+   - Corporate agreements (list all companies)
+   - International agreements
+   - NGO agreements
+   - Government programs
 
 7. PERFORMANCE & RESULTS:
-   - ICFES scores (numeric value, category A+/A/B/C/D, ranking, year, percentile)
-   - Awards and recognitions (list all with years if available)
-   - Notable alumni (list names and achievements)
-   - University admission rate (percentage)
-   - Top universities where graduates go (list of universities)
+   - ICFES scores (numeric value, category, ranking, year)
+   - Awards and recognitions
+   - Notable alumni
+   - University admission rate
+   - Top universities where graduates go
 
 8. INFRASTRUCTURE:
-   - Campus size (in square meters or acres)
-   - Number of campuses/locations (list all addresses)
-   - Buildings (list names/floors/purposes)
+   - Campus size
+   - Number of campuses/locations
+   - Buildings
    - Number of classrooms
-   - Laboratories (detailed list with purposes)
-   - Sports facilities (fields, courts, gym, pool, track, etc.)
-   - Library (size, number of volumes, digital access, study rooms)
-   - Dining (cafeteria, restaurant, meal plans, dietary options)
-   - Transportation (school bus, routes, schedules, coverage)
-   - Green areas (parks, gardens, environmental spaces)
-   - Accessibility features (ramps, elevators, adapted bathrooms)
-   - Security measures (cameras, guards, access control)
+   - Laboratories (detailed list)
+   - Sports facilities (fields, courts, gym, pool, etc.)
+   - Library (size, resources, digital access)
+   - Dining (cafeteria, restaurant, meal plans)
+   - Transportation (school bus, routes)
+   - Green areas
+   - Accessibility features
+   - Security measures
 
 9. EXTRACURRICULAR ACTIVITIES:
-   - Sports (list all sports: soccer, basketball, volleyball, swimming, athletics, etc.)
-   - Arts (music, theater, dance, painting, drawing, photography, etc.)
-   - Clubs (robotics, chess, debate, science, math, reading, etc.)
-   - Camps (summer, winter, language, sports, etc.)
-   - Competitions participated/won (list with years and results)
-   - Community service programs (details, hours required)
-   - Volunteer opportunities (list of programs)
-   - Student government (yes/no, structure)
-   - Publications (newspaper, magazine, yearbook, blog)
+   - Sports (list all sports)
+   - Arts (music, theater, dance, painting, etc.)
+   - Clubs (robotics, chess, debate, etc.)
+   - Camps (summer, winter, language camps)
+   - Competitions participated/won
+   - Community service programs
+   - Volunteer opportunities
+   - Student government
+   - Publications (newspaper, magazine, yearbook)
 
 10. DEMOGRAPHICS:
-    - Number of students (total, by level if available)
-    - Number of teachers (total, by level if available)
+    - Number of students
+    - Number of teachers
     - Student-teacher ratio
     - Average class size
 
 11. ADMISSIONS:
-    - Admission requirements (list all requirements)
-    - Admission process (steps, timeline)
-    - Scholarships available (list types: academic, sports, financial)
-    - Tuition range (monthly or annual, in local currency)
+    - Admission requirements
+    - Admission process
+    - Scholarships available
+    - Tuition range
 
-12. SALES INTELLIGENCE (Strategic Analysis - CRITICAL):
-    - Pain points: What problems does the institution face that our solution could solve?
-      (Examples: outdated technology, lack of digital platform, high administrative workload, 
-       poor student engagement, limited parent communication, etc.)
-    - Sales triggers: What indicates they need our solution?
-      (Examples: recent expansion, new campus, new technology director, 
-       complaints about current system, looking for modernization, etc.)
-    - Opportunities: Where can we add value?
-      (Examples: digital transformation, new LMS implementation, robotics program expansion,
-       teacher training, parent portal implementation, etc.)
-    - Risks: What could prevent the sale?
-      (Examples: budget constraints, recent investment in other technology, 
-       resistant administration, long decision cycle, etc.)
-    - Ideal contact person: Role/title of the best person to contact
-    - Recommended sales approach: Strategy for approaching this institution
-    - Estimated revenue potential: Low/Medium/High (based on size and needs)
-    - Sales priority: High/Medium/Low (based on urgency and potential)
+12. SALES INTELLIGENCE (Strategic Analysis):
+    - Pain points (problems the institution might have that our solution can solve)
+    - Sales triggers (what indicates they might need our solution)
+    - Opportunities (where we can add value)
+    - Risks (potential obstacles)
+    - Ideal contact person (role/title)
+    - Recommended sales approach
+    - Estimated revenue potential (Low/Medium/High)
 
 13. EXECUTIVE SUMMARY:
-    - 2-3 sentence summary for the sales team (concise, actionable)
+    - 2-3 sentence summary for the sales team
 
-=== OUTPUT FORMAT (STRICT JSON - MUST BE VALID) ===
-{
+=== OUTPUT FORMAT (STRICT JSON) ===
+{{
     "emails": ["email1", "email2"],
     "phones": ["phone1", "phone2"],
     "whatsapp": ["wa1", "wa2"],
-    "social_media": {"facebook": "url", "instagram": "url", "linkedin": "url", "twitter": "url", "youtube": "url"},
+    "social_media": {{"facebook": "url", "instagram": "url", "linkedin": "url"}},
     "address": "full address",
     "mission": "complete mission statement",
     "vision": "complete vision statement",
-    "values": ["value1", "value2", "value3"],
+    "values": ["value1", "value2"],
     "educational_philosophy": "philosophy text",
     "foundation_year": "year",
     "calendar": "A or B",
@@ -1024,20 +920,19 @@ Be OBSESSIVELY DETAILED. If something is mentioned, capture it.
     "lms_confidence": 0.0,
     "digital_platforms": ["Google Classroom", "Microsoft Teams"],
     "has_robotics": true/false,
-    "robotics_details": {"type": "LEGO Education", "platforms": ["LEGO Mindstorms"], "competitions": ["FIRST LEGO League"], "achievements": ["Campeones 2023"]},
+    "robotics_details": {{"type": "LEGO Education", "platforms": ["LEGO Mindstorms"], "competitions": ["FIRST LEGO League"], "achievements": ["Campeones 2023"]}},
     "has_programming": true/false,
-    "programming_details": {"languages": ["Python", "Scratch"], "frameworks": [], "grade_levels": ["5° a 11°"]},
+    "programming_details": {{"languages": ["Python", "Scratch"], "grade_levels": ["5° a 11°"]}},
     "has_stem": true/false,
-    "stem_details": {"programs": ["STEM Lab", "Science Fair"], "projects": []},
+    "stem_details": {{"programs": ["STEM Lab", "Science Fair"]}},
     "laboratories": ["Robótica", "Ciencias", "Computación"],
     "classroom_tech": ["Smartboards", "Tablets"],
     "wifi_available": true/false,
-    "virtual_platform": "Zoom/Meet/Teams",
-    "ib": {"has_ib": true/false, "programs": ["PYP", "MYP", "DP"], "since": "2020", "coordinator": "", "authorization_date": ""},
-    "cambridge": {"has_cambridge": true/false, "exams": ["PET", "FCE"], "preparation_center": true, "since": "", "center_number": "CO123"},
-    "oxford": {"has_oxford": true/false},
-    "toefl": {"has_toefl": true/false},
-    "ielts": {"has_ielts": true/false},
+    "ib": {{"has_ib": true/false, "programs": ["PYP", "MYP", "DP"], "since": "2020"}},
+    "cambridge": {{"has_cambridge": true/false, "exams": ["PET", "FCE"], "preparation_center": true, "center_number": "CO123"}},
+    "oxford": {{"has_oxford": true/false}},
+    "toefl": {{"has_toefl": true/false}},
+    "ielts": {{"has_ielts": true/false}},
     "iso_9001": true/false,
     "iso_14001": true/false,
     "efqm": true/false,
@@ -1049,48 +944,34 @@ Be OBSESSIVELY DETAILED. If something is mentioned, capture it.
     "university_agreements": ["Universidad de los Andes", "Universidad Javeriana"],
     "corporate_agreements": ["Microsoft", "LEGO Education"],
     "international_agreements": ["Exchange with Spain"],
-    "ngo_agreements": [],
-    "government_programs": [],
     "icfes_score": "78",
     "icfes_category": "A+",
     "icfes_ranking": "Top 10%",
     "icfes_year": "2023",
     "awards": ["Premio a la Excelencia"],
-    "recognitions": [],
     "notable_alumni": ["Person Name"],
     "university_admission_rate": "85%",
     "top_universities": ["Universidad de los Andes"],
     "campus_size": "20,000 m²",
     "campus_locations": ["Sede principal", "Sede norte"],
-    "buildings": [],
     "classrooms": 50,
-    "laboratories_list": [],
     "sports_facilities": ["Cancha de fútbol", "Gimnasio", "Piscina"],
-    "library": {"size": "5,000 volumes", "digital_access": true, "study_rooms": 5},
-    "dining": {"has_cafeteria": true, "meal_plans": true, "options": []},
-    "transportation": {"has_school_bus": true, "routes": ["Norte", "Sur"], "schedules": []},
+    "library": {{"size": "5,000 volumes", "digital_access": true}},
+    "dining": {{"has_cafeteria": true, "meal_plans": true}},
+    "transportation": {{"has_school_bus": true, "routes": ["Norte", "Sur"]}},
     "green_areas": true,
-    "accessibility": [],
-    "security_measures": [],
     "sports": ["Fútbol", "Baloncesto", "Natación"],
     "arts": ["Música", "Teatro", "Danza"],
     "clubs": ["Ajedrez", "Robótica", "Debate"],
     "camps": ["Campamento de inglés", "Campamento de verano"],
     "competitions": ["FIRST LEGO League", "Olimpiadas de Matemáticas"],
     "community_service": true,
-    "volunteer_programs": [],
     "student_government": true,
-    "publications": [],
-    "special_projects": [],
-    "innovation_initiatives": [],
-    "sustainability_programs": [],
-    "inclusion_programs": [],
     "student_count": 1200,
     "teacher_count": 80,
     "student_teacher_ratio": "15:1",
     "average_class_size": 25,
     "admission_requirements": ["Entrevista", "Prueba de admisión"],
-    "admission_process": "",
     "scholarships": ["Excelencia académica", "Becas deportivas"],
     "tuition_range": "$5,000,000 - $8,000,000 COP",
     "pain_points": ["Falta de plataforma digital unificada", "Sistemas obsoletos"],
@@ -1100,14 +981,14 @@ Be OBSESSIVELY DETAILED. If something is mentioned, capture it.
     "ideal_contact": "Rector o Director de Tecnología",
     "recommended_approach": "Demostración técnica seguida de propuesta económica",
     "estimated_revenue_potential": "Alto",
-    "sales_priority": "High",
+    "sales_priority": "High/Medium/Low",
     "executive_summary": "Resumen ejecutivo para el equipo de ventas"
-}
+}}
 
-EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY VALID JSON.
+EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT.
 """
 
-    def _populate_profile(self, profile: InstitutionProfile, data: Dict):
+    def _populate_profile(self, profile: InstitutionProfileUltra, data: Dict):
         """Pobla el perfil con los datos extraídos"""
         
         # Contactos
@@ -1147,7 +1028,6 @@ EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY V
         profile.laboratories = data.get('laboratories', [])
         profile.classroom_tech = data.get('classroom_tech', [])
         profile.wifi_available = data.get('wifi_available', False)
-        profile.virtual_platform = data.get('virtual_platform', '')
         
         # Certificaciones
         profile.ib = data.get('ib', profile.ib)
@@ -1168,8 +1048,6 @@ EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY V
         profile.university_agreements = data.get('university_agreements', [])
         profile.corporate_agreements = data.get('corporate_agreements', [])
         profile.international_agreements = data.get('international_agreements', [])
-        profile.ngo_agreements = data.get('ngo_agreements', [])
-        profile.government_programs = data.get('government_programs', [])
         
         # Rendimiento
         profile.icfes_score = data.get('icfes_score', '')
@@ -1177,7 +1055,6 @@ EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY V
         profile.icfes_ranking = data.get('icfes_ranking', '')
         profile.icfes_year = data.get('icfes_year', '')
         profile.awards = data.get('awards', [])
-        profile.recognitions = data.get('recognitions', [])
         profile.notable_alumni = data.get('notable_alumni', [])
         profile.university_admission_rate = data.get('university_admission_rate', '')
         profile.top_universities = data.get('top_universities', [])
@@ -1185,16 +1062,13 @@ EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY V
         # Infraestructura
         profile.campus_size = data.get('campus_size', '')
         profile.campus_locations = data.get('campus_locations', [])
-        profile.buildings = data.get('buildings', [])
         profile.classrooms = data.get('classrooms', 0)
-        profile.laboratories_list = data.get('laboratories_list', [])
         profile.sports_facilities = data.get('sports_facilities', [])
+        profile.laboratories_list = data.get('laboratories', [])
         profile.library = data.get('library', {})
         profile.dining = data.get('dining', {})
         profile.transportation = data.get('transportation', {})
         profile.green_areas = data.get('green_areas', False)
-        profile.accessibility = data.get('accessibility', [])
-        profile.security_measures = data.get('security_measures', [])
         
         # Extracurriculares
         profile.sports = data.get('sports', [])
@@ -1203,15 +1077,7 @@ EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY V
         profile.camps = data.get('camps', [])
         profile.competitions = data.get('competitions', [])
         profile.community_service = data.get('community_service', False)
-        profile.volunteer_programs = data.get('volunteer_programs', [])
         profile.student_government = data.get('student_government', False)
-        profile.publications = data.get('publications', [])
-        
-        # Proyectos especiales
-        profile.special_projects = data.get('special_projects', [])
-        profile.innovation_initiatives = data.get('innovation_initiatives', [])
-        profile.sustainability_programs = data.get('sustainability_programs', [])
-        profile.inclusion_programs = data.get('inclusion_programs', [])
         
         # Demografía
         profile.student_count = data.get('student_count', 0)
@@ -1221,7 +1087,6 @@ EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY V
         
         # Admisiones
         profile.admission_requirements = data.get('admission_requirements', [])
-        profile.admission_process = data.get('admission_process', '')
         profile.scholarships = data.get('scholarships', [])
         profile.tuition_range = data.get('tuition_range', '')
         
@@ -1238,56 +1103,44 @@ EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY V
         # Resumen ejecutivo
         profile.executive_summary = data.get('executive_summary', '')
     
-    def _calculate_confidence_weighted(self, data: Dict, text_length: int) -> float:
-        """Calcula la confianza del análisis con pesos por campo crítico"""
+    def _calculate_confidence(self, data: Dict, text_length: int) -> float:
+        """Calcula la confianza del análisis"""
         if not data:
             return 0.0
         
-        total_weight = 0
-        filled_weight = 0
+        total = 0
+        filled = 0
         
-        def process_value(value, weight):
-            nonlocal filled_weight
-            if value:
-                if isinstance(value, (list, dict)):
-                    if value:
-                        filled_weight += weight
-                elif value not in (None, "", False):
-                    filled_weight += weight
+        def count_fields(obj, depth=0):
+            nonlocal total, filled
+            if depth > 3:
+                return
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    total += 1
+                    if v:
+                        if isinstance(v, (list, dict)):
+                            if v:
+                                filled += 1
+                        elif v not in (None, "", False):
+                            filled += 1
+                    if isinstance(v, (dict, list)):
+                        count_fields(v, depth + 1)
         
-        for field, weight in FIELD_WEIGHTS.items():
-            total_weight += weight
-            value = data.get(field)
-            if isinstance(value, dict):
-                # Para diccionarios anidados, verificar si tiene algún valor
-                has_value = any(v for v in value.values() if v)
-                if has_value:
-                    filled_weight += weight
-            else:
-                process_value(value, weight)
+        count_fields(data)
+        field_score = filled / max(total, 1) if total > 0 else 0
+        text_factor = min(1.0, text_length / 10000)
         
-        # También contar campos adicionales importantes
-        additional_fields = ["social_media", "address", "foundation_year", "pedagogical_model"]
-        for field in additional_fields:
-            if field not in FIELD_WEIGHTS:
-                total_weight += 2
-                if data.get(field):
-                    filled_weight += 2
-        
-        field_score = filled_weight / max(total_weight, 1) if total_weight > 0 else 0
-        text_factor = min(1.0, text_length / 15000)
-        
-        return (field_score * 0.7) + (text_factor * 0.3)
+        return (field_score * 0.6) + (text_factor * 0.4)
     
-    def _calculate_completeness_enhanced(self, data: Dict) -> float:
-        """Calcula la completitud de la extracción con campos críticos"""
+    def _calculate_completeness(self, data: Dict) -> float:
+        """Calcula la completitud de la extracción"""
         if not data:
             return 0.0
         
         critical_fields = [
-            "emails", "phones", "mission", "vision", "values", "levels_offered",
-            "lms_provider", "has_robotics", "icfes_score", "executive_summary",
-            "social_media", "address", "foundation_year", "languages_taught"
+            "emails", "phones", "mission", "vision", "levels_offered",
+            "lms_provider", "has_robotics", "icfes_score", "executive_summary"
         ]
         
         completed = 0
@@ -1296,73 +1149,47 @@ EXTRACT EVERYTHING YOU FIND. BE THOROUGH. LEAVE NOTHING OUT. RESPOND WITH ONLY V
             if value:
                 if isinstance(value, list) and value:
                     completed += 1
-                elif isinstance(value, dict) and any(v for v in value.values() if v):
-                    completed += 1
                 elif value not in (None, "", False):
                     completed += 1
         
         return completed / len(critical_fields)
-    
-    def get_stats(self) -> Dict:
-        """Obtiene estadísticas del analizador"""
-        cache_stats = OMEGA_CACHE.get_stats()
-        return {
-            **self._stats,
-            "cache_hits": cache_stats["hits"],
-            "cache_misses": cache_stats["misses"],
-            "success_rate": self._stats["successful"] / max(1, self._stats["total_analyses"])
-        }
-    
-    def clear_cache(self):
-        """Limpia la caché"""
-        OMEGA_CACHE._memory_cache.clear()
-        try:
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.execute("DELETE FROM omega_cache")
-                conn.commit()
-        except Exception as e:
-            logger.debug(f"Cache clear error: {e}")
-        logger.info("🗑️ Omega cache cleared")
 
 
 # =================================================================================
-# EXPORT FUNCTIONS (MANTIENEN COMPATIBILIDAD CON EL SISTEMA EXISTENTE)
+# EXPORT FUNCTIONS
 # =================================================================================
-_analyzer = None
+_analyzer_ultra = None
 
-def get_analyzer() -> CosmicInstitutionAnalyzer:
-    """Obtiene la instancia única del analizador"""
-    global _analyzer
-    if _analyzer is None:
-        _analyzer = CosmicInstitutionAnalyzer()
-    return _analyzer
+def get_analyzer_ultra() -> CosmicAnalyzerUltra:
+    global _analyzer_ultra
+    if _analyzer_ultra is None:
+        _analyzer_ultra = CosmicAnalyzerUltra()
+    return _analyzer_ultra
 
-async def analyze_institution(
+async def analyze_institution_ultra(
     name: str,
     city: str,
     country: str,
     webpage_text: str,
     raw_html: Optional[str] = None,
     extracted_data: Optional[Dict] = None
-) -> InstitutionProfile:
-    """Analiza una institución de forma asíncrona"""
-    analyzer = get_analyzer()
+) -> InstitutionProfileUltra:
+    analyzer = get_analyzer_ultra()
     return await analyzer.analyze(name, city, country, webpage_text, raw_html, extracted_data)
 
-def analyze_institution_sync(
+def analyze_institution_ultra_sync(
     name: str,
     city: str,
     country: str,
     webpage_text: str,
     raw_html: Optional[str] = None,
     extracted_data: Optional[Dict] = None
-) -> InstitutionProfile:
-    """Analiza una institución de forma síncrona (para uso en hilos)"""
+) -> InstitutionProfileUltra:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
         return loop.run_until_complete(
-            analyze_institution(name, city, country, webpage_text, raw_html, extracted_data)
+            analyze_institution_ultra(name, city, country, webpage_text, raw_html, extracted_data)
         )
     finally:
         loop.close()
@@ -1372,8 +1199,7 @@ def analyze_institution_sync(
 # SELF-TEST
 # =================================================================================
 async def self_test():
-    """Prueba automática del analizador"""
-    logger.info("🧪 Running Omega self-test...")
+    logger.info("🧪 Running Ultra self-test...")
     
     test_text = """
     Colegio Gimnasio Los Arrayanes
@@ -1401,7 +1227,7 @@ async def self_test():
     Facebook: /losarrayanes, Instagram: @losarrayanes
     """
     
-    analyzer = get_analyzer()
+    analyzer = get_analyzer_ultra()
     profile = await analyzer.analyze(
         name="Colegio Gimnasio Los Arrayanes",
         city="Bogotá",
@@ -1410,7 +1236,7 @@ async def self_test():
     )
     
     print("\n" + "="*80)
-    print("📊 OMEGA SELF-TEST RESULTS")
+    print("📊 ULTRA SELF-TEST RESULTS")
     print("="*80)
     print(f"Name: {profile.name}")
     print(f"Confidence: {profile.confidence_score:.1%}")
@@ -1418,38 +1244,20 @@ async def self_test():
     print(f"Emails: {profile.emails}")
     print(f"Phones: {profile.phones}")
     print(f"WhatsApp: {profile.whatsapp}")
-    print(f"Social Media: {profile.social_media}")
-    print(f"Address: {profile.address}")
     print(f"Mission: {profile.mission[:100]}...")
     print(f"Vision: {profile.vision[:100]}...")
     print(f"Values: {profile.values}")
     print(f"Levels: {profile.levels_offered}")
-    print(f"Calendar: {profile.calendar}")
     print(f"Bilingual: {profile.is_bilingual}")
-    print(f"Languages: {profile.languages_taught}")
-    print(f"LMS: {profile.lms_provider}")
+    print(f"Cambridge: {profile.cambridge.get('has_cambridge')}")
     print(f"Robotics: {profile.has_robotics}")
-    print(f"Robotics Details: {profile.robotics_details}")
     print(f"ICFES: {profile.icfes_score} - {profile.icfes_category}")
     print(f"Sports: {profile.sports}")
     print(f"Arts: {profile.arts}")
-    print(f"Clubs: {profile.clubs}")
     print(f"University Agreements: {profile.university_agreements}")
-    print(f"Corporate Agreements: {profile.corporate_agreements}")
-    print(f"Campus Size: {profile.campus_size}")
-    print(f"Sports Facilities: {profile.sports_facilities}")
-    print(f"Pain Points: {profile.pain_points}")
-    print(f"Sales Triggers: {profile.sales_triggers}")
-    print(f"Opportunities: {profile.opportunities}")
-    print(f"Ideal Contact: {profile.ideal_contact}")
-    print(f"Executive Summary: {profile.executive_summary}")
     print("\n" + "="*80)
-    print("✅ Omega self-test completed")
+    print("✅ Ultra self-test completed")
     print("="*80)
-    
-    # Mostrar estadísticas
-    stats = analyzer.get_stats()
-    print(f"\n📊 Statistics: {stats}")
 
 if __name__ == "__main__":
     asyncio.run(self_test())
