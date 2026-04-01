@@ -501,7 +501,7 @@ class GlobalPipelineAdmin(ModelAdmin):
         ]   
         return custom_urls + urls
 
-    def _get_polling_html(self, inst_id):
+    '''def _get_polling_html(self, inst_id):
         poll_url = reverse('admin:sales_globalpipeline_check_scan', args=[inst_id])
         return format_html(
             '<div id="recon-panel-{}" class="whitespace-nowrap min-w-[120px]" '
@@ -511,7 +511,76 @@ class GlobalPipelineAdmin(ModelAdmin):
             '    <span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">ANALIZANDO...</span>'
             '  </div>'
             '</div>', inst_id, poll_url
-        )
+        )'''
+        
+    def _get_polling_html(self, inst_id: str, elapsed: str = "") -> str:
+        poll_url = reverse('admin:sales_globalpipeline_check_scan', args=[inst_id])
+    
+        return format_html(
+        '''<div id="recon-panel-{}" class="whitespace-nowrap min-w-[180px] transition-all duration-300">
+            <div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-amber-950/30 to-red-950/30 border border-amber-500/30 p-2 shadow-lg backdrop-blur-sm">
+                <div class="absolute bottom-0 left-0 h-0.5 bg-gradient-to-r from-amber-500 via-red-500 to-purple-500 animate-[progress_2s_ease-in-out_infinite]" style="width: 60%"></div>
+                
+                <div class="flex flex-col gap-1.5 relative z-10">
+                    <div class="flex items-center gap-2">
+                        <div class="relative">
+                            <div class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div>
+                            <div class="absolute inset-0 w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping opacity-75"></div>
+                        </div>
+                        <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider">🎯 GHOST SNIPER ACTIVE</span>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 text-[9px] font-mono text-amber-300/80">
+                        <svg class="animate-spin h-3 w-3 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>EXTRACTANDO DATOS{}</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-1 mt-1 text-[7px] font-mono">
+                        <div class="flex items-center gap-1 text-emerald-400">
+                            <span class="material-symbols-outlined text-[10px]">check_circle</span>
+                            <span>LMS</span>
+                        </div>
+                        <div class="flex items-center gap-1 text-amber-400 animate-pulse">
+                            <span class="material-symbols-outlined text-[10px]">sync</span>
+                            <span>EMAILS</span>
+                        </div>
+                        <div class="flex items-center gap-1 text-amber-400 animate-pulse">
+                            <span class="material-symbols-outlined text-[10px]">sync</span>
+                            <span>PHONES</span>
+                        </div>
+                        <div class="flex items-center gap-1 text-amber-400 animate-pulse">
+                            <span class="material-symbols-outlined text-[10px]">sync</span>
+                            <span>IA</span>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full bg-slate-800/50 rounded-full h-1 mt-1 overflow-hidden">
+                        <div class="h-full bg-gradient-to-r from-amber-500 via-red-500 to-purple-500 rounded-full animate-[progress_1.5s_ease-in-out_infinite]" style="width: 65%"></div>
+                    </div>
+                    
+                    <div class="text-[7px] text-slate-500 font-mono text-center mt-1">
+                        ⏳ Tiempo transcurrido: {} | Polling cada 2s
+                    </div>
+                </div>
+            </div>
+            <div hx-get="{}" 
+                 hx-trigger="every 2s" 
+                 hx-swap="outerHTML" 
+                 hx-target="#recon-panel-{}"
+                 hx-select="#recon-panel-{}"
+                 class="hidden"></div>
+        </div>''',
+        inst_id,
+        elapsed,
+        elapsed.strip("() ") if elapsed else "0s",
+        poll_url,
+        inst_id,
+        inst_id
+    )
+
 
     def run_resolve_url(self, request, inst_id):
         try:
@@ -541,7 +610,7 @@ class GlobalPipelineAdmin(ModelAdmin):
         task_run_single_recon.delay(inst_id)
         return HttpResponse(self._get_polling_html(inst_id))
 
-    def check_scan_status(self, request, inst_id):
+    '''def check_scan_status(self, request, inst_id):
         is_scanning = cache.get(f"scan_in_progress_{inst_id}")
         
         if is_scanning:
@@ -560,7 +629,109 @@ class GlobalPipelineAdmin(ModelAdmin):
         cosmic_html = self.display_cosmic_readiness(inst)
         cosmic_oob = cosmic_html.replace(f'id="cosmic-panel-{inst.pk}"', f'id="cosmic-panel-{inst.pk}" hx-swap-oob="true"') if hasattr(inst, 'id') else ""
 
-        return HttpResponse(f"{btn_html}\n{tech_oob}\n{score_oob}\n{cosmic_oob}")
+        return HttpResponse(f"{btn_html}\n{tech_oob}\n{score_oob}\n{cosmic_oob}")'''
+
+    
+    def check_scan_status(self, request, inst_id: str) -> HttpResponse:
+        """
+        [GOD TIER OMEGA] Verifica el estado del escaneo y actualiza la UI en tiempo real.
+        """
+        import logging
+        import time
+        logger = logging.getLogger("Sovereign.Admin.ScanStatus")
+        
+        # =========================================================
+        # 1. VERIFICAR ESTADO DEL ESCANEO
+        # =========================================================
+        is_scanning = cache.get(f"scan_in_progress_{inst_id}")
+        scan_start_time = cache.get(f"scan_start_time_{inst_id}")
+        
+        # =========================================================
+        # 2. SI AÚN ESTÁ ESCANEANDO, MOSTRAR SPINNER CON TIEMPO ESTIMADO
+        # =========================================================
+        if is_scanning:
+            # Calcular tiempo transcurrido para mostrar al usuario
+            elapsed = ""
+            if scan_start_time:
+                elapsed_seconds = int(time.time() - scan_start_time)
+                if elapsed_seconds < 60:
+                    elapsed = f" ({elapsed_seconds}s)"
+                else:
+                    elapsed = f" ({elapsed_seconds//60}m {elapsed_seconds%60}s)"
+            
+            # Devolver HTML de polling con tiempo estimado
+            return HttpResponse(self._get_polling_html(inst_id, elapsed))
+        
+        # =========================================================
+        # 3. ESCANEO COMPLETADO - OBTENER DATOS ACTUALIZADOS
+        # =========================================================
+        try:
+            # Obtener institución con todas las relaciones necesarias
+            inst = Institution.objects.select_related(
+                'tech_profile', 
+                'forensic_profile'
+            ).prefetch_related(
+                'contacts'
+            ).get(pk=inst_id)
+            
+            logger.info(f"✅ [SCAN COMPLETE] {inst.name} | Score: {inst.lead_score}")
+            
+        except Institution.DoesNotExist:
+            logger.error(f"❌ [SCAN ERROR] Institución {inst_id} no encontrada")
+            return HttpResponse(f'<div id="recon-panel-{inst_id}" class="text-red-500 text-xs">Error: Institución no encontrada</div>')
+        
+        # =========================================================
+        # 4. GENERAR HTML DE TODOS LOS COMPONENTES ACTUALIZADOS
+        # =========================================================
+        
+        # 4.1 Botones de acción (vuelven a estado normal)
+        btn_html = self.advanced_recon_trigger(inst)
+        
+        # 4.2 Tecnología detectada (LMS, CMS, Analytics)
+        tech_html = self.display_intelligence_radar(inst)
+        tech_oob = tech_html.replace(
+            f'id="tech-radar-{inst.pk}"', 
+            f'id="tech-radar-{inst.pk}" hx-swap-oob="true"'
+        )
+        
+        # 4.3 Score predictivo (0-100)
+        score_html = self.display_performance_score(inst)
+        score_oob = score_html.replace(
+            f'id="score-panel-{inst.pk}"', 
+            f'id="score-panel-{inst.pk}" hx-swap-oob="true"'
+        )
+        
+        # 4.4 Tarjeta de contacto (emails, teléfonos, WhatsApp)
+        contact_html = self.display_contact_card(inst)
+        contact_oob = contact_html.replace(
+            f'id="contact-card-{inst.pk}"',
+            f'id="contact-card-{inst.pk}" hx-swap-oob="true"'
+        )
+        
+        # 4.5 Reporte cósmico (IA)
+        cosmic_html = self.display_cosmic_readiness(inst) if hasattr(self, 'display_cosmic_readiness') else ""
+        cosmic_oob = ""
+        if cosmic_html and hasattr(inst, 'id'):
+            cosmic_oob = cosmic_html.replace(
+                f'id="cosmic-panel-{inst.pk}"', 
+                f'id="cosmic-panel-{inst.pk}" hx-swap-oob="true"'
+            )
+        
+        # =========================================================
+        # 5. LIMPIAR CACHÉ Y ESTADOS TEMPORALES
+        # =========================================================
+        cache.delete(f"scan_in_progress_{inst_id}")
+        cache.delete(f"scan_start_time_{inst_id}")
+        cache.delete(f"telemetry_{inst_id}")
+        
+        # =========================================================
+        # 6. CONSTRUIR RESPUESTA CON MÚLTIPLES ACTUALIZACIONES OOB
+        # =========================================================
+        response_parts = [btn_html, tech_oob, score_oob, contact_oob]
+        if cosmic_oob:
+            response_parts.append(cosmic_oob)
+        
+        return HttpResponse("\n".join(response_parts))
 
     def view_cosmic_report(self, request, inst_id):
         """Vista para ver el reporte cósmico completo con formato profesional"""
@@ -1443,9 +1614,19 @@ class GlobalPipelineAdmin(ModelAdmin):
         ('🔬 Analítica Base', {'classes': ('tab',), 'fields': (('lead_score', 'last_scored_at', 'discovery_source'),),}),
     )
 
-    def run_auto_sniper(self, request, inst_id):
+    '''def run_auto_sniper(self, request, inst_id):
         cache.set(f"scan_in_progress_{inst_id}", True, timeout=600)
         task_run_single_recon.delay(inst_id)
+        return HttpResponse(self._get_polling_html(inst_id))'''
+
+    def run_auto_sniper(self, request, inst_id):
+        cache.set(f"scan_in_progress_{inst_id}", True, timeout=600)
+    
+    # 🔥 GOD TIER: Usar la tarea de Celery
+        from sales.tasks import task_run_single_recon
+        task_run_single_recon.delay(str(inst_id))
+    
+    # Devolver el HTML de polling para actualización en tiempo real
         return HttpResponse(self._get_polling_html(inst_id))
 
 # =========================================================
@@ -1465,7 +1646,7 @@ def view_cosmic_report_external(self, obj) -> str:
     )
 
 # Luego, MODIFICA advanced_recon_trigger para incluir este botón:
-@display(description="Mando")
+'''@display(description="Mando")
 def advanced_recon_trigger(self, obj) -> str:
     url_sniper = reverse('admin:sales_globalpipeline_auto_sniper', args=[obj.pk])
     url_report = reverse('admin:sales_globalpipeline_cosmic_report', args=[obj.pk])
@@ -1552,7 +1733,173 @@ def advanced_recon_trigger(self, obj) -> str:
         report_btn=report_btn,
         external_btn=external_btn,
         secondary_btns=secondary_btns
+    )'''
+
+@display(description="🎯 Comando de Combate | God Tier Omega")
+def advanced_recon_trigger(self, obj) -> str:
+    """
+    [GOD TIER OMEGA] Panel de control de combate con 5 modos de operación:
+    - FULL SNIPER: Escaneo completo con Ghost Sniper (HTMX + polling en tiempo real)
+    - COSMIC: Reporte cósmico completo con IA
+    - FULL: Vista externa profesional del reporte
+    - SCAN LMS: Escaneo rápido de LMS
+    - DEEP RECON: Reconocimiento profundo con Playwright
+    """
+    # URLs de combate
+    url_sniper = reverse('admin:sales_globalpipeline_auto_sniper', args=[obj.pk])
+    url_report = reverse('admin:sales_globalpipeline_cosmic_report', args=[obj.pk])
+    url_external = reverse('sales:cosmic_report', args=[obj.pk])
+    
+    # Base de estilos GOD TIER con animaciones y efectos
+    btn_base = (
+        "group relative inline-flex items-center justify-center gap-2 px-3 py-1.5 "
+        "text-[10px] font-black uppercase tracking-[0.15em] rounded-xl shadow-lg "
+        "transition-all duration-300 overflow-hidden disabled:opacity-50 "
+        "disabled:cursor-not-allowed disabled:grayscale "
+        "hover:scale-[1.02] active:scale-[0.98]"
     )
+    
+    # =========================================================
+    # 🔥 BOTÓN PRINCIPAL: FULL SNIPER (Con polling y actualización en tiempo real)
+    # =========================================================
+    sniper_btn = format_html(
+        '''<button type="button" 
+            hx-get="{url}" 
+            hx-target="#recon-panel-{pk}" 
+            hx-swap="outerHTML"
+            hx-disabled-elt="this"
+            hx-indicator="#sniper-spinner-{pk}"
+            class="{classes} bg-gradient-to-r from-red-600 via-red-500 to-purple-700 
+                   hover:from-red-500 hover:to-purple-500 
+                   shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:shadow-[0_0_30px_rgba(220,38,38,0.8)]
+                   ring-1 ring-white/20 hover:ring-white/40
+                   border border-white/10"
+            title="Ejecuta el Ghost Sniper para extraer emails, teléfonos, LMS y generar reporte cósmico">
+            <div class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent 
+                        -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out"></div>
+            <span class="material-symbols-outlined text-[14px] group-active:scale-90 transition-transform 
+                         drop-shadow-md pointer-events-none">my_location</span>
+            <span class="relative z-10 drop-shadow-md pointer-events-none">FULL SNIPER</span>
+            <span id="sniper-spinner-{pk}" class="htmx-indicator ml-1">
+                <svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </span>
+        </button>''',
+        url=url_sniper,
+        pk=obj.pk,
+        classes=btn_base
+    )
+    
+    # =========================================================
+    # 📊 BOTÓN COSMIC: Reporte cósmico completo (vista admin)
+    # =========================================================
+    report_btn = format_html(
+        '''<a href="{url_report}" 
+            target="_blank" 
+            class="{classes} bg-gradient-to-r from-purple-600 to-indigo-600 
+                   hover:from-purple-500 hover:to-indigo-500
+                   shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)]
+                   ring-1 ring-purple-500/30 hover:ring-purple-400/50
+                   border border-white/10"
+            title="Ver reporte cósmico completo con análisis de IA (IB, Cambridge, STEM, Robótica, ICFES)">
+            <span class="material-symbols-outlined text-[14px] drop-shadow-md">psychology</span>
+            <span class="pointer-events-none">COSMIC</span>
+            <span class="absolute -top-1 -right-1 flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+            </span>
+        </a>''',
+        url_report=url_report,
+        classes=btn_base
+    )
+    
+    # =========================================================
+    # 🌌 BOTÓN FULL: Reporte externo profesional (nueva ventana)
+    # =========================================================
+    external_btn = format_html(
+        '''<a href="{url_external}" 
+            target="_blank" 
+            class="{classes} bg-gradient-to-r from-indigo-600 to-purple-700 
+                   hover:from-indigo-500 hover:to-purple-600
+                   shadow-[0_0_20px_rgba(99,102,241,0.4)] hover:shadow-[0_0_30px_rgba(99,102,241,0.6)]
+                   ring-1 ring-indigo-500/30 hover:ring-indigo-400/50
+                   border border-white/10"
+            title="Abrir reporte cósmico en ventana externa con formato profesional">
+            <span class="material-symbols-outlined text-[14px] drop-shadow-md">open_in_new</span>
+            <span class="pointer-events-none">FULL</span>
+        </a>''',
+        url_external=url_external,
+        classes=btn_base
+    )
+    
+    # =========================================================
+    # 🛠️ BOTONES SECUNDARIOS: SCAN LMS y DEEP RECON
+    # =========================================================
+    secondary_btns = ""
+    if obj.website:
+        url_lms = reverse('admin:sales_globalpipeline_scan_lms', args=[obj.pk])
+        url_deep = reverse('admin:sales_globalpipeline_scan_deep', args=[obj.pk])
+        
+        secondary_btns = format_html(
+            '''<div class="flex gap-1 mt-1">
+                <button type="button" 
+                    hx-get="{url_lms}" 
+                    hx-target="#recon-panel-{pk}" 
+                    hx-swap="outerHTML"
+                    hx-disabled-elt="this"
+                    class="{classes} bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white 
+                           hover:shadow-[0_0_15px_rgba(100,116,139,0.4)]
+                           ring-1 ring-slate-700/50 dark:bg-slate-200 dark:text-slate-800 
+                           dark:hover:bg-white dark:ring-slate-300 transition-all duration-300"
+                    title="Escaneo rápido de LMS (Moodle, Canvas, Phidias, Schoolnet)">
+                    <span class="material-symbols-outlined text-[13px] pointer-events-none">radar</span>
+                    <span class="pointer-events-none">SCAN LMS</span>
+                </button>
+                <button type="button" 
+                    hx-get="{url_deep}" 
+                    hx-target="#recon-panel-{pk}" 
+                    hx-swap="outerHTML"
+                    hx-disabled-elt="this"
+                    class="{classes} bg-[#050505] text-slate-500 hover:bg-[#111] hover:text-emerald-400 
+                           hover:shadow-[0_0_15px_rgba(16,185,129,0.3)]
+                           ring-1 ring-white/5 transition-all duration-300"
+                    title="Reconocimiento profundo con Playwright (extrae emails, teléfonos, redes sociales)">
+                    <span class="material-symbols-outlined text-[13px] pointer-events-none">memory</span>
+                    <span class="pointer-events-none">DEEP RECON</span>
+                </button>
+            </div>''',
+            url_lms=url_lms,
+            url_deep=url_deep,
+            pk=obj.pk,
+            classes=btn_base
+        )
+    
+    # =========================================================
+    # 🎨 RETORNO DEL PANEL COMPLETO CON ANIMACIONES
+    # =========================================================
+    return format_html(
+        '''<div id="recon-panel-{pk}" 
+                class="whitespace-nowrap min-w-[260px] flex flex-col gap-1 
+                       animate-in fade-in zoom-in-95 duration-300 ease-out
+                       transition-all hover:scale-[1.02]">
+            <div class="flex gap-1 bg-black/20 p-1 rounded-lg backdrop-blur-sm">
+                {sniper_btn}{report_btn}{external_btn}
+            </div>
+            {secondary_btns}
+            <div class="text-[8px] text-slate-500 font-mono text-center mt-1 opacity-60">
+                ⚡ Sniper completo | 🌌 Cosmic IA | 🔍 Deep recon
+            </div>
+        </div>''',
+        pk=obj.pk,
+        sniper_btn=sniper_btn,
+        report_btn=report_btn,
+        external_btn=external_btn,
+        secondary_btns=secondary_btns
+    )
+
+
 # ==========================================
 # 3. DASHBOARD CENTRAL (COMMAND CENTER) - VERSIÓN OMEGA
 # ==========================================
@@ -1887,12 +2234,79 @@ class GeoRadarWorkspaceAdmin(ModelAdmin):
             path('results/<str:mission_id>/', self.admin_site.admin_view(self.get_radar_results), name='radar_results'),
         ] + urls
 
-    def deploy_radar(self, request):
+    '''def deploy_radar(self, request):
         country = request.POST.get('country')
         city = request.POST.get('city')
         mission_id = request.POST.get('mission_id')
         task_run_osm_radar.delay(country, city, mission_id)
-        return HttpResponse('<div class="p-4 bg-gradient-to-r from-purple-950/30 to-indigo-950/30 border border-purple-500/30 rounded-xl animate-pulse text-purple-400 text-xs font-bold uppercase tracking-widest flex items-center gap-3"><span class="material-symbols-outlined animate-spin">sync</span> 🌌 Satélite Cósmico Desplegado. Barrido multidimensional en progreso...</div>')
+        return HttpResponse('<div class="p-4 bg-gradient-to-r from-purple-950/30 to-indigo-950/30 border border-purple-500/30 rounded-xl animate-pulse text-purple-400 text-xs font-bold uppercase tracking-widest flex items-center gap-3"><span class="material-symbols-outlined animate-spin">sync</span> 🌌 Satélite Cósmico Desplegado. Barrido multidimensional en progreso...</div>')'''# En la clase GeoRadarWorkspaceAdmin, modifica el método deploy_radar:
+
+    def deploy_radar(self, request):
+        country = request.POST.get('country', '').strip()
+        city = request.POST.get('city', '').strip()
+        mission_id = request.POST.get('mission_id', '')
+        limit = int(request.POST.get('limit', 500))
+        extreme_mode = request.POST.get('extreme_mode') == 'true'
+        
+        # Validación básica
+        if not country or not city:
+            return HttpResponse('<div class="p-4 bg-red-950/50 border border-red-500/50 rounded-xl text-red-400 text-xs font-bold uppercase tracking-widest">❌ País y ciudad son requeridos</div>')
+        
+        # Importar el orquestador
+        from sales.engine.osm_engine import execute_radar_mission
+        
+        # Ejecutar la misión
+        result = execute_radar_mission(
+            country=country,
+            city=city,
+            limit=limit,
+            mission_id=mission_id,
+            extreme_mode=extreme_mode
+        )
+        
+        if result.get('error'):
+            return HttpResponse(f'<div class="p-4 bg-red-950/50 border border-red-500/50 rounded-xl text-red-400 text-xs font-bold uppercase tracking-widest">❌ {result["error"]}</div>')
+        
+        # Construir mensaje de respuesta con animación
+        if result.get('extreme_mode') and result.get('sniper_triggered'):
+            message = f"""
+            <div class="p-4 bg-gradient-to-r from-amber-950/50 to-red-950/50 border border-amber-500/50 rounded-xl animate-pulse">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-amber-500 animate-spin">rocket_launch</span>
+                    <div>
+                        <div class="text-amber-400 text-xs font-bold uppercase tracking-widest">🔥 MODO EXTREMO ACTIVADO</div>
+                        <div class="text-amber-300/80 text-[10px] font-mono mt-1">🎯 {result['created']} instituciones extraídas | 🕵️‍♂️ Ghost Sniper desplegado en segundo plano</div>
+                    </div>
+                </div>
+            </div>
+            """
+        elif result.get('created') > 0:
+            message = f"""
+            <div class="p-4 bg-gradient-to-r from-emerald-950/30 to-teal-950/30 border border-emerald-500/30 rounded-xl">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-emerald-500">satellite_alt</span>
+                    <div>
+                        <div class="text-emerald-400 text-xs font-bold uppercase tracking-widest">✅ MISIÓN COMPLETADA</div>
+                        <div class="text-emerald-300/80 text-[10px] font-mono mt-1">📊 {result['created']} instituciones insertadas | ⏱️ {result['elapsed_ms']:.0f}ms</div>
+                    </div>
+                </div>
+            </div>
+            """
+        else:
+            message = f"""
+            <div class="p-4 bg-slate-800/50 border border-slate-600/50 rounded-xl">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-slate-400">info</span>
+                    <div>
+                        <div class="text-slate-400 text-xs font-bold uppercase tracking-widest">ℹ️ SIN NUEVOS REGISTROS</div>
+                        <div class="text-slate-500 text-[10px] font-mono mt-1">No se encontraron nuevas instituciones en {city}, {country}</div>
+                    </div>
+                </div>
+            </div>
+            """
+        
+        return HttpResponse(message)
+            
    
     def get_radar_results(self, request, mission_id):
         from django.urls import reverse
@@ -2315,3 +2729,100 @@ class InteractionAdmin(ModelAdmin):
             obj.thread_id[:16] if obj.thread_id else 'N/A',
             mark_safe(outbound_html), mark_safe(inbound_html)
         )
+
+
+
+# Si quieres agregar las animaciones al CSS del admin, puedes añadir esto:
+ADMIN_CUSTOM_CSS = """
+<style>
+@keyframes progress {
+    0% {
+        width: 10%;
+        opacity: 0.5;
+    }
+    50% {
+        width: 70%;
+        opacity: 1;
+    }
+    100% {
+        width: 90%;
+        opacity: 0.8;
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(200%);
+    }
+}
+
+.animate-shimmer {
+    animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Estados de escaneo */
+.scan-phase {
+    transition: all 0.3s ease;
+}
+
+.scan-phase.completed {
+    color: #10b981;
+}
+
+.scan-phase.active {
+    color: #f59e0b;
+    text-shadow: 0 0 5px rgba(245, 158, 11, 0.5);
+}
+
+/* Indicadores de estado */
+.status-badge {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+}
+
+.status-badge.active {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-badge.completed {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Efecto de brillo para botones */
+.glow-effect {
+    position: relative;
+    overflow: hidden;
+}
+
+.glow-effect::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -60%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        to right,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transform: rotate(30deg);
+    animation: shimmer 2s infinite;
+    pointer-events: none;
+}
+</style>
+"""
